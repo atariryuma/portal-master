@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f4f9;
+      color: #333;
+    }
+    h1 {
+      font-size: 1.5em;
+      text-align: center;
+      color: #4a4a4a;
+      margin-bottom: 20px;
+    }
+    form {
+      max-width: 380px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #fff;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin: 10px 0 5px;
+      color: #555;
+    }
+    input[type="date"],
+    input[type="number"] {
+      width: calc(100% - 10px); /* 入力フィールドの右側に少しスペースを追加 */
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1em;
+      background-color: #fafafa;
+      transition: border-color 0.2s;
+    }
+    input[type="date"]:focus,
+    input[type="number"]:focus {
+      border-color: #888;
+      outline: none;
+    }
+    input[type="button"] {
+      width: 100%;
+      padding: 10px;
+      background-color: #4a90e2;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    input[type="button"]:hover {
+      background-color: #357abd;
+    }
+    .section-title {
+      font-weight: bold;
+      margin-top: 20px;
+      color: #333;
+      font-size: 1.2em;
+      text-align: center;
+    }
+  </style>
+  <script>
+    function setDefaultStartDate() {
+      var today = new Date();
+      var year = today.getMonth() < 3 ? today.getFullYear() - 1 : today.getFullYear();
+      var defaultStartDate = new Date(year, 3, 1); // 4月1日
+
+      // 日本時間でのタイムゾーンオフセットを考慮して設定
+      defaultStartDate.setHours(defaultStartDate.getHours() + 9);  // JSTはUTC+9時間
+
+      var formattedDate = defaultStartDate.toISOString().split('T')[0];
+      document.getElementById('startDate').value = formattedDate;
+    }
+
+    function submitForm() {
+      var startDate = document.getElementById('startDate').value;
+      var endDate = document.getElementById('endDate').value;
+
+      var gradeHours = {
+        1: document.getElementById('grade1').value,
+        2: document.getElementById('grade2').value,
+        3: document.getElementById('grade3').value,
+        4: document.getElementById('grade4').value,
+        5: document.getElementById('grade5').value,
+        6: document.getElementById('grade6').value
+      };
+
+      google.script.run.processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours);
+      google.script.host.close();
+    }
+
+    function adjustDialogSize() {
+      google.script.host.setHeight(document.body.scrollHeight + 20); // 余白分を追加
+      google.script.host.setWidth(document.body.scrollWidth + 20);  // 余白分を追加
+    }
+
+    window.onload = function() {
+      setDefaultStartDate();
+      adjustDialogSize();
+    };
+  </script>
+</head>
+<body>
+  <form>
+    <label for="startDate">開始日:</label>
+    <input type="date" id="startDate" required>
+    <label for="endDate">終了日:</label>
+    <input type="date" id="endDate" required>
+
+    <div class="section-title">標準授業時数</div>
+
+    <label for="grade1">1年:</label>
+    <input type="number" id="grade1" value="850" required>
+    <label for="grade2">2年:</label>
+    <input type="number" id="grade2" value="910" required>
+    <label for="grade3">3年:</label>
+    <input type="number" id="grade3" value="980" required>
+    <label for="grade4">4年:</label>
+    <input type="number" id="grade4" value="1015" required>
+    <label for="grade5">5年:</label>
+    <input type="number" id="grade5" value="1015" required>
+    <label for="grade6">6年:</label>
+    <input type="number" id="grade6" value="1015" required>
+
+    <input type="button" value="送信" onclick="submitForm()">
+  </form>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(clasp clone:*)",
+      "Bash(clasp push:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
