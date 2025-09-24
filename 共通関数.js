@@ -262,7 +262,7 @@ function createDateMap(sheet, dateColumn = 'B') {
  */
 function convertFullWidthToHalfWidth(str) {
   if (!str) return '';
-  
+
   return str.replace(/[！-～]/g, function(tmpStr) {
     return String.fromCharCode(tmpStr.charCodeAt(0) - 0xFEE0);
   })
@@ -272,4 +272,53 @@ function convertFullWidthToHalfWidth(str) {
   .replace(/￥/g, "\\")
   .replace(/　/g, " ")
   .replace(/〜/g, "~");
+}
+
+// ========================================
+// シート管理関数
+// ========================================
+
+/**
+ * 年間行事予定表シートを安全に取得
+ * @return {GoogleAppsScript.Spreadsheet.Sheet|null} シートオブジェクトまたはnull
+ */
+function getAnnualScheduleSheet() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('年間行事予定表');
+
+    if (!sheet) {
+      Logger.log('[WARNING] 年間行事予定表シートが見つかりません');
+      return null;
+    }
+
+    // シートの基本的な妥当性をチェック
+    const lastRow = sheet.getLastRow();
+    const lastColumn = sheet.getLastColumn();
+
+    if (lastRow < 2 || lastColumn < 10) {
+      Logger.log('[WARNING] 年間行事予定表シートのデータが不完全です（行数: ' + lastRow + ', 列数: ' + lastColumn + '）');
+      return null;
+    }
+
+    Logger.log('[INFO] 年間行事予定表シートを正常に取得しました（行数: ' + lastRow + ', 列数: ' + lastColumn + '）');
+    return sheet;
+
+  } catch (error) {
+    Logger.log('[ERROR] 年間行事予定表シート取得エラー: ' + error.toString());
+    return null;
+  }
+}
+
+/**
+ * 年間行事予定表シートを安全に取得（エラー時は例外を投げる）
+ * @return {GoogleAppsScript.Spreadsheet.Sheet} シートオブジェクト
+ * @throws {Error} シートが見つからない場合
+ */
+function getAnnualScheduleSheetOrThrow() {
+  const sheet = getAnnualScheduleSheet();
+  if (!sheet) {
+    throw new Error('年間行事予定表シートが見つからないか、データが不完全です。シートの存在とデータの妥当性を確認してください。');
+  }
+  return sheet;
 }

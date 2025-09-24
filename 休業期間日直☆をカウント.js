@@ -1,12 +1,12 @@
 function countStars() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  
+
   // シートの存在をチェック
-  var yearlyScheduleSheet = ss.getSheetByName("年間行事予定表");
+  var yearlyScheduleSheet = getAnnualScheduleSheet(); // 共通関数を使用
   var dutyRosterSheet = ss.getSheetByName("日直表");
 
   if (!yearlyScheduleSheet) {
-    SpreadsheetApp.getUi().alert("エラー: 「年間行事予定表」シートが見つかりません。");
+    SpreadsheetApp.getUi().alert("エラー: 年間行事予定表シートが見つからないか、データが不完全です。");
     return;
   }
   if (!dutyRosterSheet) {

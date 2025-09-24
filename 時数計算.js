@@ -30,9 +30,9 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
   var categories = EVENT_CATEGORIES;
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var srcSheet = ss.getSheetByName('年間行事予定表');
+  var srcSheet = getAnnualScheduleSheet(); // 共通関数を使用
   if (!srcSheet) {
-    SpreadsheetApp.getUi().alert('「年間行事予定表」シートが見つかりません。');
+    SpreadsheetApp.getUi().alert('年間行事予定表シートが見つからないか、データが不完全です。');
     return;
   }
   var data = srcSheet.getDataRange().getValues();

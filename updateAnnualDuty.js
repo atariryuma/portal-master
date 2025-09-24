@@ -2,7 +2,7 @@ function updateAnnualDuty() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
   const masterSheet = ss.getSheetByName('マスター');
-  const eventSheet = ss.getSheetByName('年間行事予定表');
+  const eventSheet = getAnnualScheduleSheetOrThrow(); // 共通関数を使用してエラーハンドリング
   
   // A2:AP のデータを取得（必要な列まで取得）
   const masterData = masterSheet.getRange('A2:AP' + masterSheet.getLastRow()).getValues();

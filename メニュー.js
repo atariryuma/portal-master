@@ -64,6 +64,7 @@ function showCreatorInfo() {
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'ポータルマスター - 製作者情報');
 }
 
+
 /**
  * 使い方ガイドを表示する関数
  */
@@ -124,3 +125,4 @@ function showUserGuide() {
     SpreadsheetApp.getUi().showModalDialog(fallbackHtml, 'ポータルマスター - 使い方ガイド');
   }
 }
+

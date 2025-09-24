@@ -25,8 +25,7 @@ function calculateCumulativeHours() {
     // 共通関数からカテゴリーを取得し、授業時数を追加
     const categories = Object.assign({"授業時数": "授業時数"}, EVENT_CATEGORIES);
 
-    const srcSheet = destSpreadsheet.getSheetByName('年間行事予定表');
-    if (!srcSheet) throw new Error('「年間行事予定表」シートが見つかりません。');
+    const srcSheet = getAnnualScheduleSheetOrThrow(); // 共通関数を使用してエラーハンドリング
 
     const data = srcSheet.getDataRange().getValues();
     const cumulativeSheet = getSheetByNameOrThrow('累計時数');

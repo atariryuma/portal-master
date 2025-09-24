@@ -2,7 +2,12 @@ function CopyAndClear() {
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();   //アクティブなスプレッドシートを取得
   var sh1 = ss.getSheetByName('年度更新作業');    //「年度更新作業」シートの指定
-  var sh2 = ss.getSheetByName('年間行事予定表');    //「年間行事予定表」シートの指定
+  var sh2 = getAnnualScheduleSheet();    // 共通関数を使用
+
+  if (!sh2) {
+    SpreadsheetApp.getUi().alert('エラー: 年間行事予定表シートが見つからないか、データが不完全です。');
+    return;
+  }
 
   var id = ss.getId();    //スプレッドシートのIDを取得
   var file = DriveApp.getFileById(id);    //コピーするファイルを指定

@@ -1,5 +1,5 @@
 function syncCalendars() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("年間行事予定表");
+  const sheet = getAnnualScheduleSheetOrThrow(); // 共通関数を使用してエラーハンドリング
   const data = sheet.getDataRange().getValues();
 
   // 共通関数を使用してカレンダーIDを取得

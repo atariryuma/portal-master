@@ -1,5 +1,10 @@
 function setDailyHyperlink() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('年間行事予定表');
+  const sheet = getAnnualScheduleSheet(); // 共通関数を使用
+  if (!sheet) {
+    Logger.log('[ERROR] 年間行事予定表シートが見つかりません');
+    return;
+  }
+
   const today = new Date();
   const formattedToday = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy-MM-dd");
   const dataRange = sheet.getRange("B2:B");
