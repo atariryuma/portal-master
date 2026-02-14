@@ -1,6 +1,7 @@
 /**
  * @fileoverview モジュール学習管理機能
- * @description 2か月クール計画を基準に、日次計画・累計連携・例外反映を統合管理します。
+ * @description module_control 1シートに計画入力と例外入力を集約し、
+ *              日次配分は再計算時にメモリ上で生成して累計時数へ統合します。
  */
 
 const MODULE_DEFAULT_CYCLES = [
@@ -15,6 +16,8 @@ const MODULE_DISPLAY_HEADER = 'MOD実施累計(表示)';
 const MODULE_WEEKLY_LABEL = '今週';
 const MODULE_GRADE_MIN = 1;
 const MODULE_GRADE_MAX = 6;
+const MODULE_SETTINGS_PREFIX = 'MODULE_';
+
 const MODULE_WEEKDAY_PRIORITY = {
   1: 0, // 月
   3: 1, // 水
@@ -23,14 +26,47 @@ const MODULE_WEEKDAY_PRIORITY = {
   4: 4  // 木
 };
 
+const MODULE_CONTROL_MARKERS = {
+  PLAN: 'PLAN_TABLE',
+  EXCEPTIONS: 'EXCEPTIONS_TABLE'
+};
+
+const MODULE_CONTROL_DEFAULT_LAYOUT = {
+  VERSION_ROW: 1,
+  PLAN_MARKER_ROW: 3,
+  EXCEPTIONS_MARKER_ROW: 40
+};
+
+const MODULE_CONTROL_PLAN_HEADERS = [
+  'fiscal_year',
+  'cycle_order',
+  'start_month',
+  'end_month',
+  'g1_koma',
+  'g2_koma',
+  'g3_koma',
+  'g4_koma',
+  'g5_koma',
+  'g6_koma',
+  'note'
+];
+
+const MODULE_CONTROL_EXCEPTION_HEADERS = [
+  'date',
+  'grade',
+  'delta_sessions',
+  'reason',
+  'note'
+];
+
 /**
  * モジュール学習管理ダイアログを表示
  */
 function showModulePlanningDialog() {
   try {
     const htmlOutput = HtmlService.createHtmlOutputFromFile('modulePlanningDialog')
-      .setWidth(600)
-      .setHeight(520);
+      .setWidth(980)
+      .setHeight(720);
     SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'モジュール学習管理');
   } catch (error) {
     showAlert('モジュール学習管理ダイアログの表示に失敗しました: ' + error.toString(), 'エラー');
@@ -54,18 +90,31 @@ function getModulePlanningDefaults() {
  * @return {Object} ダイアログ状態
  */
 function getModulePlanningDialogState() {
+  const startedAt = new Date().getTime();
   const sheets = initializeModuleHoursSheetsIfNeeded();
-  // 再集計と同じ基準日（当日/次の土曜）で年度を揃える
   const baseDate = normalizeToDate(getCurrentOrNextSaturday());
   const fiscalYear = getFiscalYear(baseDate);
   const fiscalRange = getFiscalYearDateRange(fiscalYear);
 
-  ensureDefaultCyclePlanForFiscalYear(fiscalYear);
+  ensureDefaultCyclePlanForFiscalYear(fiscalYear, sheets.controlSheet);
 
-  const settingsMap = readModuleSettingsMap(sheets.settingsSheet);
-  const savedRange = getModulePlanningRangeFromSettings(sheets.settingsSheet, baseDate);
+  const settingsMap = readModuleSettingsMap();
+  const savedRange = getModulePlanningRangeFromSettings(null, baseDate);
+  const dailyPlanCount = getCachedDailyPlanCountForDialog(settingsMap);
+  const cyclePlans = buildDialogCyclePlansForFiscalYear(fiscalYear, sheets.controlSheet);
+  const recentExceptions = listRecentExceptionsForFiscalYear(sheets.controlSheet, fiscalYear, 10);
 
-  return {
+  try {
+    const cumulativeSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('累計時数');
+    if (cumulativeSheet) {
+      const displayColumn = resolveCumulativeDisplayColumn(cumulativeSheet);
+      enforceModuleCumulativeColumnVisibility(cumulativeSheet, displayColumn);
+    }
+  } catch (error) {
+    Logger.log('[WARNING] 累計時数の列表示制御に失敗: ' + error.toString());
+  }
+
+  const state = {
     baseDate: formatInputDate(baseDate),
     fiscalYear: fiscalYear,
     fiscalYearStartDate: formatInputDate(fiscalRange.startDate),
@@ -73,30 +122,133 @@ function getModulePlanningDialogState() {
     startDate: formatInputDate(savedRange.startDate),
     endDate: formatInputDate(savedRange.endDate),
     lastGeneratedAt: formatDateTimeForDisplay(settingsMap[MODULE_SETTING_KEYS.LAST_GENERATED_AT]),
-    cyclePlanRecordCount: countRowsByFiscalYear(sheets.cyclePlanSheet, fiscalYear, 0),
-    dailyPlanRecordCount: countRowsByFiscalYear(sheets.dailyPlanSheet, fiscalYear, 1),
-    cumulativeDisplayColumn: settingsMap[MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN] || ''
+    cyclePlanRecordCount: countCyclePlanRowsForFiscalYear(sheets.controlSheet, fiscalYear),
+    dailyPlanRecordCount: dailyPlanCount,
+    exceptionRecordCount: countExceptionRowsForFiscalYear(sheets.controlSheet, fiscalYear),
+    cumulativeDisplayColumn: settingsMap[MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN] || '',
+    cyclePlans: cyclePlans,
+    recentExceptions: recentExceptions
   };
+
+  const elapsedMs = new Date().getTime() - startedAt;
+  if (elapsedMs >= 2000) {
+    Logger.log('[PERF] getModulePlanningDialogState: ' + elapsedMs + 'ms');
+  }
+
+  return state;
 }
 
 /**
- * module_cycle_plan シートを開く
+ * ダイアログ用の日次件数キャッシュ値を取得
+ * @param {Object} settingsMap - 設定マップ
+ * @return {number} 件数
+ */
+function getCachedDailyPlanCountForDialog(settingsMap) {
+  const value = Number(settingsMap[MODULE_SETTING_KEYS.LAST_DAILY_PLAN_COUNT]);
+  if (!Number.isFinite(value) || value < 0) {
+    return 0;
+  }
+  return Math.round(value);
+}
+
+/**
+ * ダイアログ表示用のクール計画を取得
+ * @param {number} fiscalYear - 対象年度
+ * @return {Array<Object>} 計画配列
+ */
+function buildDialogCyclePlansForFiscalYear(fiscalYear, controlSheet) {
+  const plans = loadCyclePlanForFiscalYear(fiscalYear, controlSheet);
+  return plans.map(function(plan) {
+    return {
+      cycleOrder: plan.cycleOrder,
+      startMonth: plan.startMonth,
+      endMonth: plan.endMonth,
+      g1Koma: plan.gradeKoma[1],
+      g2Koma: plan.gradeKoma[2],
+      g3Koma: plan.gradeKoma[3],
+      g4Koma: plan.gradeKoma[4],
+      g5Koma: plan.gradeKoma[5],
+      g6Koma: plan.gradeKoma[6],
+      note: plan.note || ''
+    };
+  });
+}
+
+/**
+ * 対象年度の最近の実施差分を返却
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @param {number} fiscalYear - 対象年度
+ * @param {number} limitCount - 取得件数
+ * @return {Array<Object>} 実施差分配列
+ */
+function listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, limitCount) {
+  const limit = Math.max(1, Number(limitCount) || 10);
+  const targetFiscalYear = Number(fiscalYear);
+
+  return readExceptionRows(controlSheet)
+    .map(function(item) {
+      return {
+        rowNumber: item.rowNumber,
+        date: normalizeToDate(item.date),
+        grade: Number(item.grade),
+        deltaSessions: Math.round(toNumberOrZero(item.deltaSessions)),
+        reason: item.reason || '',
+        note: item.note || ''
+      };
+    })
+    .filter(function(item) {
+      return !!item.date &&
+        getFiscalYear(item.date) === targetFiscalYear &&
+        Number.isInteger(item.grade) &&
+        item.grade >= MODULE_GRADE_MIN &&
+        item.grade <= MODULE_GRADE_MAX;
+    })
+    .sort(function(a, b) {
+      if (a.date.getTime() !== b.date.getTime()) {
+        return b.date.getTime() - a.date.getTime();
+      }
+      return b.rowNumber - a.rowNumber;
+    })
+    .slice(0, limit)
+    .map(function(item) {
+      return {
+        date: formatInputDate(item.date),
+        grade: item.grade,
+        deltaSessions: item.deltaSessions,
+        deltaDisplay: formatSignedSessionsAsMixedFraction(item.deltaSessions),
+        reason: item.reason,
+        note: item.note
+      };
+    });
+}
+
+/**
+ * 旧互換: 管理画面を開く
+ * @param {string=} section - 表示セクション（plan / exceptions）
+ * @return {string} 完了メッセージ
+ */
+function openModuleControlSheet(section) {
+  showModulePlanningDialog();
+  if (section === 'exceptions') {
+    return 'モジュール学習管理を開きました（実施差分入力）。';
+  }
+  return 'モジュール学習管理を開きました（計画入力）。';
+}
+
+/**
+ * 旧互換: cycle 計画シートを開く
  * @return {string} 完了メッセージ
  */
 function openModuleCyclePlanSheet() {
-  const sheets = initializeModuleHoursSheetsIfNeeded();
-  SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(sheets.cyclePlanSheet);
-  return 'module_cycle_plan を開きました。';
+  return openModuleControlSheet('plan');
 }
 
 /**
- * module_daily_plan シートを開く
+ * 旧互換: daily 計画シートを開く
  * @return {string} 完了メッセージ
  */
 function openModuleDailyPlanSheet() {
-  const sheets = initializeModuleHoursSheetsIfNeeded();
-  SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(sheets.dailyPlanSheet);
-  return 'module_daily_plan を開きました。';
+  return openModuleControlSheet('exceptions');
 }
 
 /**
@@ -110,8 +262,145 @@ function refreshModulePlanning() {
     'モジュール学習集計を更新しました。',
     '基準日: ' + formatInputDate(result.baseDate),
     '対象年度: ' + result.fiscalYear + '年度',
-    '日次計画件数: ' + result.dailyPlanCount + '件'
+    '日次計画件数（再計算）: ' + result.dailyPlanCount + '件'
   ].join('\n');
+}
+
+/**
+ * ダイアログから受け取ったクール計画を保存して再集計
+ * @param {Object} payload - 入力データ
+ * @return {string} 完了メッセージ
+ */
+function saveModuleCyclePlanFromDialog(payload) {
+  const fiscalYear = Number(payload && payload.fiscalYear);
+  if (!Number.isInteger(fiscalYear) || fiscalYear < 2000 || fiscalYear > 2100) {
+    throw new Error('対象年度が不正です。');
+  }
+
+  const plans = payload && Array.isArray(payload.plans) ? payload.plans : [];
+  const rows = normalizeCyclePlanRowsFromDialog(fiscalYear, plans);
+  if (rows.length === 0) {
+    throw new Error('保存対象のクール計画がありません。');
+  }
+
+  const sheets = initializeModuleHoursSheetsIfNeeded();
+  replaceCyclePlanRowsForFiscalYearInControl(sheets.controlSheet, fiscalYear, rows);
+
+  const baseDate = normalizeToDate(payload && payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
+  const result = syncModuleHoursWithCumulative(baseDate);
+
+  return [
+    '計画を保存して再集計しました。',
+    '対象年度: ' + fiscalYear + '年度',
+    '計画件数: ' + rows.length + '件',
+    '基準日: ' + formatInputDate(result.baseDate)
+  ].join('\n');
+}
+
+/**
+ * ダイアログから実施差分を追加して再集計
+ * @param {Object} payload - 入力データ
+ * @return {string} 完了メッセージ
+ */
+function addModuleExceptionFromDialog(payload) {
+  const exceptionDate = normalizeToDate(payload && payload.date);
+  if (!exceptionDate) {
+    throw new Error('日付が不正です。');
+  }
+
+  const grade = Number(payload && payload.grade);
+  if (!Number.isInteger(grade) || grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
+    throw new Error('学年は1〜6で入力してください。');
+  }
+
+  const deltaSessions = Math.round(toNumberOrZero(payload && payload.deltaSessions));
+  if (!Number.isFinite(deltaSessions) || deltaSessions === 0) {
+    throw new Error('調整値は0以外の数値を入力してください。');
+  }
+
+  const reason = String(payload && payload.reason ? payload.reason : '').trim();
+  const note = String(payload && payload.note ? payload.note : '').trim();
+
+  const sheets = initializeModuleHoursSheetsIfNeeded();
+  appendExceptionRows(sheets.controlSheet, [[exceptionDate, grade, deltaSessions, reason, note]]);
+
+  const baseDate = normalizeToDate(payload && payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
+  const result = syncModuleHoursWithCumulative(baseDate);
+
+  return [
+    '実施差分を保存して再集計しました。',
+    '入力: ' + formatInputDate(exceptionDate) + ' / ' + grade + '年 / ' + formatSignedSessionsAsMixedFraction(deltaSessions),
+    '基準日: ' + formatInputDate(result.baseDate)
+  ].join('\n');
+}
+
+/**
+ * ダイアログ入力値をクール計画行へ正規化
+ * @param {number} fiscalYear - 対象年度
+ * @param {Array<Object>} plans - 入力計画
+ * @return {Array<Array<*>>} シート行
+ */
+function normalizeCyclePlanRowsFromDialog(fiscalYear, plans) {
+  const rows = [];
+  const seenOrder = {};
+
+  plans.forEach(function(plan, index) {
+    const cycleOrder = Number(plan && plan.cycleOrder);
+    const startMonth = Number(plan && plan.startMonth);
+    const endMonth = Number(plan && plan.endMonth);
+
+    if (!Number.isInteger(cycleOrder) || cycleOrder <= 0) {
+      throw new Error('クール順が不正です（行 ' + (index + 1) + '）。');
+    }
+    if (seenOrder[cycleOrder]) {
+      throw new Error('クール順が重複しています: ' + cycleOrder);
+    }
+    if (!isValidModuleMonth(startMonth) || !isValidModuleMonth(endMonth)) {
+      throw new Error('開始月または終了月が不正です（クール ' + cycleOrder + '）。');
+    }
+
+    const gradeValues = [];
+    for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+      const key = 'g' + grade + 'Koma';
+      const rawValue = toNumberOrZero(plan && plan[key]);
+      if (rawValue < 0) {
+        throw new Error(grade + '年のコマ数は0以上で入力してください（クール ' + cycleOrder + '）。');
+      }
+      gradeValues.push(Math.round(rawValue * 1000) / 1000);
+    }
+
+    const note = String(plan && plan.note ? plan.note : '').trim();
+
+    rows.push([
+      Number(fiscalYear),
+      cycleOrder,
+      startMonth,
+      endMonth,
+      gradeValues[0],
+      gradeValues[1],
+      gradeValues[2],
+      gradeValues[3],
+      gradeValues[4],
+      gradeValues[5],
+      note
+    ]);
+    seenOrder[cycleOrder] = true;
+  });
+
+  rows.sort(function(a, b) {
+    return Number(a[1]) - Number(b[1]);
+  });
+
+  return rows;
+}
+
+/**
+ * 月値の妥当性を判定
+ * @param {number} month - 月
+ * @return {boolean} 妥当なら true
+ */
+function isValidModuleMonth(month) {
+  return Number.isInteger(month) && month >= 1 && month <= 12;
 }
 
 /**
@@ -127,7 +416,7 @@ function saveModulePlanningRange(startDate, endDate) {
     '対象期間: ' + formatInputDate(result.startDate) + ' ～ ' + formatInputDate(result.endDate),
     '対象年度: ' + result.fiscalYears.join(', '),
     '生成件数: ' + result.recordCount + '件',
-    '※ 現在は module_cycle_plan を編集して計画を管理します。'
+    '※ 設定はモジュール学習管理画面で一元管理します。'
   ].join('\n');
 }
 
@@ -138,7 +427,6 @@ function saveModulePlanningRange(startDate, endDate) {
  * @return {Object} 再生成結果
  */
 function rebuildModulePlanFromRange(startDate, endDate) {
-  const sheets = initializeModuleHoursSheetsIfNeeded();
   const start = normalizeToDate(startDate);
   const end = normalizeToDate(endDate);
 
@@ -158,12 +446,11 @@ function rebuildModulePlanFromRange(startDate, endDate) {
     recordCount += buildResult.dailyPlanCount;
   });
 
-  upsertModuleSettingsValues(sheets.settingsSheet, {
+  upsertModuleSettingsValues(null, {
     PLAN_START_DATE: start,
     PLAN_END_DATE: end
   });
 
-  // 互換API実行時も現在の累計更新フローに合流
   syncModuleHoursWithCumulative(end, {
     preservePlanningRange: {
       startDate: start,
@@ -202,28 +489,29 @@ function syncModuleHoursWithCumulativeInternal(baseDate, options) {
   const fiscalYear = getFiscalYear(normalizedBaseDate);
   const preservePlanningRange = options && options.preservePlanningRange ? options.preservePlanningRange : null;
 
-  ensureDefaultCyclePlanForFiscalYear(fiscalYear);
+  ensureDefaultCyclePlanForFiscalYear(fiscalYear, sheets.controlSheet);
 
-  const buildResult = buildDailyPlanFromCyclePlan(fiscalYear, normalizedBaseDate);
-  const exceptionTotals = loadExceptionTotals(fiscalYear, normalizedBaseDate, sheets.exceptionsSheet);
+  const buildResult = buildDailyPlanFromCyclePlanInternal(fiscalYear, normalizedBaseDate, false, {
+    controlSheet: sheets.controlSheet
+  });
+  const exceptionTotals = loadExceptionTotals(fiscalYear, normalizedBaseDate, sheets.controlSheet);
   const gradeTotals = buildGradeTotalsFromDailyAndExceptions(buildResult.totalsByGrade, exceptionTotals);
 
-  writeModuleSummary(gradeTotals, fiscalYear, normalizedBaseDate, sheets.summarySheet);
-  writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate, sheets.settingsSheet);
+  writeModuleSummary(gradeTotals, fiscalYear, normalizedBaseDate, null);
+  writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate, null);
 
   const settingsUpdates = {
-    LAST_GENERATED_AT: buildResult.generatedAt
+    LAST_GENERATED_AT: new Date(),
+    LAST_DAILY_PLAN_COUNT: buildResult.dailyPlanCount
   };
-  if (preservePlanningRange &&
-      preservePlanningRange.startDate &&
-      preservePlanningRange.endDate) {
+  if (preservePlanningRange && preservePlanningRange.startDate && preservePlanningRange.endDate) {
     settingsUpdates.PLAN_START_DATE = preservePlanningRange.startDate;
     settingsUpdates.PLAN_END_DATE = preservePlanningRange.endDate;
   } else {
     settingsUpdates.PLAN_START_DATE = buildResult.startDate;
     settingsUpdates.PLAN_END_DATE = buildResult.endDate;
   }
-  upsertModuleSettingsValues(sheets.settingsSheet, settingsUpdates);
+  upsertModuleSettingsValues(null, settingsUpdates);
 
   Logger.log('[INFO] モジュール学習計画を累計時数へ統合しました（基準日: ' + formatInputDate(normalizedBaseDate) + '）');
 
@@ -265,12 +553,12 @@ function buildGradeTotalsFromDailyAndExceptions(dailyTotalsByGrade, exceptionTot
 /**
  * 指定年度のデフォルトクール計画を必要時に作成
  * @param {number} fiscalYear - 対象年度
+ * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
  * @return {boolean} 作成した場合true
  */
-function ensureDefaultCyclePlanForFiscalYear(fiscalYear) {
-  const sheets = initializeModuleHoursSheetsIfNeeded();
-  const cycleSheet = sheets.cyclePlanSheet;
-  const existingRows = readCyclePlanRowsByFiscalYear(cycleSheet, fiscalYear);
+function ensureDefaultCyclePlanForFiscalYear(fiscalYear, controlSheet) {
+  const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded().controlSheet;
+  const existingRows = readCyclePlanRowsByFiscalYear(sheet, fiscalYear);
 
   if (existingRows.length > 0) {
     return false;
@@ -278,7 +566,7 @@ function ensureDefaultCyclePlanForFiscalYear(fiscalYear) {
 
   const rows = MODULE_DEFAULT_CYCLES.map(function(cycle) {
     return [
-      fiscalYear,
+      Number(fiscalYear),
       cycle.order,
       cycle.startMonth,
       cycle.endMonth,
@@ -292,29 +580,28 @@ function ensureDefaultCyclePlanForFiscalYear(fiscalYear) {
     ];
   });
 
-  const startRow = cycleSheet.getLastRow() + 1;
-  cycleSheet.getRange(startRow, 1, rows.length, 11).setValues(rows);
+  appendCyclePlanRows(sheet, rows);
   return true;
 }
 
 /**
  * 指定年度のクール計画を読み込み
  * @param {number} fiscalYear - 対象年度
+ * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
  * @return {Array<Object>} クール計画
  */
-function loadCyclePlanForFiscalYear(fiscalYear) {
-  const sheets = initializeModuleHoursSheetsIfNeeded();
-  const cycleSheet = sheets.cyclePlanSheet;
-  let rows = readCyclePlanRowsByFiscalYear(cycleSheet, fiscalYear);
+function loadCyclePlanForFiscalYear(fiscalYear, controlSheet) {
+  const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded().controlSheet;
+  let rows = readCyclePlanRowsByFiscalYear(sheet, fiscalYear);
 
   if (rows.length === 0) {
-    ensureDefaultCyclePlanForFiscalYear(fiscalYear);
-    rows = readCyclePlanRowsByFiscalYear(cycleSheet, fiscalYear);
+    ensureDefaultCyclePlanForFiscalYear(fiscalYear, sheet);
+    rows = readCyclePlanRowsByFiscalYear(sheet, fiscalYear);
   }
 
   const plans = rows.map(function(row) {
     return {
-      fiscalYear: fiscalYear,
+      fiscalYear: Number(fiscalYear),
       cycleOrder: Number(row[1]),
       startMonth: Number(row[2]),
       endMonth: Number(row[3]),
@@ -341,61 +628,76 @@ function loadCyclePlanForFiscalYear(fiscalYear) {
   });
 
   if (plans.length === 0) {
-    throw new Error('module_cycle_plan に有効な計画がありません。');
+    throw new Error('有効なクール計画がありません。モジュール学習管理画面で計画を確認してください。');
   }
 
   return plans;
 }
 
 /**
- * module_cycle_plan から指定年度行を抽出
- * @param {GoogleAppsScript.Spreadsheet.Sheet} cycleSheet - module_cycle_plan
+ * module_control から指定年度の計画行を抽出
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 対象年度
  * @return {Array<Array<*>>} 行データ
  */
-function readCyclePlanRowsByFiscalYear(cycleSheet, fiscalYear) {
-  const lastRow = cycleSheet.getLastRow();
-  if (lastRow <= 1) {
-    return [];
-  }
-
-  const values = cycleSheet.getRange(2, 1, lastRow - 1, 11).getValues();
-  return values.filter(function(row) {
+function readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear) {
+  return readAllCyclePlanRows(controlSheet).filter(function(row) {
     return Number(row[0]) === Number(fiscalYear);
   });
 }
 
 /**
- * クール計画から日次計画を構築して保存
+ * 計画行を全件取得
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @return {Array<Array<*>>} 行データ
+ */
+function readAllCyclePlanRows(controlSheet) {
+  const layout = getModuleControlLayout(controlSheet);
+  const rowCount = layout.exceptionsMarkerRow - layout.planDataStartRow;
+  if (rowCount <= 0) {
+    return [];
+  }
+
+  const values = controlSheet.getRange(layout.planDataStartRow, 1, rowCount, MODULE_CONTROL_PLAN_HEADERS.length).getValues();
+  return values.filter(function(row) {
+    return row.some(function(value) {
+      return isNonEmptyCell(value);
+    });
+  });
+}
+
+/**
+ * クール計画から日次計画を構築（保存はしない）
  * @param {number} fiscalYear - 対象年度
  * @param {Date|string} baseDate - 集計基準日
  * @return {Object} 構築結果
  */
 function buildDailyPlanFromCyclePlan(fiscalYear, baseDate) {
-  return buildDailyPlanFromCyclePlanInternal(fiscalYear, baseDate, true);
+  return buildDailyPlanFromCyclePlanInternal(fiscalYear, baseDate, false);
 }
 
 /**
  * クール計画から日次計画を構築（内部実装）
  * @param {number} fiscalYear - 対象年度
  * @param {Date|string} baseDate - 集計基準日
- * @param {boolean} persistSheets - シートへ保存するか
+ * @param {boolean} persistSheets - 互換引数（未使用）
+ * @param {?Object} options - 実行オプション
  * @return {Object} 構築結果
  */
-function buildDailyPlanFromCyclePlanInternal(fiscalYear, baseDate, persistSheets) {
-  const sheets = initializeModuleHoursSheetsIfNeeded();
+function buildDailyPlanFromCyclePlanInternal(fiscalYear, baseDate, persistSheets, options) {
   const normalizedFiscalYear = Number(fiscalYear);
   const cutoffDate = normalizeToDate(baseDate) || normalizeToDate(new Date());
   const generatedAt = new Date();
-
   const fiscalRange = getFiscalYearDateRange(normalizedFiscalYear);
   const weekStart = getWeekStartMonday(cutoffDate);
-  const cyclePlans = loadCyclePlanForFiscalYear(normalizedFiscalYear);
+  const controlSheet = options && options.controlSheet ? options.controlSheet : null;
+  const cyclePlans = loadCyclePlanForFiscalYear(normalizedFiscalYear, controlSheet);
   const schoolDayMap = buildSchoolDayMapByGradeForFiscalYear(normalizedFiscalYear);
 
   const dailyEntries = [];
   const planRows = [];
   const totalsByGrade = {};
+
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
     totalsByGrade[grade] = {
       plannedSessions: 0,
@@ -410,7 +712,7 @@ function buildDailyPlanFromCyclePlanInternal(fiscalYear, baseDate, persistSheets
 
     for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
       const plannedKoma = toNumberOrZero(plan.gradeKoma[grade]);
-      const plannedSessions = plannedKoma * 3;
+      const plannedSessions = Math.max(0, Math.round(plannedKoma * 3));
       const gradeDates = schoolDayMap[grade].filter(function(date) {
         return !!cycleMonthSet[formatMonthKey(date)];
       });
@@ -487,14 +789,7 @@ function buildDailyPlanFromCyclePlanInternal(fiscalYear, baseDate, persistSheets
   });
 
   if (persistSheets) {
-    replaceRowsForFiscalYear(sheets.dailyPlanSheet, dailyRows, normalizedFiscalYear, 1, 9);
-    replaceRowsForFiscalYear(sheets.planSheet, planRows, normalizedFiscalYear, 0, 8);
-
-    upsertModuleSettingsValues(sheets.settingsSheet, {
-      LAST_GENERATED_AT: generatedAt,
-      PLAN_START_DATE: fiscalRange.startDate,
-      PLAN_END_DATE: fiscalRange.endDate
-    });
+    Logger.log('[INFO] 日次計画は module_control 運用のためシート保存をスキップしました。');
   }
 
   return {
@@ -517,6 +812,7 @@ function buildDailyPlanFromCyclePlanInternal(fiscalYear, baseDate, persistSheets
 function buildSchoolDayMapByGradeForFiscalYear(fiscalYear) {
   const fiscalRange = getFiscalYearDateRange(fiscalYear);
   const result = {};
+
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
     result[grade] = [];
   }
@@ -529,6 +825,7 @@ function buildSchoolDayMapByGradeForFiscalYear(fiscalYear) {
     const grade = row.grade;
     const dateKey = formatInputDate(date);
     const key = dateKey + '_' + grade;
+
     if (unique[key]) {
       return;
     }
@@ -605,8 +902,7 @@ function buildCycleMonthKeySetForFiscalYear(fiscalYear, startMonth, endMonth) {
 
   months.forEach(function(month) {
     const year = month >= MODULE_FISCAL_YEAR_START_MONTH ? fiscalYear : fiscalYear + 1;
-    const key = year + '-' + String(month).padStart(2, '0');
-    set[key] = true;
+    set[year + '-' + String(month).padStart(2, '0')] = true;
   });
 
   return set;
@@ -703,6 +999,7 @@ function sortWeekDatesByPriority(dates) {
   return dates.slice().sort(function(a, b) {
     const priorityA = weekdayPriority(a.getDay());
     const priorityB = weekdayPriority(b.getDay());
+
     if (priorityA !== priorityB) {
       return priorityA - priorityB;
     }
@@ -751,13 +1048,13 @@ function getWeekStartMonday(value) {
 }
 
 /**
- * module_exceptions 集計（基準日まで）
+ * module_control の例外を集計（基準日まで）
  * @param {number} fiscalYear - 対象年度
  * @param {Date} baseDate - 基準日
- * @param {GoogleAppsScript.Spreadsheet.Sheet} exceptionsSheet - module_exceptions
+ * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
  * @return {Object} 学年別例外合計
  */
-function loadExceptionTotals(fiscalYear, baseDate, exceptionsSheet) {
+function loadExceptionTotals(fiscalYear, baseDate, controlSheet) {
   const totals = {
     byGrade: {},
     thisWeekByGrade: {}
@@ -769,28 +1066,22 @@ function loadExceptionTotals(fiscalYear, baseDate, exceptionsSheet) {
     totals.thisWeekByGrade[grade] = 0;
   }
 
-  const lastRow = exceptionsSheet.getLastRow();
-  if (lastRow <= 1) {
-    return totals;
-  }
+  const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded().controlSheet;
+  const rows = readExceptionRows(sheet);
 
-  const values = exceptionsSheet.getRange(2, 1, lastRow - 1, 5).getValues();
-
-  values.forEach(function(row, index) {
-    const exceptionDate = normalizeToDate(row[0]);
-    const grade = Number(row[1]);
-    const delta = toNumberOrZero(row[2]);
+  rows.forEach(function(item) {
+    const exceptionDate = normalizeToDate(item.date);
+    const grade = Number(item.grade);
+    const delta = toNumberOrZero(item.deltaSessions);
 
     if (!exceptionDate || exceptionDate > baseDate) {
       return;
     }
-
     if (getFiscalYear(exceptionDate) !== fiscalYear) {
       return;
     }
-
     if (!Number.isInteger(grade) || grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
-      Logger.log('[WARNING] module_exceptions の入力不正をスキップしました（行: ' + (index + 2) + '）');
+      Logger.log('[WARNING] module_control の例外入力不正をスキップしました（行: ' + item.rowNumber + '）');
       return;
     }
 
@@ -809,31 +1100,24 @@ function loadExceptionTotals(fiscalYear, baseDate, exceptionsSheet) {
  */
 function initializeModuleHoursSheetsIfNeeded() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const controlSheet = getOrCreateSheetByName(ss, MODULE_SHEET_NAMES.CONTROL);
 
-  const settingsSheet = getOrCreateSheetByName(ss, MODULE_SHEET_NAMES.SETTINGS);
-  const cyclePlanSheet = getOrCreateSheetByName(ss, MODULE_SHEET_NAMES.CYCLE_PLAN);
-  const dailyPlanSheet = getOrCreateSheetByName(ss, MODULE_SHEET_NAMES.DAILY_PLAN);
-  const planSheet = getOrCreateSheetByName(ss, MODULE_SHEET_NAMES.PLAN);
-  const exceptionsSheet = getOrCreateSheetByName(ss, MODULE_SHEET_NAMES.EXCEPTIONS);
-  const summarySheet = getOrCreateSheetByName(ss, MODULE_SHEET_NAMES.SUMMARY);
+  ensureModuleControlSheetLayout(controlSheet);
+  ensureModuleSettingKeys();
+  migrateLegacyModuleSheetsToControlIfNeeded(ss, controlSheet);
+  ensureModuleControlSheetLayout(controlSheet);
+  hideLegacyModuleSheets(ss);
+  hideModuleControlSheetIfPossible(ss, controlSheet);
 
-  ensureModuleSheetHeaders(settingsSheet, ['key', 'value']);
-  ensureModuleSheetHeaders(cyclePlanSheet, ['fiscal_year', 'cycle_order', 'start_month', 'end_month', 'g1_koma', 'g2_koma', 'g3_koma', 'g4_koma', 'g5_koma', 'g6_koma', 'note']);
-  ensureModuleSheetHeaders(dailyPlanSheet, ['date', 'fiscal_year', 'cycle_order', 'cycle_label', 'week_key', 'grade', 'planned_sessions', 'elapsed_flag', 'generated_at']);
-  ensureModuleSheetHeaders(planSheet, ['fiscal_year', 'cycle_order', 'cycle_label', 'grade', 'planned_koma', 'planned_sessions', 'allocated_dates', 'generated_at']);
-  ensureModuleSheetHeaders(summarySheet, ['fiscal_year', 'grade', 'planned_sessions', 'elapsed_planned_sessions', 'delta_sessions', 'actual_sessions', 'diff_sessions', 'this_week_sessions', 'base_date', 'calculated_at']);
-
-  ensureModuleSettingKeys(settingsSheet);
-  migrateModuleDataIfNeeded(settingsSheet, exceptionsSheet);
-  ensureModuleSheetHeaders(exceptionsSheet, ['date', 'grade', 'delta_sessions', 'reason', 'note']);
-
+  // 旧互換: 既存コードが参照するプロパティ名を残す
   return {
-    settingsSheet: settingsSheet,
-    cyclePlanSheet: cyclePlanSheet,
-    dailyPlanSheet: dailyPlanSheet,
-    planSheet: planSheet,
-    exceptionsSheet: exceptionsSheet,
-    summarySheet: summarySheet
+    controlSheet: controlSheet,
+    settingsSheet: controlSheet,
+    cyclePlanSheet: controlSheet,
+    dailyPlanSheet: controlSheet,
+    planSheet: controlSheet,
+    exceptionsSheet: controlSheet,
+    summarySheet: controlSheet
   };
 }
 
@@ -852,34 +1136,451 @@ function getOrCreateSheetByName(ss, sheetName) {
 }
 
 /**
- * シートヘッダーを保証
- * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
- * @param {Array<string>} headers - ヘッダー配列
+ * module_control レイアウトを保証
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  */
-function ensureModuleSheetHeaders(sheet, headers) {
-  const current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
-  const needsUpdate = headers.some(function(header, index) {
-    return String(current[index] || '').trim() !== header;
+function ensureModuleControlSheetLayout(controlSheet) {
+  controlSheet.getRange(MODULE_CONTROL_DEFAULT_LAYOUT.VERSION_ROW, 1, 1, 2)
+    .setValues([['MODULE_CONTROL_VERSION', MODULE_DATA_VERSION]]);
+
+  const layout = getModuleControlLayout(controlSheet);
+
+  controlSheet.getRange(layout.planMarkerRow, 1).setValue(MODULE_CONTROL_MARKERS.PLAN);
+  controlSheet.getRange(layout.planHeaderRow, 1, 1, MODULE_CONTROL_PLAN_HEADERS.length)
+    .setValues([MODULE_CONTROL_PLAN_HEADERS]);
+
+  controlSheet.getRange(layout.exceptionsMarkerRow, 1).setValue(MODULE_CONTROL_MARKERS.EXCEPTIONS);
+  controlSheet.getRange(layout.exceptionsHeaderRow, 1, 1, MODULE_CONTROL_EXCEPTION_HEADERS.length)
+    .setValues([MODULE_CONTROL_EXCEPTION_HEADERS]);
+}
+
+/**
+ * module_control のセクション位置を取得
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @return {Object} レイアウト情報
+ */
+function getModuleControlLayout(controlSheet) {
+  let planMarkerRow = findMarkerRow(controlSheet, MODULE_CONTROL_MARKERS.PLAN, false);
+  if (planMarkerRow < 1) {
+    planMarkerRow = MODULE_CONTROL_DEFAULT_LAYOUT.PLAN_MARKER_ROW;
+    controlSheet.getRange(planMarkerRow, 1).setValue(MODULE_CONTROL_MARKERS.PLAN);
+  }
+
+  let exceptionsMarkerRow = findMarkerRow(controlSheet, MODULE_CONTROL_MARKERS.EXCEPTIONS, true);
+  if (exceptionsMarkerRow < 1 || exceptionsMarkerRow <= planMarkerRow + 2) {
+    exceptionsMarkerRow = Math.max(
+      MODULE_CONTROL_DEFAULT_LAYOUT.EXCEPTIONS_MARKER_ROW,
+      planMarkerRow + 20,
+      controlSheet.getLastRow() + 2
+    );
+    controlSheet.getRange(exceptionsMarkerRow, 1).setValue(MODULE_CONTROL_MARKERS.EXCEPTIONS);
+  }
+
+  return {
+    planMarkerRow: planMarkerRow,
+    planHeaderRow: planMarkerRow + 1,
+    planDataStartRow: planMarkerRow + 2,
+    exceptionsMarkerRow: exceptionsMarkerRow,
+    exceptionsHeaderRow: exceptionsMarkerRow + 1,
+    exceptionsDataStartRow: exceptionsMarkerRow + 2
+  };
+}
+
+/**
+ * 指定マーカー行を検索
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
+ * @param {string} marker - マーカー文字列
+ * @param {boolean} useLast - 末尾一致を採用する場合 true
+ * @return {number} 行番号（見つからない場合 -1）
+ */
+function findMarkerRow(sheet, marker, useLast) {
+  const maxRows = Math.max(sheet.getLastRow(), 200);
+  const values = sheet.getRange(1, 1, maxRows, 1).getDisplayValues();
+  let found = -1;
+
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][0] || '').trim() === marker) {
+      found = i + 1;
+      if (!useLast) {
+        break;
+      }
+    }
+  }
+
+  return found;
+}
+
+/**
+ * 計画行を例外セクション直前へ追加
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @param {Array<Array<*>>} rows - 追加行
+ */
+function appendCyclePlanRows(controlSheet, rows) {
+  if (!rows || rows.length === 0) {
+    return;
+  }
+
+  const layout = getModuleControlLayout(controlSheet);
+  const insertRow = layout.exceptionsMarkerRow;
+
+  controlSheet.insertRowsBefore(insertRow, rows.length);
+  controlSheet.getRange(insertRow, 1, rows.length, MODULE_CONTROL_PLAN_HEADERS.length).setValues(rows);
+}
+
+/**
+ * 指定年度の計画行を置換
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @param {number} fiscalYear - 対象年度
+ * @param {Array<Array<*>>} replacementRows - 置換行
+ */
+function replaceCyclePlanRowsForFiscalYearInControl(controlSheet, fiscalYear, replacementRows) {
+  const targetFiscalYear = Number(fiscalYear);
+  const keptRows = readAllCyclePlanRows(controlSheet).filter(function(row) {
+    return Number(row[0]) !== targetFiscalYear;
   });
 
-  if (needsUpdate) {
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  const mergedRows = keptRows.concat(replacementRows).sort(function(a, b) {
+    if (Number(a[0]) !== Number(b[0])) {
+      return Number(a[0]) - Number(b[0]);
+    }
+    return Number(a[1]) - Number(b[1]);
+  });
+
+  let layout = getModuleControlLayout(controlSheet);
+  const currentCapacity = Math.max(layout.exceptionsMarkerRow - layout.planDataStartRow, 0);
+  if (mergedRows.length > currentCapacity) {
+    controlSheet.insertRowsBefore(layout.exceptionsMarkerRow, mergedRows.length - currentCapacity);
+    layout = getModuleControlLayout(controlSheet);
+  }
+
+  const clearRowCount = Math.max(layout.exceptionsMarkerRow - layout.planDataStartRow, 0);
+  if (clearRowCount > 0) {
+    controlSheet.getRange(layout.planDataStartRow, 1, clearRowCount, MODULE_CONTROL_PLAN_HEADERS.length).clearContent();
+  }
+
+  if (mergedRows.length > 0) {
+    controlSheet.getRange(layout.planDataStartRow, 1, mergedRows.length, MODULE_CONTROL_PLAN_HEADERS.length).setValues(mergedRows);
   }
 }
 
 /**
- * module_settings の必須キーを保証
+ * 例外行を末尾へ追加
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @param {Array<Array<*>>} rows - 追加行
+ */
+function appendExceptionRows(controlSheet, rows) {
+  if (!rows || rows.length === 0) {
+    return;
+  }
+
+  const layout = getModuleControlLayout(controlSheet);
+  const start = findFirstEmptyExceptionRow(controlSheet, layout);
+  controlSheet.getRange(start, 1, rows.length, MODULE_CONTROL_EXCEPTION_HEADERS.length).setValues(rows);
+}
+
+/**
+ * 例外入力の最初の空行を返す
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @param {Object} layout - レイアウト
+ * @return {number} 行番号
+ */
+function findFirstEmptyExceptionRow(controlSheet, layout) {
+  const lastRow = controlSheet.getLastRow();
+  if (lastRow < layout.exceptionsDataStartRow) {
+    return layout.exceptionsDataStartRow;
+  }
+
+  const values = controlSheet
+    .getRange(layout.exceptionsDataStartRow, 1, lastRow - layout.exceptionsDataStartRow + 1, MODULE_CONTROL_EXCEPTION_HEADERS.length)
+    .getValues();
+
+  for (let i = 0; i < values.length; i++) {
+    const empty = values[i].every(function(value) {
+      return !isNonEmptyCell(value);
+    });
+    if (empty) {
+      return layout.exceptionsDataStartRow + i;
+    }
+  }
+
+  return lastRow + 1;
+}
+
+/**
+ * 例外行を読み込む
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @return {Array<Object>} 例外行
+ */
+function readExceptionRows(controlSheet) {
+  const layout = getModuleControlLayout(controlSheet);
+  const lastRow = controlSheet.getLastRow();
+
+  if (lastRow < layout.exceptionsDataStartRow) {
+    return [];
+  }
+
+  const values = controlSheet
+    .getRange(layout.exceptionsDataStartRow, 1, lastRow - layout.exceptionsDataStartRow + 1, MODULE_CONTROL_EXCEPTION_HEADERS.length)
+    .getValues();
+
+  const rows = [];
+  values.forEach(function(row, index) {
+    const hasValue = row.some(function(value) {
+      return isNonEmptyCell(value);
+    });
+
+    if (!hasValue) {
+      return;
+    }
+
+    rows.push({
+      rowNumber: layout.exceptionsDataStartRow + index,
+      date: row[0],
+      grade: row[1],
+      deltaSessions: row[2],
+      reason: row[3],
+      note: row[4]
+    });
+  });
+
+  return rows;
+}
+
+/**
+ * 年度別の計画行数をカウント
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @param {number} fiscalYear - 年度
+ * @return {number} 行数
+ */
+function countCyclePlanRowsForFiscalYear(controlSheet, fiscalYear) {
+  return readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear).length;
+}
+
+/**
+ * 年度別の例外行数をカウント
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @param {number} fiscalYear - 年度
+ * @return {number} 行数
+ */
+function countExceptionRowsForFiscalYear(controlSheet, fiscalYear) {
+  return readExceptionRows(controlSheet).filter(function(item) {
+    const date = normalizeToDate(item.date);
+    return !!date && getFiscalYear(date) === Number(fiscalYear);
+  }).length;
+}
+
+/**
+ * 旧モジュールシートから module_control へ移行
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ */
+function migrateLegacyModuleSheetsToControlIfNeeded(ss, controlSheet) {
+  const settings = readModuleSettingsMap();
+  if (String(settings[MODULE_SETTING_KEYS.DATA_VERSION] || '').trim() === MODULE_DATA_VERSION) {
+    return;
+  }
+
+  if (readAllCyclePlanRows(controlSheet).length === 0) {
+    const legacyCycleSheet = ss.getSheetByName(MODULE_SHEET_NAMES.CYCLE_PLAN);
+    if (legacyCycleSheet && legacyCycleSheet.getLastRow() > 1) {
+      const colCount = Math.min(legacyCycleSheet.getLastColumn(), MODULE_CONTROL_PLAN_HEADERS.length);
+      const values = legacyCycleSheet.getRange(2, 1, legacyCycleSheet.getLastRow() - 1, colCount).getValues();
+
+      const rows = values.map(function(row) {
+        const padded = new Array(MODULE_CONTROL_PLAN_HEADERS.length).fill('');
+        for (let i = 0; i < colCount; i++) {
+          padded[i] = row[i];
+        }
+        return padded;
+      }).filter(function(row) {
+        return row.some(function(value) {
+          return isNonEmptyCell(value);
+        });
+      });
+
+      appendCyclePlanRows(controlSheet, rows);
+    }
+  }
+
+  if (readExceptionRows(controlSheet).length === 0) {
+    const legacyExceptionSheet = ss.getSheetByName(MODULE_SHEET_NAMES.EXCEPTIONS);
+    if (legacyExceptionSheet && legacyExceptionSheet.getLastRow() > 1) {
+      const colCount = Math.min(legacyExceptionSheet.getLastColumn(), MODULE_CONTROL_EXCEPTION_HEADERS.length);
+      const headerCol3 = String(legacyExceptionSheet.getRange(1, 3).getValue() || '').trim();
+      const values = legacyExceptionSheet.getRange(2, 1, legacyExceptionSheet.getLastRow() - 1, colCount).getValues();
+
+      const rows = values.map(function(row) {
+        const padded = new Array(MODULE_CONTROL_EXCEPTION_HEADERS.length).fill('');
+        for (let i = 0; i < colCount; i++) {
+          padded[i] = row[i];
+        }
+
+        if (headerCol3 === 'delta_units') {
+          padded[2] = toNumberOrZero(padded[2]) * 3;
+        }
+
+        return padded;
+      }).filter(function(row) {
+        return row.some(function(value) {
+          return isNonEmptyCell(value);
+        });
+      });
+
+      appendExceptionRows(controlSheet, rows);
+    }
+  }
+
+  const legacySettingsSheet = ss.getSheetByName(MODULE_SHEET_NAMES.SETTINGS);
+  if (legacySettingsSheet) {
+    migrateLegacySettingsFromSheet(legacySettingsSheet);
+  }
+
+  upsertModuleSettingsValues(null, {
+    DATA_VERSION: MODULE_DATA_VERSION
+  });
+}
+
+/**
+ * 旧設定シートからプロパティへ移行
  * @param {GoogleAppsScript.Spreadsheet.Sheet} settingsSheet - module_settings
  */
-function ensureModuleSettingKeys(settingsSheet) {
+function migrateLegacySettingsFromSheet(settingsSheet) {
+  const lastRow = settingsSheet.getLastRow();
+  if (lastRow <= 1) {
+    return;
+  }
+
+  const values = settingsSheet.getRange(2, 1, lastRow - 1, 2).getValues();
+  const legacyMap = {};
+
+  values.forEach(function(row) {
+    if (isNonEmptyCell(row[0])) {
+      legacyMap[String(row[0])] = row[1];
+    }
+  });
+
+  const current = readModuleSettingsMap();
+  const updates = {};
+
+  Object.keys(MODULE_SETTING_KEYS).forEach(function(keyName) {
+    const key = MODULE_SETTING_KEYS[keyName];
+    if (!isNonEmptyCell(current[key]) && Object.prototype.hasOwnProperty.call(legacyMap, key)) {
+      updates[key] = legacyMap[key];
+    }
+  });
+
+  if (Object.keys(updates).length > 0) {
+    upsertModuleSettingsValues(null, updates);
+  }
+}
+
+/**
+ * 旧シートを非表示化（1画面運用）
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
+ */
+function hideLegacyModuleSheets(ss) {
+  const legacyNames = [
+    MODULE_SHEET_NAMES.SETTINGS,
+    MODULE_SHEET_NAMES.CYCLE_PLAN,
+    MODULE_SHEET_NAMES.DAILY_PLAN,
+    MODULE_SHEET_NAMES.PLAN,
+    MODULE_SHEET_NAMES.EXCEPTIONS,
+    MODULE_SHEET_NAMES.SUMMARY
+  ];
+
+  const active = ss.getActiveSheet();
+  const activeName = active ? active.getName() : '';
+
+  legacyNames.forEach(function(name) {
+    if (name === MODULE_SHEET_NAMES.CONTROL) {
+      return;
+    }
+
+    const sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      return;
+    }
+    if (sheet.getName() === activeName) {
+      return;
+    }
+
+    try {
+      if (!sheet.isSheetHidden()) {
+        sheet.hideSheet();
+      }
+    } catch (error) {
+      Logger.log('[WARNING] 旧シート非表示に失敗: ' + name + ' / ' + error.toString());
+    }
+  });
+}
+
+/**
+ * module_control を必要時のみ表示するため通常は非表示化
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ */
+function hideModuleControlSheetIfPossible(ss, controlSheet) {
+  try {
+    const activeSheet = ss.getActiveSheet();
+    if (activeSheet && activeSheet.getSheetId() === controlSheet.getSheetId()) {
+      const fallbackSheet = findFallbackSheetForHiding(ss, controlSheet.getSheetId());
+      if (!fallbackSheet) {
+        return;
+      }
+      if (fallbackSheet.isSheetHidden()) {
+        fallbackSheet.showSheet();
+      }
+      ss.setActiveSheet(fallbackSheet);
+    }
+
+    if (!controlSheet.isSheetHidden()) {
+      controlSheet.hideSheet();
+    }
+  } catch (error) {
+    Logger.log('[WARNING] module_control 非表示に失敗: ' + error.toString());
+  }
+}
+
+/**
+ * 非表示対象以外で切替可能なシートを取得
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
+ * @param {number} excludedSheetId - 除外対象シートID
+ * @return {GoogleAppsScript.Spreadsheet.Sheet|null} 切替先シート
+ */
+function findFallbackSheetForHiding(ss, excludedSheetId) {
+  const sheets = ss.getSheets();
+
+  for (let i = 0; i < sheets.length; i++) {
+    const sheet = sheets[i];
+    if (sheet.getSheetId() !== excludedSheetId && !sheet.isSheetHidden()) {
+      return sheet;
+    }
+  }
+
+  for (let j = 0; j < sheets.length; j++) {
+    const hiddenSheet = sheets[j];
+    if (hiddenSheet.getSheetId() !== excludedSheetId) {
+      return hiddenSheet;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * module_settings の必須キーを保証（プロパティ）
+ */
+function ensureModuleSettingKeys() {
   const requiredKeys = [
     MODULE_SETTING_KEYS.PLAN_START_DATE,
     MODULE_SETTING_KEYS.PLAN_END_DATE,
     MODULE_SETTING_KEYS.LAST_GENERATED_AT,
+    MODULE_SETTING_KEYS.LAST_DAILY_PLAN_COUNT,
     MODULE_SETTING_KEYS.DATA_VERSION,
     MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN
   ];
-  const map = readModuleSettingsMap(settingsSheet);
+
+  const map = readModuleSettingsMap();
   const updates = {};
 
   requiredKeys.forEach(function(key) {
@@ -889,101 +1590,82 @@ function ensureModuleSettingKeys(settingsSheet) {
   });
 
   if (Object.keys(updates).length > 0) {
-    upsertModuleSettingsValues(settingsSheet, updates);
+    upsertModuleSettingsValues(null, updates);
   }
 }
 
 /**
- * データバージョン移行を実行
- * @param {GoogleAppsScript.Spreadsheet.Sheet} settingsSheet - module_settings
- * @param {GoogleAppsScript.Spreadsheet.Sheet} exceptionsSheet - module_exceptions
+ * 旧互換: データ移行関数（初期化時に実行済み）
  */
-function migrateModuleDataIfNeeded(settingsSheet, exceptionsSheet) {
-  const map = readModuleSettingsMap(settingsSheet);
-  const currentVersion = String(map[MODULE_SETTING_KEYS.DATA_VERSION] || '').trim();
-
-  if (currentVersion === MODULE_DATA_VERSION) {
-    return;
-  }
-
-  migrateModuleExceptionsSheetIfNeeded(exceptionsSheet);
-
-  upsertModuleSettingsValues(settingsSheet, {
-    DATA_VERSION: MODULE_DATA_VERSION
-  });
+function migrateModuleDataIfNeeded() {
+  return;
 }
 
 /**
- * module_exceptions の delta_units -> delta_sessions 変換
- * @param {GoogleAppsScript.Spreadsheet.Sheet} exceptionsSheet - module_exceptions
+ * 旧互換: 例外シート移行関数（初期化時に実行済み）
  */
-function migrateModuleExceptionsSheetIfNeeded(exceptionsSheet) {
-  const headerCol3 = String(exceptionsSheet.getRange(1, 3).getValue() || '').trim();
-
-  if (headerCol3 === 'delta_units') {
-    const lastRow = exceptionsSheet.getLastRow();
-    if (lastRow > 1) {
-      const values = exceptionsSheet.getRange(2, 3, lastRow - 1, 1).getValues();
-      const converted = values.map(function(row) {
-        const value = toNumberOrZero(row[0]);
-        return [value * 3];
-      });
-      exceptionsSheet.getRange(2, 3, converted.length, 1).setValues(converted);
-    }
-  }
+function migrateModuleExceptionsSheetIfNeeded() {
+  return;
 }
 
 /**
- * module_settings を key-value マップ化
- * @param {GoogleAppsScript.Spreadsheet.Sheet} settingsSheet - module_settings
+ * module settings を key-value マップ化（プロパティ）
  * @return {Object} 設定マップ
  */
-function readModuleSettingsMap(settingsSheet) {
-  const lastRow = settingsSheet.getLastRow();
-  if (lastRow <= 1) {
-    return {};
-  }
-
-  const values = settingsSheet.getRange(2, 1, lastRow - 1, 2).getValues();
+function readModuleSettingsMap() {
+  const props = PropertiesService.getDocumentProperties().getProperties();
   const map = {};
 
-  values.forEach(function(row) {
-    const key = row[0];
-    if (key) {
-      map[String(key)] = row[1];
+  Object.keys(props).forEach(function(rawKey) {
+    if (rawKey.indexOf(MODULE_SETTINGS_PREFIX) !== 0) {
+      return;
     }
+    const key = rawKey.substring(MODULE_SETTINGS_PREFIX.length);
+    map[key] = props[rawKey];
   });
 
   return map;
 }
 
 /**
- * module_settings のキーを更新または追加
- * @param {GoogleAppsScript.Spreadsheet.Sheet} settingsSheet - module_settings
+ * module settings を更新または追加（プロパティ）
+ * @param {*} settingsSheet - 旧互換引数（未使用）
  * @param {Object} updates - 追加/更新値
  */
 function upsertModuleSettingsValues(settingsSheet, updates) {
-  const lastRow = settingsSheet.getLastRow();
-  const values = lastRow > 1 ? settingsSheet.getRange(2, 1, lastRow - 1, 2).getValues() : [];
-  const keyRowMap = {};
-
-  values.forEach(function(row, index) {
-    if (row[0]) {
-      keyRowMap[String(row[0])] = index + 2;
-    }
-  });
+  const docProps = PropertiesService.getDocumentProperties();
+  const serialized = {};
 
   Object.keys(updates).forEach(function(key) {
-    let rowNumber = keyRowMap[key];
-    if (!rowNumber) {
-      rowNumber = settingsSheet.getLastRow() + 1;
-    }
-    settingsSheet.getRange(rowNumber, 1, 1, 2).setValues([[key, updates[key]]]);
+    serialized[MODULE_SETTINGS_PREFIX + key] = serializeModuleSettingValue(key, updates[key]);
   });
+
+  docProps.setProperties(serialized, false);
 }
 
 /**
- * fiscal_year キーで対象年度行を置換
+ * 設定値を文字列にシリアライズ
+ * @param {string} key - 設定キー
+ * @param {*} value - 値
+ * @return {string} 文字列値
+ */
+function serializeModuleSettingValue(key, value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  if (value instanceof Date) {
+    if (key === MODULE_SETTING_KEYS.LAST_GENERATED_AT) {
+      return value.toISOString();
+    }
+    return formatInputDate(value);
+  }
+
+  return String(value);
+}
+
+/**
+ * fiscal_year キーで対象年度行を置換（汎用ユーティリティ）
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
  * @param {Array<Array<*>>} rows - 書き込み行
  * @param {number} fiscalYear - 対象年度
@@ -994,23 +1676,24 @@ function replaceRowsForFiscalYear(sheet, rows, fiscalYear, fiscalYearColumnIndex
   const lastRow = sheet.getLastRow();
   const existing = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, columnCount).getValues() : [];
   const targetFiscalYear = Number(fiscalYear);
+
   const kept = existing.filter(function(row) {
     const rawFiscalYear = row[fiscalYearColumnIndex];
     const rowFiscalYear = Number(rawFiscalYear);
+
     if (Number.isFinite(rowFiscalYear)) {
       return rowFiscalYear !== targetFiscalYear;
     }
 
-    // 旧スキーマ文字列（例: 2025-06）は対象年度のみ置換対象として除去
     const text = String(rawFiscalYear === null || rawFiscalYear === undefined ? '' : rawFiscalYear).trim();
     const legacyMatch = text.match(/^(\d{4})(?:[-\/].*)?$/);
     if (legacyMatch) {
       return Number(legacyMatch[1]) !== targetFiscalYear;
     }
 
-    // 解析不能な値は削除しない（意図しないデータ消失を防ぐ）
     return true;
   });
+
   const merged = kept.concat(rows);
 
   if (lastRow > 1) {
@@ -1023,7 +1706,7 @@ function replaceRowsForFiscalYear(sheet, rows, fiscalYear, fiscalYearColumnIndex
 }
 
 /**
- * 指定年度の行数をカウント
+ * 指定年度の行数をカウント（汎用）
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
  * @param {number} fiscalYear - 年度
  * @param {number} fiscalYearColumnIndex - fiscal_year列index(0-based)
@@ -1048,42 +1731,22 @@ function countRowsByFiscalYear(sheet, fiscalYear, fiscalYearColumnIndex) {
 }
 
 /**
- * module_summary を書き込み
+ * 旧互換: summary 出力（現在は保存せずログのみ）
  * @param {Object} gradeTotals - 学年別合計
  * @param {number} fiscalYear - 対象年度
  * @param {Date} baseDate - 基準日
- * @param {GoogleAppsScript.Spreadsheet.Sheet} summarySheet - module_summary
  */
-function writeModuleSummary(gradeTotals, fiscalYear, baseDate, summarySheet) {
-  const calculatedAt = new Date();
-  const rows = [];
-
-  for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-    const total = gradeTotals[grade];
-    rows.push([
-      fiscalYear,
-      grade,
-      total.plannedSessions,
-      total.elapsedPlannedSessions,
-      total.deltaSessions,
-      total.actualSessions,
-      total.diffSessions,
-      total.thisWeekSessions,
-      baseDate,
-      calculatedAt
-    ]);
-  }
-
-  replaceRowsForFiscalYear(summarySheet, rows, fiscalYear, 0, 10);
+function writeModuleSummary(gradeTotals, fiscalYear, baseDate) {
+  Logger.log('[INFO] module_summary への保存は廃止済み（FY' + fiscalYear + ', 基準日: ' + formatInputDate(baseDate) + '）');
+  return gradeTotals;
 }
 
 /**
  * 累計時数シートへモジュール累計を出力
  * @param {Object} gradeTotals - 学年別合計
  * @param {Date} baseDate - 基準日
- * @param {GoogleAppsScript.Spreadsheet.Sheet} settingsSheet - module_settings
  */
-function writeModuleToCumulativeSheet(gradeTotals, baseDate, settingsSheet) {
+function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
   const cumulativeSheet = getSheetByNameOrThrow('累計時数');
 
   cumulativeSheet
@@ -1108,12 +1771,37 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate, settingsSheet) {
     displayRows.push([buildModuleDisplayValue(gradeTotals[grade])]);
   }
   cumulativeSheet.getRange(3, displayColumn, displayRows.length, 1).setValues(displayRows);
+  enforceModuleCumulativeColumnVisibility(cumulativeSheet, displayColumn);
 
-  upsertModuleSettingsValues(settingsSheet, {
+  upsertModuleSettingsValues(null, {
     CUMULATIVE_DISPLAY_COLUMN: displayColumn
   });
 
   Logger.log('[INFO] モジュール表示列を更新しました（列: ' + displayColumn + ', 基準日: ' + formatInputDate(baseDate) + '）');
+}
+
+/**
+ * モジュール累計の表示列運用を整える（M〜Oは非表示、表示列は可視）
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} cumulativeSheet - 累計時数
+ * @param {number} displayColumn - 表示列
+ */
+function enforceModuleCumulativeColumnVisibility(cumulativeSheet, displayColumn) {
+  try {
+    cumulativeSheet.hideColumns(MODULE_CUMULATIVE_COLUMNS.PLAN, 3);
+  } catch (error) {
+    Logger.log('[WARNING] MOD内部列の非表示に失敗: ' + error.toString());
+  }
+
+  const column = Number(displayColumn);
+  if (!Number.isInteger(column) || column < 1) {
+    return;
+  }
+
+  try {
+    cumulativeSheet.showColumns(column, 1);
+  } catch (error) {
+    Logger.log('[WARNING] MOD表示列の表示に失敗: ' + error.toString());
+  }
 }
 
 /**
@@ -1122,9 +1810,17 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate, settingsSheet) {
  * @return {number} 列番号（1-based）
  */
 function resolveCumulativeDisplayColumn(cumulativeSheet) {
-  const sheets = initializeModuleHoursSheetsIfNeeded();
-  const settingsMap = readModuleSettingsMap(sheets.settingsSheet);
+  const settingsMap = readModuleSettingsMap();
   const displayRowCount = MODULE_GRADE_MAX - MODULE_GRADE_MIN + 1;
+  const preferredColumn = MODULE_CUMULATIVE_COLUMNS.DISPLAY_FALLBACK;
+
+  const preferredHeader = String(cumulativeSheet.getRange(2, preferredColumn).getValue() || '').trim();
+  if (preferredHeader === MODULE_DISPLAY_HEADER ||
+      (preferredHeader === '' &&
+        isReusableCumulativeDisplayColumn(cumulativeSheet, preferredColumn, displayRowCount))) {
+    cumulativeSheet.getRange(2, preferredColumn).setValue(MODULE_DISPLAY_HEADER);
+    return preferredColumn;
+  }
 
   const configuredColumn = Number(settingsMap[MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN]);
   if (Number.isInteger(configuredColumn) && configuredColumn >= 1) {
@@ -1157,7 +1853,7 @@ function resolveCumulativeDisplayColumn(cumulativeSheet) {
 }
 
 /**
- * 累計表示列が再利用可能か判定（ヘッダー空欄でもデータ占有列は再利用しない）
+ * 累計表示列が再利用可能か判定
  * @param {GoogleAppsScript.Spreadsheet.Sheet} cumulativeSheet - 累計時数
  * @param {number} column - 対象列（1-based）
  * @param {number} rowCount - 確認行数
@@ -1204,7 +1900,6 @@ function formatSessionsAsMixedFraction(sessions) {
   if (remainder === 0) {
     return sign + String(whole);
   }
-
   if (whole === 0) {
     return sign + remainder + '/3';
   }
@@ -1241,6 +1936,7 @@ function sessionsToUnits(sessions) {
  */
 function createGradeTotalsTemplate() {
   const result = {};
+
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
     result[grade] = {
       plannedSessions: 0,
@@ -1251,6 +1947,7 @@ function createGradeTotalsTemplate() {
       thisWeekSessions: 0
     };
   }
+
   return result;
 }
 
@@ -1276,8 +1973,10 @@ function addGradeSessions(gradeTotals, grade, sessions, field) {
 function getFiscalYearDateRange(fiscalYear) {
   const startDate = new Date(fiscalYear, MODULE_FISCAL_YEAR_START_MONTH - 1, 1);
   const endDate = new Date(fiscalYear + 1, MODULE_FISCAL_YEAR_START_MONTH - 1, 0);
+
   startDate.setHours(0, 0, 0, 0);
   endDate.setHours(0, 0, 0, 0);
+
   return {
     startDate: startDate,
     endDate: endDate
@@ -1306,12 +2005,12 @@ function collectFiscalYearsInRange(startDate, endDate) {
 
 /**
  * 保存済み期間を取得（未設定時は当該年度）
- * @param {GoogleAppsScript.Spreadsheet.Sheet} settingsSheet - module_settings
+ * @param {*} settingsSheet - 旧互換引数（未使用）
  * @param {Date} fallbackDate - 基準日
  * @return {Object} 期間
  */
 function getModulePlanningRangeFromSettings(settingsSheet, fallbackDate) {
-  const map = readModuleSettingsMap(settingsSheet);
+  const map = readModuleSettingsMap();
   const start = normalizeToDate(map[MODULE_SETTING_KEYS.PLAN_START_DATE]);
   const end = normalizeToDate(map[MODULE_SETTING_KEYS.PLAN_END_DATE]);
 
@@ -1320,7 +2019,7 @@ function getModulePlanningRangeFromSettings(settingsSheet, fallbackDate) {
   }
 
   const defaultRange = getDefaultModulePlanningRange(fallbackDate);
-  upsertModuleSettingsValues(settingsSheet, {
+  upsertModuleSettingsValues(null, {
     PLAN_START_DATE: defaultRange.startDate,
     PLAN_END_DATE: defaultRange.endDate
   });
@@ -1335,8 +2034,7 @@ function getModulePlanningRangeFromSettings(settingsSheet, fallbackDate) {
  */
 function getDefaultModulePlanningRange(baseDate) {
   const date = normalizeToDate(baseDate) || normalizeToDate(new Date());
-  const fiscalYear = getFiscalYear(date);
-  return getFiscalYearDateRange(fiscalYear);
+  return getFiscalYearDateRange(getFiscalYear(date));
 }
 
 /**
@@ -1413,7 +2111,7 @@ function buildSchoolDayPlanMap(startDate, endDate) {
 function applyModuleExceptions(planMap, baseDate) {
   const sheets = initializeModuleHoursSheetsIfNeeded();
   const cutoffDate = normalizeToDate(baseDate) || normalizeToDate(new Date());
-  const exceptionSheet = sheets.exceptionsSheet;
+  const rows = readExceptionRows(sheets.controlSheet);
 
   Object.keys(planMap.byMonth).forEach(function(monthKey) {
     for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
@@ -1424,31 +2122,26 @@ function applyModuleExceptions(planMap, baseDate) {
     }
   });
 
-  const lastRow = exceptionSheet.getLastRow();
-  if (lastRow > 1) {
-    const values = exceptionSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  rows.forEach(function(item) {
+    const exceptionDate = normalizeToDate(item.date);
+    const grade = Number(item.grade);
+    const deltaSessions = toNumberOrZero(item.deltaSessions);
 
-    values.forEach(function(row, index) {
-      const exceptionDate = normalizeToDate(row[0]);
-      const grade = Number(row[1]);
-      const deltaSessions = toNumberOrZero(row[2]);
+    if (!exceptionDate || exceptionDate > cutoffDate) {
+      return;
+    }
+    if (!Number.isInteger(grade) || grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
+      Logger.log('[WARNING] module_control の例外入力不正をスキップしました（行: ' + item.rowNumber + '）');
+      return;
+    }
 
-      if (!exceptionDate || exceptionDate > cutoffDate) {
-        return;
-      }
-      if (!Number.isInteger(grade) || grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
-        Logger.log('[WARNING] module_exceptions の入力不正をスキップしました（行: ' + (index + 2) + '）');
-        return;
-      }
+    const monthKey = formatMonthKey(exceptionDate);
+    if (!planMap.byMonth[monthKey] || !planMap.byMonth[monthKey][grade]) {
+      return;
+    }
 
-      const monthKey = formatMonthKey(exceptionDate);
-      if (!planMap.byMonth[monthKey] || !planMap.byMonth[monthKey][grade]) {
-        return;
-      }
-
-      planMap.byMonth[monthKey][grade].delta_units += sessionsToUnits(deltaSessions);
-    });
-  }
+    planMap.byMonth[monthKey][grade].delta_units += sessionsToUnits(deltaSessions);
+  });
 
   Object.keys(planMap.byMonth).forEach(function(monthKey) {
     for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
@@ -1552,7 +2245,9 @@ function getFiscalYearFromMonthKey(monthKey) {
  * @return {number} 比較結果
  */
 function monthKeyCompare(a, b) {
-  if (a === b) return 0;
+  if (a === b) {
+    return 0;
+  }
   return a < b ? -1 : 1;
 }
 
