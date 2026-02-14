@@ -203,10 +203,12 @@
         <nav class="nav">
             <ul>
                 <li><a href="#overview">概要</a></li>
-                <li><a href="#initial-setup">初期設定</a></li>
+                <li><a href="#initial-setup">導入</a></li>
+                <li><a href="#settings">設定</a></li>
                 <li><a href="#daily-use">日常業務</a></li>
-                <li><a href="#reporting">集計・レポート</a></li>
-                <li><a href="#system-management">手動管理</a></li>
+                <li><a href="#duty">日直</a></li>
+                <li><a href="#reporting">集計</a></li>
+                <li><a href="#integration-renewal">連携と年度更新</a></li>
                 <li><a href="#automation">自動実行</a></li>
                 <li><a href="#troubleshooting">トラブル対処</a></li>
                 <li><a href="#faq">FAQ</a></li>
@@ -251,7 +253,7 @@
 
                 <div class="info">
                     <h4>❓ 使い方ガイドへのアクセス</h4>
-                    <p>このガイドはメニューバーの<strong>「🎯 ポータルマスター」→「❓ 使い方ガイド」</strong>からいつでもアクセスできます（トップレベル配置）。</p>
+                    <p>このガイドはメニューバーの<strong>「🎯 ポータルマスター」→「❓ ヘルプ」→「使い方ガイド」</strong>からいつでもアクセスできます。</p>
                     <ul>
                         <li>1クリックで素早くアクセス</li>
                         <li>HTMLファイルが見つからない場合は簡易版ガイドを自動表示</li>
@@ -263,10 +265,12 @@
                     <h4>📑 このガイドの構成</h4>
                     <p>このガイドは以下のセクションで構成されています。各セクション名をクリックすると該当箇所へ移動できます：</p>
                     <ol>
-                        <li><a href="#initial-setup" style="color: #667eea; text-decoration: none;"><strong>⚙️ 初期設定手順</strong></a> - 4ステップの初回セットアップ（必須）</li>
+                        <li><a href="#initial-setup" style="color: #667eea; text-decoration: none;"><strong>🚀 導入手順</strong></a> - 3ステップの初期導入</li>
+                        <li><a href="#settings" style="color: #667eea; text-decoration: none;"><strong>⚙️ 設定</strong></a> - 年度更新設定と自動トリガー設定</li>
                         <li><a href="#daily-use" style="color: #667eea; text-decoration: none;"><strong>📅 日常業務</strong></a> - 週報PDF保存、フォルダ管理、日付移動</li>
-                        <li><a href="#reporting" style="color: #667eea; text-decoration: none;"><strong>📊 集計・レポート</strong></a> - 学年別授業時数の集計</li>
-                        <li><a href="#system-management" style="color: #667eea; text-decoration: none;"><strong>🔧 手動管理機能</strong></a> - 年度更新設定、カレンダー同期、年度更新ファイル作成</li>
+                        <li><a href="#duty" style="color: #667eea; text-decoration: none;"><strong>👥 日直</strong></a> - 自動割り当て、日直更新、休業期間集計</li>
+                        <li><a href="#reporting" style="color: #667eea; text-decoration: none;"><strong>📊 集計</strong></a> - 累計時数、学年別集計、モジュール学習管理</li>
+                        <li><a href="#integration-renewal" style="color: #667eea; text-decoration: none;"><strong>🔁 連携と年度更新</strong></a> - カレンダー同期と年度更新ファイル作成</li>
                         <li><a href="#automation" style="color: #667eea; text-decoration: none;"><strong>⚙️ 自動実行設定</strong></a> - 定期的な自動処理の設定・管理</li>
                         <li><a href="#troubleshooting" style="color: #667eea; text-decoration: none;"><strong>🚨 トラブルシューティング</strong></a> - よくある問題と解決方法</li>
                         <li><a href="#faq" style="color: #667eea; text-decoration: none;"><strong>❓ よくある質問（FAQ）</strong></a> - 日直機能、自動実行など</li>
@@ -275,12 +279,12 @@
             </section>
 
             <section id="initial-setup" class="section">
-                <h2>⚙️ 初期設定手順</h2>
-                <p>システムを初めて使用する際は、必ず以下の手順で初期設定を行ってください。</p>
+                <h2>🚀 導入手順</h2>
+                <p>システムを使い始める際は、まず以下の3手順を実行してください。</p>
 
                 <div class="info">
                     <h4>🎯 新しいメニューアクセス</h4>
-                    <p>スプレッドシートのメニューバーから<strong>「🎯 ポータルマスター」</strong>をクリックし、以下の4つのカテゴリーから選択してください。</p>
+                    <p>スプレッドシートのメニューバーから<strong>「🎯 ポータルマスター」→「🚀 導入」</strong>を選択してください。</p>
                 </div>
 
                 <div class="step-list">
@@ -290,9 +294,9 @@
                             <p><span class="function-name">importAnnualEvents</span></p>
                             <p>Googleスプレッドシート「【テンプレート】Excel小学校年間行事計画（編集用）」の「メインデータ」シートから行事予定をインポートします。</p>
                             <ul>
-                                <li><strong>🎯 ポータルマスター</strong> → <strong>🏗️ 初回セットアップ</strong> → <strong>ステップ1: 年間行事計画をインポート</strong></li>
+                                <li><strong>🎯 ポータルマスター</strong> → <strong>🚀 導入</strong> → <strong>年間行事計画をインポート</strong></li>
                                 <li>ダイアログでGoogleスプレッドシートのURLを入力</li>
-                                <li>「🔧 システム管理」→「🗂️ 年度更新設定」で基準日（日曜日）を事前設定</li>
+                                <li>「⚙️ 設定」→「年度更新設定」で基準日（日曜日）を事前設定</li>
                                 <li>日付の自動補完と整合性チェック機能付き</li>
                             </ul>
                         </div>
@@ -304,7 +308,7 @@
                             <p><span class="function-name">assignDuty</span></p>
                             <p>日直表の番号順に、マスターシートへ日直を自動割り当てします。</p>
                             <ul>
-                                <li><strong>🎯 ポータルマスター</strong> → <strong>🏗️ 初回セットアップ</strong> → <strong>ステップ2: 日直を自動割り当て</strong></li>
+                                <li><strong>🎯 ポータルマスター</strong> → <strong>👥 日直</strong> → <strong>日直を自動割り当て</strong></li>
                                 <li>「日直表」シートの氏名（C列）と日直番号（D列）を使用</li>
                                 <li>マスターシートAO列へ日直情報を設定</li>
                                 <li>割り当て後、必要に応じて「日直のみ更新」で年間行事予定表へ反映</li>
@@ -318,7 +322,7 @@
                             <p><span class="function-name">updateAnnualEvents</span></p>
                             <p>マスターシートのデータを「年間行事予定表」シートに高速バッチ処理で反映させます。</p>
                             <ul>
-                                <li><strong>🎯 ポータルマスター</strong> → <strong>🏗️ 初回セットアップ</strong> → <strong>ステップ3: 行事予定表へ反映</strong></li>
+                                <li><strong>🎯 ポータルマスター</strong> → <strong>🚀 導入</strong> → <strong>行事予定表へ反映</strong></li>
                                 <li>パフォーマンスが大幅に改善（従来の36倍高速）</li>
                                 <li>6x6の校時データを一括バッチ処理</li>
                                 <li>処理完了後、マスターシートは自動的に非表示</li>
@@ -327,46 +331,43 @@
                         </div>
                     </div>
 
-                    <div class="step">
-                        <div class="step-content">
-                            <h4>ステップ4: 累計時数を初期計算</h4>
-                            <p><span class="function-name">calculateCumulativeHours</span></p>
-                            <p>各学年の授業時数を累計計算し、土曜日の計算ロジックを改善しました。</p>
-                            <ul>
-                                <li><strong>🎯 ポータルマスター</strong> → <strong>🏗️ 初回セットアップ</strong> → <strong>ステップ4: 累計時数を初期計算</strong></li>
-                                <li>最新の土曜日までの累計時数を「累計時数」シートに出力</li>
-                                <li>今日が土曜日の場合は今日を基準日として計算</li>
-                                <li>共通関数による統一されたカテゴリー管理</li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <div class="step">
-                        <div class="step-content">
-                            <h4>ステップ5: 自動処理を設定</h4>
-                            <p><span class="function-name">showTriggerSettingsDialog</span></p>
-                            <p>定期的な自動処理を設定し、日常業務を効率化します。</p>
-                            <ul>
-                                <li><strong>🎯 ポータルマスター</strong> → <strong>🏗️ 初回セットアップ</strong> → <strong>ステップ5: 自動処理を設定</strong></li>
-                                <li>新しい設定ダイアログで、各処理の有効/無効、実行曜日、実行時刻をカスタマイズできます</li>
-                                <li>設定可能な自動処理：</li>
-                                <ul>
-                                    <li><strong>週報PDF保存</strong>（週次）</li>
-                                    <li><strong>累計時数計算</strong>（週次）</li>
-                                    <li><strong>Googleカレンダー同期</strong>（毎日）</li>
-                                    <li><strong>今日の日付へ移動</strong>（毎日）</li>
-                                </ul>
-                                <li>トグルスイッチで簡単にON/OFF切り替え可能</li>
-                            </ul>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="warning">
-                    <h4>⚠️ 初期設定の注意点</h4>
+                    <h4>⚠️ 導入時の注意点</h4>
                     <ul>
-                        <li>手順は必ず1→2→3→4→5の順序で実行してください</li>
-                        <li>「🔧 システム管理」→「🗂️ 年度更新設定」に必要な設定値が入力されていることを確認してください</li>
+                        <li>手順は必ず1→2→3の順序で実行してください</li>
+                        <li>導入後は「⚙️ 設定」で年度更新設定と自動トリガー設定を確認してください</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="settings" class="section">
+                <h2>⚙️ 設定</h2>
+
+                <div class="info">
+                    <h4>📱 メニューアクセス</h4>
+                    <p><strong>🎯 ポータルマスター</strong> → <strong>⚙️ 設定</strong> から各機能を選択してください。</p>
+                </div>
+
+                <div class="menu-item">
+                    <h4>🗂️ 年度更新設定</h4>
+                    <p><span class="function-name">showAnnualUpdateSettingsDialog</span></p>
+                    <p>年度更新に必要な設定値（C5/C7/C11/C14/C15/C16）をダイアログで一元管理します。</p>
+                    <ul>
+                        <li><strong>メニュー:</strong> ⚙️ 設定 → 年度更新設定</li>
+                        <li>複製ファイル名、複製先フォルダID、基準日（日曜日）を入力</li>
+                        <li>週報フォルダID・カレンダーIDを編集または空欄化して自動再作成に対応</li>
+                    </ul>
+                </div>
+
+                <div class="menu-item">
+                    <h4>⚙️ 自動トリガー設定</h4>
+                    <p><span class="function-name">showTriggerSettingsDialog</span></p>
+                    <p>週報PDF保存・累計時数計算・カレンダー同期・日付リンクの実行タイミングを調整します。</p>
+                    <ul>
+                        <li><strong>メニュー:</strong> ⚙️ 設定 → 自動トリガー設定</li>
+                        <li>機能ごとのON/OFF、曜日、時刻をダイアログで変更可能</li>
                     </ul>
                 </div>
             </section>
@@ -409,7 +410,7 @@
                     <p><span class="function-name">setDailyHyperlink</span></p>
                     <p>B1セルに今日の日付へのハイパーリンクを設定し、素早くジャンプできます。</p>
                     <ul>
-                        <li><strong>メニュー:</strong> 📅 日常業務 → 🔗 今日の日付へ移動</li>
+                        <li><strong>メニュー:</strong> 📅 日常業務 → 今日の日付へ移動</li>
                         <li>自動で今日の日付を検索し、該当行へのリンクを作成</li>
                         <li>日付が見つからない場合はエラーメッセージを表示</li>
                         <li>毎日自動実行されるため、手動実行は不要</li>
@@ -417,17 +418,66 @@
                 </div>
             </section>
 
+            <section id="duty" class="section">
+                <h2>👥 日直業務</h2>
+
+                <div class="info">
+                    <h4>📱 メニューアクセス</h4>
+                    <p><strong>🎯 ポータルマスター</strong> → <strong>👥 日直</strong> から各機能を選択してください。</p>
+                </div>
+
+                <div class="menu-item">
+                    <h4>🧑‍🏫 日直を自動割り当て</h4>
+                    <p><span class="function-name">assignDuty</span></p>
+                    <p>日直表の番号順に、マスターシートへ日直を自動割り当てします。</p>
+                    <ul>
+                        <li><strong>メニュー:</strong> 👥 日直 → 日直を自動割り当て</li>
+                        <li>「日直表」シートの氏名（C列）と日直番号（D列）を使用</li>
+                    </ul>
+                </div>
+
+                <div class="menu-item">
+                    <h4>📋 日直のみ更新</h4>
+                    <p><span class="function-name">updateAnnualDuty</span></p>
+                    <p>マスターシートの日直列のみを年間行事予定表へ反映します。</p>
+                    <ul>
+                        <li><strong>メニュー:</strong> 👥 日直 → 日直のみ更新</li>
+                        <li>授業時数や他カテゴリは変更せず、日直情報だけを更新</li>
+                    </ul>
+                </div>
+
+                <div class="menu-item">
+                    <h4>⭐ 休業期間日直を集計</h4>
+                    <p><span class="function-name">countStars</span></p>
+                    <p>年間行事予定表のR列に入力された☆を日直ごとに集計し、日直表へ反映します。</p>
+                    <ul>
+                        <li><strong>メニュー:</strong> 👥 日直 → 休業期間日直を集計</li>
+                    </ul>
+                </div>
+            </section>
+
             <section id="reporting" class="section">
-                <h2>📊 集計・レポート機能</h2>
+                <h2>📊 集計機能</h2>
                 
                 <div class="info">
                     <h4>📱 新しいメニューアクセス</h4>
-                    <p><strong>🎯 ポータルマスター</strong> → <strong>📊 集計・レポート</strong> から各機能を選択してください。</p>
+                    <p><strong>🎯 ポータルマスター</strong> → <strong>📊 集計</strong> から各機能を選択してください。</p>
                 </div>
 
                 <div class="info">
                     <h4>💡 累計時数について</h4>
-                    <p>累計時数の計算は初回セットアップ（ステップ4）で実行します。その後は自動トリガー設定により週次で自動更新されます。手動で再計算する必要はありません。</p>
+                    <p>累計時数の計算は初回設定後に「累計時数を計算」で実行します。その後は自動トリガー設定により週次で自動更新されます。</p>
+                </div>
+
+                <div class="menu-item">
+                    <h4>🔄 累計時数を計算</h4>
+                    <p><span class="function-name">calculateCumulativeHours</span></p>
+                    <p>自動トリガーの実行を待たず、最新の土曜日までを対象に累計時数をその場で再計算します。</p>
+                    <ul>
+                        <li><strong>メニュー:</strong> 📊 集計 → 累計時数を計算</li>
+                        <li>1〜6年の累計時数を更新し、モジュール学習計画の統合結果も反映</li>
+                        <li>自動実行が止まっている時の復旧確認にも使用可能</li>
+                    </ul>
                 </div>
 
                 <div class="menu-item">
@@ -437,7 +487,7 @@
                     
                     <h5>使用手順：</h5>
                     <ol>
-                        <li><strong>メニュー:</strong> 📊 集計・レポート → 📈 学年別授業時数を集計</li>
+                        <li><strong>メニュー:</strong> 📊 集計 → 学年別授業時数を集計</li>
                         <li>改善されたダイアログで集計期間と標準授業時数を入力</li>
                         <li>「低学年」「中学年」「高学年」シートが自動作成される</li>
                         <li>共通関数による統一されたカテゴリー管理</li>
@@ -469,6 +519,16 @@
                     </table>
                 </div>
 
+                <div class="menu-item">
+                    <h4>🧩 モジュール学習管理</h4>
+                    <p><span class="function-name">showModulePlanningDialog</span></p>
+                    <p>モジュール学習の計画入力・実施差分入力を行い、保存時に自動再集計して累計時数へ反映します。</p>
+                    <ul>
+                        <li><strong>メニュー:</strong> 📊 集計 → モジュール学習管理</li>
+                        <li>計画保存と差分追加のどちらでも再集計を実行</li>
+                    </ul>
+                </div>
+
                 <div class="info">
                     <h4>📈 時数集計のポイント</h4>
                     <ul>
@@ -482,37 +542,12 @@
                 </div>
             </section>
 
-            <section id="system-management" class="section">
-                <h2>🔧 手動管理機能</h2>
+            <section id="integration-renewal" class="section">
+                <h2>🔁 連携と年度更新</h2>
 
                 <div class="info">
                     <h4>📱 メニューアクセス</h4>
-                    <p><strong>🎯 ポータルマスター</strong> → <strong>🔧 システム管理</strong> から各機能を選択してください。</p>
-                    <p>このセクションでは、必要に応じて手動で実行する管理機能を説明します。</p>
-                </div>
-
-                <div class="menu-item">
-                    <h4>🗂️ 年度更新設定</h4>
-                    <p><span class="function-name">showAnnualUpdateSettingsDialog</span></p>
-                    <p>年度更新に必要な設定値（C5/C7/C11/C14/C15/C16）をダイアログで一元管理します。</p>
-                    <ul>
-                        <li><strong>メニュー:</strong> 🔧 システム管理 → 🗂️ 年度更新設定</li>
-                        <li>複製ファイル名、複製先フォルダID、基準日（日曜日）を入力</li>
-                        <li>週報フォルダID・カレンダーIDを編集または空欄化して自動再作成に対応</li>
-                        <li>シートを直接編集しなくても設定変更が可能</li>
-                    </ul>
-                </div>
-
-                <div class="menu-item">
-                    <h4>🧩 モジュール学習管理</h4>
-                    <p><span class="function-name">showModulePlanningDialog</span></p>
-                    <p>モジュール学習管理ダイアログで2か月クール計画と実施差分を管理し、学校週ベースの日次配分は再集計時に再計算して累計時数シートへ統合します。</p>
-                    <ul>
-                        <li><strong>メニュー:</strong> 🔧 システム管理 → 🧩 モジュール学習管理</li>
-                        <li>計画編集・実施差分入力はダイアログ画面で完結</li>
-                        <li>実施調整は15分単位の差分値で入力</li>
-                        <li>結果は累計時数シートM～O列と <code>MOD実施累計(表示)</code> 列に統合反映</li>
-                    </ul>
+                    <p><strong>🎯 ポータルマスター</strong> → <strong>🔁 連携と年度更新</strong> から各機能を選択してください。</p>
                 </div>
 
                 <div class="menu-item">
@@ -520,11 +555,10 @@
                     <p><span class="function-name">syncCalendars</span></p>
                     <p>年間行事予定表の内容をGoogleカレンダーに同期します。</p>
                     <ul>
-                        <li><strong>メニュー:</strong> 🔧 システム管理 → 📅 カレンダーと同期</li>
+                        <li><strong>メニュー:</strong> 🔁 連携と年度更新 → カレンダーと同期</li>
                         <li>「行事予定カレンダー」（D列）と「対外行事カレンダー」（M列）を作成</li>
                         <li>時間指定がある場合は時間付きイベント、なければ終日イベント</li>
                         <li>日本の祝日と重複するイベントは除外</li>
-                        <li>カレンダーIDは自動で管理され、削除されても再作成される</li>
                     </ul>
                 </div>
 
@@ -533,11 +567,9 @@
                     <p><span class="function-name">copyAndClear</span></p>
                     <p>現在のスプレッドシートをコピーし、新年度用にデータをクリアしたファイルを作成します。</p>
                     <ul>
-                        <li><strong>メニュー:</strong> 🔧 システム管理 → 📋 年度更新ファイル作成</li>
-                        <li>「🗂️ 年度更新設定」で保存したC5（ファイル名）とC7（フォルダID）に基づいて実行</li>
+                        <li><strong>メニュー:</strong> 🔁 連携と年度更新 → 年度更新ファイル作成</li>
+                        <li>「⚙️ 設定」→「年度更新設定」で保存したC5（ファイル名）とC7（フォルダID）に基づいて実行</li>
                         <li>新年度用にマスターシートなどのデータを自動クリア</li>
-                        <li>設定値は保持され、行事予定のみリセット</li>
-                        <li>作成されたファイルは指定フォルダに保存</li>
                     </ul>
                 </div>
             </section>
@@ -546,7 +578,7 @@
                 <h2>⚙️ 自動実行設定</h2>
 
                 <div class="info">
-                    <p>初期設定（ステップ5）で設定した自動トリガーにより、以下の機能が定期的に自動実行されます。このセクションでは、自動実行の仕組みと設定方法を説明します。</p>
+                    <p>「⚙️ 設定」→「自動トリガー設定」で有効化した処理は、以下の内容で定期実行されます。このセクションでは、自動実行の仕組みと設定方法を説明します。</p>
                 </div>
 
                 <h3>自動実行される機能</h3>
@@ -582,7 +614,7 @@
 
                 <div class="info">
                     <h4>⚙️ 自動実行のカスタマイズ</h4>
-                    <p>初期設定（ステップ5）またはシステム管理の「⚙️ 自動トリガー設定」から、各処理の実行タイミングを自由にカスタマイズできます。</p>
+                    <p>「⚙️ 設定」→「自動トリガー設定」から、各処理の実行タイミングを自由にカスタマイズできます。</p>
                     <ul>
                         <li>トグルスイッチで各処理の有効/無効を切り替え</li>
                         <li>週次処理は曜日と時刻を選択</li>
@@ -631,7 +663,7 @@
                     <ul>
                         <li>Googleドライブの空き容量を確認</li>
                         <li>スプレッドシートが保存されているフォルダの権限を確認</li>
-                        <li>「🔧 システム管理」→「🗂️ 年度更新設定」で週報フォルダID（C14）をクリアして再実行</li>
+                        <li>「⚙️ 設定」→「年度更新設定」で週報フォルダID（C14）をクリアして再実行</li>
                     </ul>
                 </div>
 
@@ -641,7 +673,7 @@
                     <p><strong>解決方法：</strong></p>
                     <ul>
                         <li>スクリプトエディタで権限を再承認</li>
-                        <li>「🔧 システム管理」→「🗂️ 年度更新設定」でC15・C16をクリアして再実行</li>
+                        <li>「⚙️ 設定」→「年度更新設定」でC15・C16をクリアして再実行</li>
                         <li>Googleカレンダーの「マイカレンダー」に新しいカレンダーが作成されることを確認</li>
                     </ul>
                 </div>
@@ -776,18 +808,19 @@
                     <h4>Q1: 日直機能はどこにありますか？</h4>
                     <p><strong>A:</strong> 日直機能は利用できます。現在は以下の3機能をメニューから実行できます。</p>
                     <ul>
-                        <li><strong>ステップ2: 日直を自動割り当て</strong>（初回セットアップ）</li>
-                        <li><strong>⭐ 休業期間日直をカウント</strong>（日常業務）</li>
-                        <li><strong>📋 日直のみ更新</strong>（集計・レポート）</li>
+                        <li><strong>日直を自動割り当て</strong>（日直）</li>
+                        <li><strong>休業期間日直を集計</strong>（日直）</li>
+                        <li><strong>日直のみ更新</strong>（日直）</li>
                     </ul>
                     <p><strong>補足:</strong> 学校ごとの運用差が大きいため、必要に応じて年間行事予定表のR列（日直列）を直接編集してください。</p>
                 </div>
 
                 <div class="menu-item">
-                    <h4>Q2: 初回セットアップは何回実行すればよいですか？</h4>
-                    <p><strong>A:</strong> 初回セットアップは、新しいスプレッドシートを作成した時に<strong>1回だけ</strong>実行してください。</p>
+                    <h4>Q2: 導入手順は何回実行すればよいですか？</h4>
+                    <p><strong>A:</strong> 導入手順は、新しいスプレッドシートを作成した時に<strong>1回だけ</strong>実行してください。</p>
                     <ul>
-                        <li>ステップ1〜5を順番通りに実行</li>
+                        <li>導入の3手順を順番通りに実行</li>
+                        <li>導入後に「⚙️ 設定」で自動トリガー設定を行う</li>
                         <li>2回目以降は日常業務の機能を使用</li>
                         <li>年度更新時は「年度更新ファイル作成」を使用</li>
                     </ul>
@@ -795,7 +828,7 @@
 
                 <div class="menu-item">
                     <h4>Q3: 自動実行を停止したい場合はどうすればよいですか？</h4>
-                    <p><strong>A:</strong> システム管理の「⚙️ 自動トリガー設定」から停止できます。</p>
+                    <p><strong>A:</strong> 「⚙️ 設定」→「自動トリガー設定」から停止できます。</p>
                     <ul>
                         <li>設定ダイアログでトグルスイッチをOFFにする</li>
                         <li>個別の機能ごとに有効/無効を切り替え可能</li>
@@ -807,7 +840,7 @@
                     <h4>Q4: 累計時数が自動更新されない場合は？</h4>
                     <p><strong>A:</strong> 以下を確認してください：</p>
                     <ul>
-                        <li>初期設定（ステップ5）で自動トリガーを設定済みか確認</li>
+                        <li>「⚙️ 設定」→「自動トリガー設定」を実施済みか確認</li>
                         <li>「年度更新作業」シートC24セルが空白でないか確認（空白の場合は無効）</li>
                         <li>設定ダイアログで累計時数計算がONになっているか確認</li>
                         <li>スクリプトエディタの「トリガー」メニューで実行ログを確認</li>
@@ -873,10 +906,3 @@
     </style>
 </body>
 </html>
-
-
-
-
-
-
-

@@ -6,38 +6,44 @@ function onOpen() {
   const ui = SpreadsheetApp.getUi();
   const menu = ui.createMenu('🎯 ポータルマスター');
 
-  const setupMenu = ui.createMenu('🏗️ 初回セットアップ')
-    .addItem('ステップ1: 年間行事計画をインポート', 'importAnnualEvents')
-    .addItem('ステップ2: 日直を自動割り当て', 'assignDuty')
-    .addItem('ステップ3: 行事予定表へ反映', 'updateAnnualEvents')
-    .addItem('ステップ4: 累計時数を初期計算', 'calculateCumulativeHours')
-    .addItem('ステップ5: 自動処理を設定', 'showTriggerSettingsDialog');
+  const introductionMenu = ui.createMenu('🚀 導入')
+    .addItem('年間行事計画をインポート', 'importAnnualEvents')
+    .addItem('行事予定表へ反映', 'updateAnnualEvents');
+
+  const settingsMenu = ui.createMenu('⚙️ 設定')
+    .addItem('年度更新設定', 'showAnnualUpdateSettingsDialog')
+    .addItem('自動トリガー設定', 'showTriggerSettingsDialog');
 
   const dailyMenu = ui.createMenu('📅 日常業務')
-    .addItem('📄 週報をPDF保存', 'saveToPDF')
-    .addItem('📁 週報フォルダを開く', 'openWeeklyReportFolder')
-    .addItem('⭐ 休業期間日直をカウント', 'countStars')
-    .addItem('🔗 今日の日付へ移動', 'setDailyHyperlink');
+    .addItem('今日の日付へ移動', 'setDailyHyperlink')
+    .addItem('週報をPDF保存', 'saveToPDF')
+    .addItem('週報フォルダを開く', 'openWeeklyReportFolder');
 
-  const reportMenu = ui.createMenu('📊 集計・レポート')
-    .addItem('📈 学年別授業時数を集計', 'aggregateSchoolEventsByGrade')
-    .addItem('📋 日直のみ更新', 'updateAnnualDuty');
+  const dutyMenu = ui.createMenu('👥 日直')
+    .addItem('日直を自動割り当て', 'assignDuty')
+    .addItem('日直のみ更新', 'updateAnnualDuty')
+    .addItem('休業期間日直を集計', 'countStars');
 
-  const systemMenu = ui.createMenu('🔧 システム管理')
-    .addItem('🗂️ 年度更新設定', 'showAnnualUpdateSettingsDialog')
-    .addItem('⚙️ 自動トリガー設定', 'showTriggerSettingsDialog')
-    .addItem('🧩 モジュール学習管理', 'showModulePlanningDialog')
-    .addItem('📅 カレンダーと同期', 'syncCalendars')
-    .addItem('📋 年度更新ファイル作成', 'copyAndClear');
+  const reportMenu = ui.createMenu('📊 集計')
+    .addItem('累計時数を計算', 'calculateCumulativeHours')
+    .addItem('学年別授業時数を集計', 'aggregateSchoolEventsByGrade')
+    .addItem('モジュール学習管理', 'showModulePlanningDialog');
 
-  menu.addItem('❓ 使い方ガイド', 'showUserGuide')
-    .addSeparator()
-    .addSubMenu(setupMenu)
+  const integrationMenu = ui.createMenu('🔁 連携と年度更新')
+    .addItem('カレンダーと同期', 'syncCalendars')
+    .addItem('年度更新ファイル作成', 'copyAndClear');
+
+  const helpMenu = ui.createMenu('❓ ヘルプ')
+    .addItem('使い方ガイド', 'showUserGuide')
+    .addItem('製作者情報', 'showCreatorInfo');
+
+  menu.addSubMenu(introductionMenu)
+    .addSubMenu(settingsMenu)
     .addSubMenu(dailyMenu)
+    .addSubMenu(dutyMenu)
     .addSubMenu(reportMenu)
-    .addSubMenu(systemMenu)
-    .addSeparator()
-    .addItem('ℹ️ 製作者情報', 'showCreatorInfo')
+    .addSubMenu(integrationMenu)
+    .addSubMenu(helpMenu)
     .addToUi();
 
   // 内部管理シートは通常利用で見せない
@@ -119,33 +125,42 @@ function showUserGuide() {
     const fallbackHtml = HtmlService.createHtmlOutput(`
       <div style="font-family: 'Yu Gothic', Arial, sans-serif; padding: 20px;">
         <h2 style="color: #2c3e50;">❓ ポータルマスター 使い方ガイド</h2>
-        <h3>🏗️ 初回セットアップ（順番通りに実行）</h3>
-        <ol>
+
+        <h3>🚀 導入</h3>
+        <ul>
           <li><strong>年間行事計画をインポート:</strong> Googleスプレッドシートから行事予定をインポート</li>
-          <li><strong>日直を自動割り当て:</strong> 日直表を元にマスターへ日直を設定</li>
           <li><strong>行事予定表へ反映:</strong> マスターから年間行事予定表にデータを反映</li>
-          <li><strong>累計時数を初期計算:</strong> 現在までの累計授業時数を計算</li>
-          <li><strong>自動処理を設定:</strong> 定期実行トリガーを設定</li>
-        </ol>
+        </ul>
+
+        <h3>⚙️ 設定</h3>
+        <ul>
+          <li><strong>年度更新設定:</strong> 年度更新・連携先ID・基準日を設定</li>
+          <li><strong>自動トリガー設定:</strong> 自動処理のON/OFF・曜日・時刻を設定</li>
+        </ul>
 
         <h3>📅 日常業務</h3>
         <ul>
+          <li><strong>今日の日付へ移動:</strong> B1セルに今日の日付リンクを設定</li>
           <li><strong>週報をPDF保存:</strong> 週報シートをPDF形式で保存</li>
           <li><strong>週報フォルダを開く:</strong> PDF保存先フォルダをブラウザで開く</li>
-          <li><strong>休業期間日直をカウント:</strong> 年間行事予定表の☆を日直ごとに集計</li>
-          <li><strong>今日の日付へ移動:</strong> B1セルに今日の日付リンクを設定</li>
         </ul>
 
-        <h3>📊 集計・レポート</h3>
+        <h3>👥 日直</h3>
         <ul>
-          <li><strong>学年別授業時数を集計:</strong> 低中高学年別の詳細な時数レポート作成</li>
+          <li><strong>日直を自動割り当て:</strong> 日直表を元にマスターへ日直を設定</li>
           <li><strong>日直のみ更新:</strong> マスターの日直列のみ年間行事予定表へ反映</li>
+          <li><strong>休業期間日直を集計:</strong> 年間行事予定表の☆を日直ごとに集計</li>
         </ul>
 
-        <h3>🔧 システム管理</h3>
+        <h3>📊 集計</h3>
         <ul>
-          <li><strong>年度更新設定:</strong> 年度更新・連携先ID・基準日などの設定をダイアログで管理</li>
-          <li><strong>モジュール学習管理:</strong> ダイアログ画面で計画・実施差分を入力し、保存時に自動で再集計</li>
+          <li><strong>累計時数を計算:</strong> 最新土曜日までの累計授業時数を更新</li>
+          <li><strong>学年別授業時数を集計:</strong> 低中高学年別の詳細な時数レポート作成</li>
+          <li><strong>モジュール学習管理:</strong> 計画・実施差分を管理して再集計</li>
+        </ul>
+
+        <h3>🔁 連携と年度更新</h3>
+        <ul>
           <li><strong>カレンダーと同期:</strong> Googleカレンダーにイベントを同期します</li>
           <li><strong>年度更新ファイル作成:</strong> 新年度用にファイルをコピー・クリア</li>
         </ul>
