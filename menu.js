@@ -24,6 +24,7 @@ function onOpen() {
     .addItem('📋 日直のみ更新', 'updateAnnualDuty');
 
   const systemMenu = ui.createMenu('🔧 システム管理')
+    .addItem('🗂️ 年度更新設定', 'showAnnualUpdateSettingsDialog')
     .addItem('⚙️ 自動トリガー設定', 'showTriggerSettingsDialog')
     .addItem('🧩 モジュール学習管理', 'showModulePlanningDialog')
     .addItem('📅 カレンダーと同期', 'syncCalendars')
@@ -38,6 +39,15 @@ function onOpen() {
     .addSeparator()
     .addItem('ℹ️ 製作者情報', 'showCreatorInfo')
     .addToUi();
+
+  // 内部管理シートは通常利用で見せない
+  try {
+    if (typeof initializeModuleHoursSheetsIfNeeded === 'function') {
+      initializeModuleHoursSheetsIfNeeded();
+    }
+  } catch (error) {
+    Logger.log('[WARNING] module 管理シート初期化に失敗: ' + error.toString());
+  }
 }
 
 function showCreatorInfo() {
@@ -99,7 +109,8 @@ function showUserGuide() {
 
         <h3>🔧 システム管理</h3>
         <ul>
-          <li><strong>モジュール学習管理:</strong> module_cycle_plan（2か月クール）を基準に日次計画を自動生成</li>
+          <li><strong>年度更新設定:</strong> 年度更新・連携先ID・基準日などの設定をダイアログで管理</li>
+          <li><strong>モジュール学習管理:</strong> ダイアログ画面で計画・実施差分を入力し、保存時に自動で再集計</li>
           <li><strong>カレンダーと同期:</strong> Googleカレンダーにイベントを同期します</li>
           <li><strong>年度更新ファイル作成:</strong> 新年度用にファイルをコピー・クリア</li>
         </ul>

@@ -52,6 +52,8 @@ function runAllTests() {
     runTest(results, '3-2. トリガー設定関数の存在確認', testTriggerFunctions);
     runTest(results, '3-3. トリガー設定値読み込みテスト', testGetTriggerSettings);
     runTest(results, '3-4. トリガー設定バリデーションテスト', testValidateTriggerSettings);
+    runTest(results, '3-5. 年度更新設定定数の存在確認', testAnnualUpdateConfigConstants);
+    runTest(results, '3-6. 年度更新設定関数の存在確認', testAnnualUpdateSettingsFunctions);
     Logger.log('');
 
     // フェーズ4: 共通関数テスト
@@ -207,8 +209,11 @@ function testConfigSheetStructure() {
     return { success: false, message: '年度更新作業シートが見つかりません' };
   }
 
-  // トリガー設定セルの確認
-  const cells = ['C18', 'C19', 'C20', 'C21', 'C22', 'C23', 'C24', 'C25', 'C26', 'C27'];
+  // 年度更新設定セル + トリガー設定セルの確認
+  const cells = [
+    'C5', 'C7', 'C11', 'C14', 'C15', 'C16',
+    'C18', 'C19', 'C20', 'C21', 'C22', 'C23', 'C24', 'C25', 'C26', 'C27'
+  ];
   const accessible = cells.every(function(cell) {
     try {
       sheet.getRange(cell);
@@ -219,7 +224,7 @@ function testConfigSheetStructure() {
   });
 
   if (!accessible) {
-    return { success: false, message: 'トリガー設定セルにアクセスできません' };
+    return { success: false, message: '設定セルにアクセスできません' };
   }
 
   return { success: true, message: cells.length + '個の設定セルを確認' };
@@ -235,6 +240,8 @@ function testModuleFunctions() {
     'openModuleCyclePlanSheet',
     'openModuleDailyPlanSheet',
     'refreshModulePlanning',
+    'saveModuleCyclePlanFromDialog',
+    'addModuleExceptionFromDialog',
     'saveModulePlanningRange',
     'rebuildModulePlanFromRange',
     'syncModuleHoursWithCumulative',
@@ -291,12 +298,7 @@ function testInitializeModuleSheets() {
     initializeModuleHoursSheetsIfNeeded();
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const requiredSheets = [
-      MODULE_SHEET_NAMES.SETTINGS,
-      MODULE_SHEET_NAMES.CYCLE_PLAN,
-      MODULE_SHEET_NAMES.DAILY_PLAN,
-      MODULE_SHEET_NAMES.PLAN,
-      MODULE_SHEET_NAMES.EXCEPTIONS,
-      MODULE_SHEET_NAMES.SUMMARY
+      MODULE_SHEET_NAMES.CONTROL
     ];
 
     const missingSheets = requiredSheets.filter(function(sheetName) {
@@ -307,7 +309,7 @@ function testInitializeModuleSheets() {
       return { success: false, message: '作成失敗シート: ' + missingSheets.join(', ') };
     }
 
-    return { success: true, message: requiredSheets.length + '個のモジュールシートを確認' };
+    return { success: true, message: 'module_control シートを確認' };
   } catch (error) {
     return { success: false, message: error.toString() };
   }
@@ -605,6 +607,49 @@ function testValidateTriggerSettings() {
   }
 }
 
+function testAnnualUpdateConfigConstants() {
+  if (typeof ANNUAL_UPDATE_CONFIG_CELLS === 'undefined') {
+    return { success: false, message: 'ANNUAL_UPDATE_CONFIG_CELLS定数が見つかりません' };
+  }
+
+  const requiredKeys = [
+    'COPY_FILE_NAME',
+    'COPY_DESTINATION_FOLDER_ID',
+    'BASE_SUNDAY',
+    'WEEKLY_REPORT_FOLDER_ID',
+    'EVENT_CALENDAR_ID',
+    'EXTERNAL_CALENDAR_ID'
+  ];
+
+  const missingKeys = requiredKeys.filter(function(key) {
+    return !ANNUAL_UPDATE_CONFIG_CELLS.hasOwnProperty(key);
+  });
+
+  if (missingKeys.length > 0) {
+    return { success: false, message: '不足キー: ' + missingKeys.join(', ') };
+  }
+
+  return { success: true, message: requiredKeys.length + '個の年度更新設定キーを確認' };
+}
+
+function testAnnualUpdateSettingsFunctions() {
+  const functions = [
+    'showAnnualUpdateSettingsDialog',
+    'getAnnualUpdateSettings',
+    'saveAnnualUpdateSettings'
+  ];
+
+  const missing = functions.filter(function(funcName) {
+    return typeof eval(funcName) !== 'function';
+  });
+
+  if (missing.length > 0) {
+    return { success: false, message: '不足関数: ' + missing.join(', ') };
+  }
+
+  return { success: true, message: functions.length + '個の年度更新設定関数を確認' };
+}
+
 // ========================================
 // フェーズ4: 共通関数テスト
 // ========================================
@@ -867,6 +912,8 @@ function runQuickTest() {
   runTest(results, 'トリガー設定定数', testTriggerConfigConstants);
   runTest(results, 'トリガー設定関数', testTriggerFunctions);
   runTest(results, 'トリガー設定値読み込み', testGetTriggerSettings);
+  runTest(results, '年度更新設定定数', testAnnualUpdateConfigConstants);
+  runTest(results, '年度更新設定関数', testAnnualUpdateSettingsFunctions);
 
   Logger.log('\n【共通関数テスト】');
   runTest(results, '日付フォーマット', testFormatDateToJapanese);

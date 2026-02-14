@@ -7,7 +7,7 @@
 function copyAndClear() {
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();   //アクティブなスプレッドシートを取得
-  var sh1 = ss.getSheetByName('年度更新作業');    //「年度更新作業」シートの指定
+  var sh1 = getSheetByNameOrThrow('年度更新作業');    //「年度更新作業」シートの指定
   var sh2 = getAnnualScheduleSheet();    // 共通関数を使用
 
   if (!sh2) {
@@ -18,7 +18,7 @@ function copyAndClear() {
   var id = ss.getId();    //スプレッドシートのIDを取得
   var file = DriveApp.getFileById(id);    //コピーするファイルを指定
 
-  var folderId = sh1.getRange('C7').getValue();   //ファイルを格納するフォルダのIDを取得
+  var folderId = sh1.getRange(ANNUAL_UPDATE_CONFIG_CELLS.COPY_DESTINATION_FOLDER_ID).getValue();   //ファイルを格納するフォルダのIDを取得
 
   if(folderId === ''){    //C7セルが空白の場合
     var parentFolders = DriveApp.getFileById(ss.getId()).getParents();    //このスプレッドシートがあるフォルダを取得
@@ -28,7 +28,7 @@ function copyAndClear() {
 
   let folder = DriveApp.getFolderById(folderId);    //フォルダを指定
 
-  var filename = sh1.getRange('C5').getValue();   //作成するファイル名を取得
+  var filename = sh1.getRange(ANNUAL_UPDATE_CONFIG_CELLS.COPY_FILE_NAME).getValue();   //作成するファイル名を取得
 
 
   file.makeCopy(filename, folder);    //コピーの作成
@@ -39,4 +39,3 @@ function copyAndClear() {
   sh2.getRange('U3:AB' + lastRow).clearContent();  //シートのデータを削除（校時データ〜給食）
 
 }
-

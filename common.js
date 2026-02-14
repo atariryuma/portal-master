@@ -35,6 +35,19 @@ const CONFIG_CELLS = {
 };
 
 /**
+ * 年度更新関連設定のセル位置
+ * @const {Object}
+ */
+const ANNUAL_UPDATE_CONFIG_CELLS = {
+  COPY_FILE_NAME: 'C5',
+  COPY_DESTINATION_FOLDER_ID: 'C7',
+  BASE_SUNDAY: 'C11',
+  WEEKLY_REPORT_FOLDER_ID: 'C14',
+  EVENT_CALENDAR_ID: 'C15',
+  EXTERNAL_CALENDAR_ID: 'C16'
+};
+
+/**
  * 自動トリガー設定のセル位置
  * @const {Object}
  */
@@ -82,6 +95,8 @@ const SCHEDULE_COLUMNS = {
  * @const {Object}
  */
 const MODULE_SHEET_NAMES = {
+  CONTROL: 'module_control',
+  // 旧シート名（移行用に保持）
   SETTINGS: 'module_settings',
   CYCLE_PLAN: 'module_cycle_plan',
   DAILY_PLAN: 'module_daily_plan',
@@ -98,6 +113,7 @@ const MODULE_SETTING_KEYS = {
   PLAN_START_DATE: 'PLAN_START_DATE',
   PLAN_END_DATE: 'PLAN_END_DATE',
   LAST_GENERATED_AT: 'LAST_GENERATED_AT',
+  LAST_DAILY_PLAN_COUNT: 'LAST_DAILY_PLAN_COUNT',
   DATA_VERSION: 'DATA_VERSION',
   CUMULATIVE_DISPLAY_COLUMN: 'CUMULATIVE_DISPLAY_COLUMN'
 };
@@ -106,7 +122,7 @@ const MODULE_SETTING_KEYS = {
  * モジュール学習データバージョン
  * @const {string}
  */
-const MODULE_DATA_VERSION = 'CYCLE_DAILY_V1';
+const MODULE_DATA_VERSION = 'CONTROL_V2';
 
 /**
  * モジュール学習の年度開始月（4月）

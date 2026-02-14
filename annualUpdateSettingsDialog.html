@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>年度更新設定</title>
+  <style>
+    body {
+      font-family: 'Yu Gothic', Arial, sans-serif;
+      margin: 20px;
+      background-color: #f8f9fa;
+    }
+    .container {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      max-width: 640px;
+    }
+    h2 {
+      margin: 0 0 18px;
+      color: #1a73e8;
+      text-align: center;
+    }
+    .info-box, .warning-box {
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .info-box {
+      background: #e8f0fe;
+      border-left: 4px solid #1a73e8;
+    }
+    .warning-box {
+      background: #fff3cd;
+      border-left: 4px solid #f29900;
+    }
+    .section {
+      background: #f7f7f7;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .section h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      color: #202124;
+    }
+    .form-group {
+      margin-bottom: 10px;
+    }
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+    label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: bold;
+      color: #3c4043;
+      font-size: 14px;
+    }
+    input[type="text"], input[type="date"] {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+    .hint {
+      margin-top: 4px;
+      color: #5f6368;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .button-group {
+      text-align: center;
+      margin-top: 20px;
+      border-top: 2px solid #e0e0e0;
+      padding-top: 16px;
+    }
+    .btn {
+      border: none;
+      border-radius: 4px;
+      padding: 11px 24px;
+      margin: 0 8px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: bold;
+    }
+    .btn-primary {
+      background: #1a73e8;
+      color: #fff;
+    }
+    .btn-secondary {
+      background: #5f6368;
+      color: #fff;
+    }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🗂️ 年度更新設定</h2>
+
+    <div class="info-box">
+      ℹ️ 年度更新作業シート（C5/C7/C11/C14/C15/C16）の設定値をこの画面で管理できます。
+    </div>
+
+    <div class="warning-box">
+      ⚠️ 基準日には「新年度の4/1を含む週の日曜日」を指定してください。
+    </div>
+
+    <div class="section">
+      <h3>📋 年度更新ファイル作成</h3>
+      <div class="form-group">
+        <label for="copyFileName">複製ファイル名（C5）</label>
+        <input type="text" id="copyFileName" placeholder="例: 令和8年度年間行事予定表">
+      </div>
+      <div class="form-group">
+        <label for="copyDestinationFolderId">複製先フォルダID（C7）</label>
+        <input type="text" id="copyDestinationFolderId" placeholder="空欄可">
+        <div class="hint">空欄の場合は、このスプレッドシートと同じフォルダに保存します。</div>
+      </div>
+      <div class="form-group">
+        <label for="baseSunday">基準日（日曜日）（C11）</label>
+        <input type="date" id="baseSunday">
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>🔗 連携先ID</h3>
+      <div class="form-group">
+        <label for="weeklyReportFolderId">週報フォルダID（C14）</label>
+        <input type="text" id="weeklyReportFolderId" placeholder="空欄可">
+        <div class="hint">空欄の場合は、週報保存時に自動作成・保存されます。</div>
+      </div>
+      <div class="form-group">
+        <label for="eventCalendarId">行事予定カレンダーID（C15）</label>
+        <input type="text" id="eventCalendarId" placeholder="空欄可">
+      </div>
+      <div class="form-group">
+        <label for="externalCalendarId">対外行事カレンダーID（C16）</label>
+        <input type="text" id="externalCalendarId" placeholder="空欄可">
+        <div class="hint">C15/C16を空欄にすると、次回同期時に自動で再作成されます。</div>
+      </div>
+    </div>
+
+    <div class="button-group">
+      <button id="saveButton" class="btn btn-primary" onclick="saveSettings()">💾 保存</button>
+      <button class="btn btn-secondary" onclick="google.script.host.close()">キャンセル</button>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(loadSettings)
+        .withFailureHandler(handleError)
+        .getAnnualUpdateSettings();
+    };
+
+    function loadSettings(settings) {
+      document.getElementById('copyFileName').value = settings.copyFileName || '';
+      document.getElementById('copyDestinationFolderId').value = settings.copyDestinationFolderId || '';
+      document.getElementById('baseSunday').value = settings.baseSunday || '';
+      document.getElementById('weeklyReportFolderId').value = settings.weeklyReportFolderId || '';
+      document.getElementById('eventCalendarId').value = settings.eventCalendarId || '';
+      document.getElementById('externalCalendarId').value = settings.externalCalendarId || '';
+    }
+
+    function saveSettings() {
+      const settings = {
+        copyFileName: document.getElementById('copyFileName').value.trim(),
+        copyDestinationFolderId: document.getElementById('copyDestinationFolderId').value.trim(),
+        baseSunday: document.getElementById('baseSunday').value,
+        weeklyReportFolderId: document.getElementById('weeklyReportFolderId').value.trim(),
+        eventCalendarId: document.getElementById('eventCalendarId').value.trim(),
+        externalCalendarId: document.getElementById('externalCalendarId').value.trim()
+      };
+
+      if (!validateSettings(settings)) {
+        return;
+      }
+
+      const saveButton = document.getElementById('saveButton');
+      saveButton.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(function(message) {
+          saveButton.disabled = false;
+          alert('✅ ' + message);
+          google.script.host.close();
+        })
+        .withFailureHandler(function(error) {
+          saveButton.disabled = false;
+          handleError(error);
+        })
+        .saveAnnualUpdateSettings(settings);
+    }
+
+    function validateSettings(settings) {
+      if (!settings.copyFileName) {
+        alert('⚠️ 複製ファイル名を入力してください。');
+        return false;
+      }
+
+      if (!settings.baseSunday) {
+        alert('⚠️ 基準日（日曜日）を入力してください。');
+        return false;
+      }
+
+      const date = new Date(settings.baseSunday + 'T00:00:00');
+      if (isNaN(date.getTime())) {
+        alert('⚠️ 基準日の形式が不正です。');
+        return false;
+      }
+
+      if (date.getDay() !== 0) {
+        alert('⚠️ 基準日は日曜日を指定してください。');
+        return false;
+      }
+
+      return true;
+    }
+
+    function handleError(error) {
+      alert('❌ エラーが発生しました:\n' + (error && error.message ? error.message : error));
+    }
+  </script>
+</body>
+</html>

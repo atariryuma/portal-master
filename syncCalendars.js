@@ -20,7 +20,7 @@ function syncCalendars() {
   const eventCalendar = CalendarApp.getCalendarById(eventCalendarId);
   const externalCalendar = CalendarApp.getCalendarById(externalCalendarId);
   if (!eventCalendar || !externalCalendar) {
-    throw new Error('同期先カレンダーを取得できません。年度更新作業シートのC15/C16を確認してください。');
+    throw new Error('同期先カレンダーを取得できません。システム管理の「年度更新設定」でC15/C16を確認してください。');
   }
 
   const holidayCalendars = CalendarApp.getCalendarsByName('日本の祝日');
