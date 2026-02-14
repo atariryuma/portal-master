@@ -10,7 +10,7 @@
 function aggregateSchoolEventsByGrade() {
   try {
     const ui = SpreadsheetApp.getUi();
-    const htmlOutput = HtmlService.createHtmlOutputFromFile('dateSelector');
+    const htmlOutput = HtmlService.createHtmlOutputFromFile('DateSelector');
     ui.showModalDialog(htmlOutput, '集計範囲の指定');
   } catch (error) {
     showAlert('ダイアログの表示に失敗しました: ' + error.toString(), 'エラー');

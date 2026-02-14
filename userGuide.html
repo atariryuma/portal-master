@@ -476,8 +476,8 @@
                         <li>行事カテゴリー（儀式、文化等）は短縮形で入力</li>
                         <li>月別での詳細な内訳を確認可能</li>
                         <li>標準授業時数と実施時数の比較が容易</li>
-                        <li><strong>🧩 モジュール時数について:</strong> 開始日・終了日を設定すると、学校日ベースで計画を自動生成します。実施調整は <code>module_exceptions</code> シートへの例外入力のみで運用します。</li>
-                        <li><strong>⚠️ R列について:</strong> 年間行事予定表のR列は日直運用のための列です。モジュール時数集計では使用しません。</li>
+                        <li><strong>🧩 モジュール学習について:</strong> 計画は <code>module_cycle_plan</code>（2か月クール×45分コマ）で管理し、日次配分は <code>module_daily_plan</code> に自動生成されます。実施調整は <code>module_exceptions</code> の <code>delta_sessions</code>（15分単位）で行います。</li>
+                        <li><strong>⚠️ R列について:</strong> 年間行事予定表のR列は日直運用のための列です。モジュール学習集計では使用しません。</li>
                     </ul>
                 </div>
             </section>
@@ -492,14 +492,14 @@
                 </div>
 
                 <div class="menu-item">
-                    <h4>🧩 モジュール計画期間設定</h4>
+                    <h4>🧩 モジュール学習管理</h4>
                     <p><span class="function-name">showModulePlanningDialog</span></p>
-                    <p>開始日・終了日を設定し、期間内の平日かつ学校日を基準に学年別モジュール計画を自動生成します。</p>
+                    <p><code>module_cycle_plan</code> の2か月クール計画を編集すると、学校週ベースで日次計画を自動配分し、累計時数シートへ統合します。</p>
                     <ul>
-                        <li><strong>メニュー:</strong> 🔧 システム管理 → 🧩 モジュール計画期間設定</li>
-                        <li>設定後は <code>module_plan</code> が自動再生成される</li>
-                        <li>実施調整は <code>module_exceptions</code> への入力のみ</li>
-                        <li>結果は累計時数シートM～O列に統合反映</li>
+                        <li><strong>メニュー:</strong> 🔧 システム管理 → 🧩 モジュール学習管理</li>
+                        <li>計画編集は <code>module_cycle_plan</code>、日単位確認は <code>module_daily_plan</code> を使用</li>
+                        <li>実施調整は <code>module_exceptions</code> の <code>delta_sessions</code> 入力のみ</li>
+                        <li>結果は累計時数シートM～O列と <code>MOD実施累計(表示)</code> 列に統合反映</li>
                     </ul>
                 </div>
 
@@ -861,8 +861,6 @@
     </style>
 </body>
 </html>
-
-
 
 
 

@@ -40,6 +40,10 @@ function runAllTests() {
     runTest(results, '2-2. モジュール定数存在確認', testModuleConstants);
     runTest(results, '2-3. モジュールシート初期化確認', testInitializeModuleSheets);
     runTest(results, '2-4. 累計時数へのMOD統合確認', testModuleCumulativeIntegration);
+    runTest(results, '2-5. 表示フォーマット関数確認', testModuleDisplayFormatter);
+    runTest(results, '2-6. 表示列の占有衝突回避', testResolveDisplayColumnSkipsOccupiedColumn);
+    runTest(results, '2-7. 旧スキーマ行の置換除外', testReplaceRowsDropsLegacyFiscalRows);
+    runTest(results, '2-8. 他年度旧スキーマ行の保持', testReplaceRowsKeepsOtherLegacyFiscalRows);
     Logger.log('');
 
     // フェーズ3: 新機能テスト
@@ -62,7 +66,8 @@ function runAllTests() {
     Logger.log('【フェーズ5】データ処理テスト');
     runTest(results, '5-1. 年間行事予定表シート取得', testGetAnnualScheduleSheet);
     runTest(results, '5-2. 日付マップ作成', testCreateDateMap);
-    runTest(results, '5-3. イベントカテゴリ定数確認', testEventCategories);
+    runTest(results, '5-3. 重複日付の先頭行マッピング', testCreateDateMapKeepsFirstRow);
+    runTest(results, '5-4. イベントカテゴリ定数確認', testEventCategories);
     Logger.log('');
 
     // フェーズ6: メニュー機能テスト
@@ -227,9 +232,17 @@ function testConfigSheetStructure() {
 function testModuleFunctions() {
   const requiredFunctions = [
     'showModulePlanningDialog',
+    'openModuleCyclePlanSheet',
+    'openModuleDailyPlanSheet',
+    'refreshModulePlanning',
     'saveModulePlanningRange',
     'rebuildModulePlanFromRange',
     'syncModuleHoursWithCumulative',
+    'ensureDefaultCyclePlanForFiscalYear',
+    'loadCyclePlanForFiscalYear',
+    'buildDailyPlanFromCyclePlan',
+    'resolveCumulativeDisplayColumn',
+    'formatSessionsAsMixedFraction',
     'buildSchoolDayPlanMap',
     'applyModuleExceptions'
   ];
@@ -249,6 +262,7 @@ function testModuleConstants() {
   const requiredConstants = [
     'MODULE_SHEET_NAMES',
     'MODULE_SETTING_KEYS',
+    'MODULE_DATA_VERSION',
     'MODULE_FISCAL_YEAR_START_MONTH',
     'MODULE_CUMULATIVE_COLUMNS'
   ];
@@ -278,6 +292,8 @@ function testInitializeModuleSheets() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const requiredSheets = [
       MODULE_SHEET_NAMES.SETTINGS,
+      MODULE_SHEET_NAMES.CYCLE_PLAN,
+      MODULE_SHEET_NAMES.DAILY_PLAN,
       MODULE_SHEET_NAMES.PLAN,
       MODULE_SHEET_NAMES.EXCEPTIONS,
       MODULE_SHEET_NAMES.SUMMARY
@@ -319,9 +335,167 @@ function testModuleCumulativeIntegration() {
       return { success: false, message: '累計時数シートのMOD列ヘッダーが不正です' };
     }
 
+    const displayHeaderRow = cumulativeSheet.getRange(2, 1, 1, cumulativeSheet.getLastColumn()).getValues()[0];
+    if (displayHeaderRow.indexOf('MOD実施累計(表示)') === -1) {
+      return { success: false, message: 'MOD実施累計(表示)列が作成されていません' };
+    }
+
     return { success: true, message: '累計時数シートへMOD列を統合' };
   } catch (error) {
     return { success: false, message: error.toString() };
+  }
+}
+
+function testModuleDisplayFormatter() {
+  if (typeof formatSessionsAsMixedFraction !== 'function') {
+    return { success: false, message: 'formatSessionsAsMixedFraction関数が見つかりません' };
+  }
+
+  const case1 = formatSessionsAsMixedFraction(56); // 56/3 = 18 2/3
+  const case2 = formatSessionsAsMixedFraction(1);  // 1/3
+
+  if (case1 !== '18 2/3') {
+    return { success: false, message: '56セッションの表示が不正です: ' + case1 };
+  }
+  if (case2 !== '1/3') {
+    return { success: false, message: '1セッションの表示が不正です: ' + case2 };
+  }
+
+  return { success: true, message: '表示フォーマットを確認' };
+}
+
+function testResolveDisplayColumnSkipsOccupiedColumn() {
+  if (typeof resolveCumulativeDisplayColumn !== 'function' ||
+      typeof upsertModuleSettingsValues !== 'function' ||
+      typeof readModuleSettingsMap !== 'function' ||
+      typeof initializeModuleHoursSheetsIfNeeded !== 'function') {
+    return { success: false, message: '必要関数が見つかりません' };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tempSheet = ss.insertSheet('tmp_mod_display_col_' + Date.now());
+  const sheets = initializeModuleHoursSheetsIfNeeded();
+  const settingsSheet = sheets.settingsSheet;
+  const settingsMap = readModuleSettingsMap(settingsSheet);
+  const previous = Object.prototype.hasOwnProperty.call(settingsMap, MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN)
+    ? settingsMap[MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN]
+    : '';
+
+  try {
+    const occupiedColumn = MODULE_CUMULATIVE_COLUMNS.DISPLAY_FALLBACK;
+    tempSheet.getRange(3, occupiedColumn).setValue('既存データ');
+    upsertModuleSettingsValues(settingsSheet, {
+      CUMULATIVE_DISPLAY_COLUMN: occupiedColumn
+    });
+
+    const resolved = resolveCumulativeDisplayColumn(tempSheet);
+    if (resolved === occupiedColumn) {
+      return { success: false, message: 'データ占有列を再利用しています（列: ' + resolved + '）' };
+    }
+
+    const resolvedHeader = tempSheet.getRange(2, resolved).getValue();
+    if (resolvedHeader !== 'MOD実施累計(表示)') {
+      return { success: false, message: '解決列のヘッダー設定が不正です: ' + resolvedHeader };
+    }
+
+    return { success: true, message: '占有列を避けて表示列を解決' };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    upsertModuleSettingsValues(settingsSheet, {
+      CUMULATIVE_DISPLAY_COLUMN: previous
+    });
+    ss.deleteSheet(tempSheet);
+  }
+}
+
+function testReplaceRowsDropsLegacyFiscalRows() {
+  if (typeof replaceRowsForFiscalYear !== 'function') {
+    return { success: false, message: 'replaceRowsForFiscalYear関数が見つかりません' };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tempSheet = ss.insertSheet('tmp_mod_replace_' + Date.now());
+
+  try {
+    tempSheet.getRange(1, 1, 1, 2).setValues([['fiscal_year', 'value']]);
+    tempSheet.getRange(2, 1, 3, 2).setValues([
+      ['2025-06', 'legacy'],
+      [2024, 'keep'],
+      [2025, 'old']
+    ]);
+
+    replaceRowsForFiscalYear(tempSheet, [[2025, 'new']], 2025, 0, 2);
+
+    const afterLastRow = tempSheet.getLastRow();
+    const values = afterLastRow > 1 ? tempSheet.getRange(2, 1, afterLastRow - 1, 2).getValues() : [];
+    const legacyExists = values.some(function(row) {
+      return String(row[0]) === '2025-06';
+    });
+    const oldTargetExists = values.some(function(row) {
+      return Number(row[0]) === 2025 && row[1] === 'old';
+    });
+    const keepExists = values.some(function(row) {
+      return Number(row[0]) === 2024 && row[1] === 'keep';
+    });
+    const newExists = values.some(function(row) {
+      return Number(row[0]) === 2025 && row[1] === 'new';
+    });
+
+    if (legacyExists || oldTargetExists || !keepExists || !newExists) {
+      return { success: false, message: '置換結果が不正です: ' + JSON.stringify(values) };
+    }
+
+    return { success: true, message: '旧スキーマ行を除外して年度置換できることを確認' };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    ss.deleteSheet(tempSheet);
+  }
+}
+
+function testReplaceRowsKeepsOtherLegacyFiscalRows() {
+  if (typeof replaceRowsForFiscalYear !== 'function') {
+    return { success: false, message: 'replaceRowsForFiscalYear関数が見つかりません' };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tempSheet = ss.insertSheet('tmp_mod_replace_keep_' + Date.now());
+
+  try {
+    tempSheet.getRange(1, 1, 1, 2).setValues([['fiscal_year', 'value']]);
+    tempSheet.getRange(2, 1, 3, 2).setValues([
+      ['2024-12', 'legacy_keep'],
+      ['unknown', 'opaque_keep'],
+      [2025, 'old_target']
+    ]);
+
+    replaceRowsForFiscalYear(tempSheet, [[2025, 'new_target']], 2025, 0, 2);
+
+    const afterLastRow = tempSheet.getLastRow();
+    const values = afterLastRow > 1 ? tempSheet.getRange(2, 1, afterLastRow - 1, 2).getValues() : [];
+    const legacyKeepExists = values.some(function(row) {
+      return String(row[0]) === '2024-12' && row[1] === 'legacy_keep';
+    });
+    const opaqueKeepExists = values.some(function(row) {
+      return String(row[0]) === 'unknown' && row[1] === 'opaque_keep';
+    });
+    const oldTargetExists = values.some(function(row) {
+      return Number(row[0]) === 2025 && row[1] === 'old_target';
+    });
+    const newTargetExists = values.some(function(row) {
+      return Number(row[0]) === 2025 && row[1] === 'new_target';
+    });
+
+    if (!legacyKeepExists || !opaqueKeepExists || oldTargetExists || !newTargetExists) {
+      return { success: false, message: '保持/置換結果が不正です: ' + JSON.stringify(values) };
+    }
+
+    return { success: true, message: '対象年度のみ置換し、他年度旧スキーマ行を保持' };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    ss.deleteSheet(tempSheet);
   }
 }
 
@@ -527,6 +701,38 @@ function testCreateDateMap() {
     return { success: true, message: dateCount + '件の日付をマッピング' };
   } catch (error) {
     return { success: false, message: error.toString() };
+  }
+}
+
+function testCreateDateMapKeepsFirstRow() {
+  if (typeof createDateMap !== 'function' || typeof formatDateToJapanese !== 'function') {
+    return { success: false, message: '必要関数が見つかりません' };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tempSheet = ss.insertSheet('tmp_date_map_test_' + Date.now());
+
+  try {
+    const firstDate = new Date(2025, 3, 1);
+    const secondDate = new Date(2025, 3, 2);
+    tempSheet.getRange(1, 2, 3, 1).setValues([[firstDate], [firstDate], [secondDate]]);
+
+    const dateMap = createDateMap(tempSheet, 'B');
+    const firstKey = formatDateToJapanese(firstDate);
+    const secondKey = formatDateToJapanese(secondDate);
+
+    if (dateMap[firstKey] !== 1) {
+      return { success: false, message: '重複日付の先頭行を参照していません（期待:1, 実際:' + dateMap[firstKey] + '）' };
+    }
+    if (dateMap[secondKey] !== 3) {
+      return { success: false, message: '2件目の日付マッピングが不正です（期待:3, 実際:' + dateMap[secondKey] + '）' };
+    }
+
+    return { success: true, message: '重複日付は先頭行に正しくマッピングされます' };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    ss.deleteSheet(tempSheet);
   }
 }
 

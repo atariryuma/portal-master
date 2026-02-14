@@ -6,45 +6,65 @@
     body {
       font-family: "Yu Gothic", sans-serif;
       margin: 0;
-      padding: 20px;
+      padding: 18px;
       color: #222;
-      background: #f8fafc;
+      background: #f1f5f9;
     }
     .container {
       background: #fff;
       border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 18px;
+      border-radius: 10px;
+      padding: 16px;
     }
     h2 {
-      margin: 0 0 12px 0;
-      font-size: 18px;
+      margin: 0 0 10px 0;
+      font-size: 19px;
     }
-    p {
-      margin: 0 0 14px 0;
+    .lead {
+      margin: 0 0 12px 0;
       color: #475569;
       line-height: 1.6;
       font-size: 13px;
     }
-    label {
-      display: block;
-      margin: 10px 0 6px;
-      font-weight: bold;
-      font-size: 13px;
+    .summary {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 12px;
     }
-    input[type="date"] {
-      width: 100%;
-      box-sizing: border-box;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      padding: 8px 10px;
-      font-size: 14px;
-      background: #fff;
+    .summary-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: #334155;
+    }
+    .summary-item strong {
+      color: #0f172a;
+      font-weight: 700;
+      text-align: right;
+    }
+    .hint {
+      margin-top: 8px;
+      margin-bottom: 0;
+      color: #64748b;
+      font-size: 12px;
+      line-height: 1.5;
     }
     .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .actions-row {
       display: flex;
       gap: 8px;
-      margin-top: 16px;
+      margin-top: 8px;
     }
     button {
       border: none;
@@ -56,10 +76,15 @@
     .primary {
       background: #2563eb;
       color: #fff;
-      flex: 1;
+      width: 100%;
     }
-    .secondary {
+    .sub {
       background: #e2e8f0;
+      color: #0f172a;
+      width: 100%;
+    }
+    .close {
+      background: #f1f5f9;
       color: #0f172a;
       width: 110px;
     }
@@ -70,26 +95,59 @@
       font-size: 12px;
       white-space: pre-line;
     }
+    button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h2>モジュール計画期間設定</h2>
-    <p>
-      開始日と終了日を保存すると、期間内の平日かつ学校日を基準に
-      学年別の月次計画を自動生成します。
+    <h2>モジュール学習管理</h2>
+    <p class="lead">
+      計画編集は <code>module_cycle_plan</code> に集約されています。<br>
+      日次配分は <code>module_daily_plan</code> に自動生成され、累計時数シートへ自動統合されます。
     </p>
 
-    <label for="startDate">開始日</label>
-    <input type="date" id="startDate" required>
+    <div class="summary">
+      <div class="summary-item">
+        <span>対象年度</span>
+        <strong id="fiscalYear">-</strong>
+      </div>
+      <div class="summary-item">
+        <span>年度範囲</span>
+        <strong id="fiscalRange">-</strong>
+      </div>
+      <div class="summary-item">
+        <span>クール計画件数</span>
+        <strong id="cyclePlanCount">0件</strong>
+      </div>
+      <div class="summary-item">
+        <span>日次計画件数</span>
+        <strong id="dailyPlanCount">0件</strong>
+      </div>
+      <div class="summary-item">
+        <span>累計表示列</span>
+        <strong id="displayColumn">-</strong>
+      </div>
+      <div class="summary-item">
+        <span>最終生成日時</span>
+        <strong id="lastGeneratedAt">未生成</strong>
+      </div>
+    </div>
 
-    <label for="endDate">終了日</label>
-    <input type="date" id="endDate" required>
+    <p class="hint">
+      実施調整は <code>module_exceptions</code> で行います（<code>delta_sessions</code> 15分単位）。<br>
+      週増分を含む表示は累計時数シートの <code>MOD実施累計(表示)</code> 列に出力されます。
+    </p>
 
     <div class="actions">
-      <button class="primary" id="saveButton" onclick="submitPlanningRange()">保存して再生成</button>
-      <button class="secondary" onclick="google.script.host.close()">閉じる</button>
+      <button type="button" class="sub" id="openCycleButton" onclick="openCyclePlanSheet()">計画表を開く</button>
+      <button type="button" class="sub" id="openDailyButton" onclick="openDailyPlanSheet()">日付計画を開く</button>
+      <button type="button" class="primary" id="refreshButton" onclick="refreshPlanning()">再集計を実行</button>
+      <button type="button" class="close" id="closeButton" onclick="google.script.host.close()">閉じる</button>
     </div>
+
     <div class="status" id="status"></div>
   </div>
 
@@ -99,48 +157,95 @@
     }
 
     function setLoading(isLoading) {
-      document.getElementById('saveButton').disabled = isLoading;
+      document.getElementById('openCycleButton').disabled = isLoading;
+      document.getElementById('openDailyButton').disabled = isLoading;
+      document.getElementById('refreshButton').disabled = isLoading;
+      document.getElementById('closeButton').disabled = isLoading;
     }
 
-    function loadDefaults() {
-      setStatus('初期値を読み込み中...');
+    function getErrorMessage(error) {
+      if (!error) return '不明なエラー';
+      return error.message || error.toString();
+    }
+
+    function updateSummary(state) {
+      var range = (state.fiscalYearStartDate || '-') + ' ～ ' + (state.fiscalYearEndDate || '-');
+      document.getElementById('fiscalYear').textContent = (state.fiscalYear || '-') + '年度';
+      document.getElementById('fiscalRange').textContent = range;
+      document.getElementById('cyclePlanCount').textContent = (state.cyclePlanRecordCount || 0) + '件';
+      document.getElementById('dailyPlanCount').textContent = (state.dailyPlanRecordCount || 0) + '件';
+      document.getElementById('displayColumn').textContent = state.cumulativeDisplayColumn || '未設定';
+      document.getElementById('lastGeneratedAt').textContent = state.lastGeneratedAt || '未生成';
+    }
+
+    function loadDialogState(keepStatus) {
+      if (!keepStatus) {
+        setStatus('現在の状態を読み込み中...');
+      }
       google.script.run
-        .withSuccessHandler(function(defaults) {
-          document.getElementById('startDate').value = defaults.startDate || '';
-          document.getElementById('endDate').value = defaults.endDate || '';
-          setStatus('');
+        .withSuccessHandler(function(state) {
+          updateSummary(state || {});
+          if (!keepStatus) {
+            setStatus('');
+          }
         })
         .withFailureHandler(function(error) {
-          setStatus('初期値の取得に失敗しました: ' + error.message);
+          setStatus('状態の取得に失敗しました: ' + getErrorMessage(error));
         })
-        .getModulePlanningDefaults();
+        .getModulePlanningDialogState();
     }
 
-    function submitPlanningRange() {
-      var startDate = document.getElementById('startDate').value;
-      var endDate = document.getElementById('endDate').value;
-
-      if (!startDate || !endDate) {
-        setStatus('開始日と終了日を入力してください。');
-        return;
-      }
-
+    function openCyclePlanSheet() {
       setLoading(true);
-      setStatus('保存・再生成を実行中...');
-
+      setStatus('module_cycle_plan を開いています...');
       google.script.run
         .withSuccessHandler(function(message) {
-          setStatus(message);
           setLoading(false);
+          setStatus(message || 'module_cycle_plan を開きました。');
+          loadDialogState(true);
         })
         .withFailureHandler(function(error) {
-          setStatus('保存に失敗しました: ' + error.message);
           setLoading(false);
+          setStatus('シートを開けませんでした: ' + getErrorMessage(error));
         })
-        .saveModulePlanningRange(startDate, endDate);
+        .openModuleCyclePlanSheet();
     }
 
-    window.onload = loadDefaults;
+    function openDailyPlanSheet() {
+      setLoading(true);
+      setStatus('module_daily_plan を開いています...');
+      google.script.run
+        .withSuccessHandler(function(message) {
+          setLoading(false);
+          setStatus(message || 'module_daily_plan を開きました。');
+          loadDialogState(true);
+        })
+        .withFailureHandler(function(error) {
+          setLoading(false);
+          setStatus('シートを開けませんでした: ' + getErrorMessage(error));
+        })
+        .openModuleDailyPlanSheet();
+    }
+
+    function refreshPlanning() {
+      setLoading(true);
+      setStatus('再集計を実行中...');
+      google.script.run
+        .withSuccessHandler(function(message) {
+          setLoading(false);
+          setStatus(message || '再集計が完了しました。');
+          loadDialogState(true);
+        })
+        .withFailureHandler(function(error) {
+          setLoading(false);
+          setStatus('再集計に失敗しました: ' + getErrorMessage(error));
+        })
+        .refreshModulePlanning();
+    }
+
+    window.onload = function() {
+      loadDialogState(false);
+    };
   </script>
 </body>
 </html>

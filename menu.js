@@ -25,7 +25,7 @@ function onOpen() {
 
   const systemMenu = ui.createMenu('🔧 システム管理')
     .addItem('⚙️ 自動トリガー設定', 'showTriggerSettingsDialog')
-    .addItem('🧩 モジュール計画期間設定', 'showModulePlanningDialog')
+    .addItem('🧩 モジュール学習管理', 'showModulePlanningDialog')
     .addItem('📅 カレンダーと同期', 'syncCalendars')
     .addItem('📋 年度更新ファイル作成', 'copyAndClear');
 
@@ -99,7 +99,7 @@ function showUserGuide() {
 
         <h3>🔧 システム管理</h3>
         <ul>
-          <li><strong>モジュール計画期間設定:</strong> 開始日・終了日から学校日ベースの計画を自動生成</li>
+          <li><strong>モジュール学習管理:</strong> module_cycle_plan（2か月クール）を基準に日次計画を自動生成</li>
           <li><strong>カレンダーと同期:</strong> Googleカレンダーにイベントを同期します</li>
           <li><strong>年度更新ファイル作成:</strong> 新年度用にファイルをコピー・クリア</li>
         </ul>

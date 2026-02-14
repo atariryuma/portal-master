@@ -57,11 +57,11 @@ function calculateCumulativeHours() {
       writeResultsToSheet(cumulativeSheet, grade, results);
     });
 
-    // 既存の累計計算にモジュール時数を統合
+    // 既存の累計計算にモジュール学習計画を統合
     syncModuleHoursWithCumulative(thisSaturday);
 
     // アラートを表示（共通関数を使用）
-    showAlert(formattedDate + 'を計算しました。モジュール時数も更新済みです。');
+    showAlert(formattedDate + 'を計算しました。モジュール学習計画も更新済みです。');
 
   } catch (error) {
     showAlert(error.message, 'エラー');
@@ -125,5 +125,3 @@ function getCumulativeCategoryMap() {
   });
   return map;
 }
-
-

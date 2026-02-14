@@ -78,11 +78,13 @@ const SCHEDULE_COLUMNS = {
 };
 
 /**
- * モジュール時数管理の設定
+ * モジュール学習管理の設定
  * @const {Object}
  */
 const MODULE_SHEET_NAMES = {
   SETTINGS: 'module_settings',
+  CYCLE_PLAN: 'module_cycle_plan',
+  DAILY_PLAN: 'module_daily_plan',
   PLAN: 'module_plan',
   EXCEPTIONS: 'module_exceptions',
   SUMMARY: 'module_summary'
@@ -95,11 +97,19 @@ const MODULE_SHEET_NAMES = {
 const MODULE_SETTING_KEYS = {
   PLAN_START_DATE: 'PLAN_START_DATE',
   PLAN_END_DATE: 'PLAN_END_DATE',
-  LAST_GENERATED_AT: 'LAST_GENERATED_AT'
+  LAST_GENERATED_AT: 'LAST_GENERATED_AT',
+  DATA_VERSION: 'DATA_VERSION',
+  CUMULATIVE_DISPLAY_COLUMN: 'CUMULATIVE_DISPLAY_COLUMN'
 };
 
 /**
- * モジュール時数の年度開始月（4月）
+ * モジュール学習データバージョン
+ * @const {string}
+ */
+const MODULE_DATA_VERSION = 'CYCLE_DAILY_V1';
+
+/**
+ * モジュール学習の年度開始月（4月）
  * @const {number}
  */
 const MODULE_FISCAL_YEAR_START_MONTH = 4;
@@ -111,7 +121,8 @@ const MODULE_FISCAL_YEAR_START_MONTH = 4;
 const MODULE_CUMULATIVE_COLUMNS = {
   PLAN: 13,    // M列
   ACTUAL: 14,  // N列
-  DIFF: 15     // O列
+  DIFF: 15,    // O列
+  DISPLAY_FALLBACK: 16 // P列（動的表示列の既定開始位置）
 };
 
 // ========================================
@@ -335,7 +346,7 @@ function safeExecute(func, functionName) {
  * 日付をキーにしたマップを作成
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
  * @param {string} dateColumn - 日付列（'A', 'B'など）
- * @return {Object} 日付をキーとしたマップ（{"M月d日": 行番号}）
+ * @return {Object} 日付をキーとしたマップ（{"M月d日": 最初の行番号}）
  */
 function createDateMap(sheet, dateColumn = 'B') {
   const lastRow = sheet.getLastRow();
@@ -345,7 +356,8 @@ function createDateMap(sheet, dateColumn = 'B') {
   const dateMap = {};
   dateValues.forEach((row, index) => {
     const date = formatDateToJapanese(row[0]);
-    if (date) {
+    if (date && !Object.prototype.hasOwnProperty.call(dateMap, date)) {
+      // 同一日付が複数行に存在する場合は先頭行を採用する
       dateMap[date] = index + 1; // 1-based index
     }
   });
