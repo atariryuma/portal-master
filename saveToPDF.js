@@ -1,8 +1,14 @@
+﻿/**
+ * @fileoverview 週報PDF保存機能
+ * @description 週報シートをPDF形式で保存し、Google Driveに格納します。
+ *              行高さを自動調整し、同名ファイルは自動的に置き換えられます。
+ */
+
 function saveToPDF() {
   // 対象とするシート名の配列
   const sheetNames = ['週報（時数あり）', '週報（時数あり）次週'];
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
+
   // 各シートごとに、行高さの調整とPDF出力を実行
   sheetNames.forEach(function(sheetName) {
     const sheet = ss.getSheetByName(sheetName);
@@ -42,31 +48,31 @@ function adjustRowHeightsForSheet(sheet) {
 }
 
 function exportSheetToPDF(sheet) {
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetId = sheet.getSheetId();
-  var fileName = createFileName(sheet);
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetId = sheet.getSheetId();
+  const fileName = createFileName(sheet);
 
   // PDFエクスポート用のURLを作成
-  var url = preparePdfUrl(spreadsheet.getId(), sheetId);
+  const url = preparePdfUrl(spreadsheet.getId(), sheetId);
 
-  var options = {
+  const options = {
     headers: {
       'Authorization': 'Bearer ' + ScriptApp.getOAuthToken()
     }
   };
 
   // URLからPDFを取得し、Blobとして保存
-  var response = UrlFetchApp.fetch(url, options);
-  var blob = response.getBlob().setName(fileName + '.pdf');
+  const response = UrlFetchApp.fetch(url, options);
+  const blob = response.getBlob().setName(fileName + '.pdf');
 
   // 保存先のフォルダIDを取得（共通関数を使用）
-  var folderId = getWeeklyReportFolderId();
-  var folder = DriveApp.getFolderById(folderId);
+  const folderId = getWeeklyReportFolderId();
+  const folder = DriveApp.getFolderById(folderId);
 
   // 同名の既存ファイルを削除
-  var files = folder.getFilesByName(fileName + '.pdf');
+  const files = folder.getFilesByName(fileName + '.pdf');
   while (files.hasNext()) {
-    var file = files.next();
+    const file = files.next();
     DriveApp.getFileById(file.getId()).setTrashed(true);
   }
 
@@ -100,19 +106,20 @@ function preparePdfUrl(spreadsheetId, sheetId) {
 
 function createFileName(sheet) {
   // セルB1～D1の値を連結してファイル名の一部とし、セルM1～P1の日付範囲を追加
-  var range1 = sheet.getRange('B1:D1').getValues()[0].join('');
-  var dateRange = sheet.getRange('M1:P1').getValues()[0];
-  var formattedDateRange = formatDateRange(dateRange);
+  const range1 = sheet.getRange('B1:D1').getValues()[0].join('');
+  const dateRange = sheet.getRange('M1:P1').getValues()[0];
+  const formattedDateRange = formatDateRange(dateRange);
   return range1 + '（' + formattedDateRange + '）';
 }
 
 function formatDateRange(dateRange) {
-  var start = new Date(dateRange[0]);
-  var end = new Date(dateRange[dateRange.length - 1]);
-  var formatDate = function(date) {
+  const start = new Date(dateRange[0]);
+  const end = new Date(dateRange[dateRange.length - 1]);
+  const formatDate = function(date) {
     return (date.getMonth() + 1) + '月' + date.getDate() + '日';
   };
   return formatDate(start) + '～' + formatDate(end);
 }
 
-// getOrCreateFolderId関数は共通関数.jsのgetWeeklyReportFolderIdに移行
+// getOrCreateFolderId関数はcommon.jsのgetWeeklyReportFolderIdに移行
+

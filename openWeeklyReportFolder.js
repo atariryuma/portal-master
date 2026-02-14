@@ -1,3 +1,9 @@
+/**
+ * @fileoverview 週報フォルダを開く機能
+ * @description 週報PDFの保存先フォルダをブラウザで開きます。
+ *              フォルダが存在しない場合は自動作成されます。
+ */
+
 function openWeeklyReportFolder() {
   // 共通関数を使用してフォルダIDを取得
   var folderId = getWeeklyReportFolderId();

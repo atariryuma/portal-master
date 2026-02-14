@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>自動トリガー設定</title>
+  <style>
+    body {
+      font-family: 'Yu Gothic', Arial, sans-serif;
+      margin: 20px;
+      background-color: #f8f9fa;
+    }
+    .container {
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      max-width: 600px;
+    }
+    h2 {
+      color: #1a73e8;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .info-box {
+      background-color: #e8f5e9;
+      border-left: 4px solid #4caf50;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    .warning-box {
+      background-color: #fff3cd;
+      border-left: 4px solid #ff9800;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    .trigger-section {
+      background-color: #f5f5f5;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+    }
+    .trigger-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .trigger-header h3 {
+      margin: 0;
+      font-size: 16px;
+      flex-grow: 1;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 24px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #4caf50;
+    }
+    input:checked + .slider:before {
+      transform: translateX(26px);
+    }
+    .form-row {
+      display: flex;
+      gap: 15px;
+      margin-top: 10px;
+    }
+    .form-group {
+      flex: 1;
+    }
+    .form-group label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #555;
+      font-size: 14px;
+    }
+    select, input[type="number"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .button-group {
+      text-align: center;
+      margin-top: 25px;
+      padding-top: 20px;
+      border-top: 2px solid #e0e0e0;
+    }
+    .btn {
+      padding: 12px 30px;
+      margin: 0 10px;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn-primary {
+      background-color: #1a73e8;
+      color: white;
+    }
+    .btn-secondary {
+      background-color: #5f6368;
+      color: white;
+    }
+    .btn:hover {
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>⚙️ 自動トリガー設定</h2>
+
+    <div class="info-box">
+      ℹ️ <strong>自動実行する処理を設定できます</strong><br>
+      各処理の有効/無効、実行時刻、実行曜日（週次処理のみ）をカスタマイズできます。
+    </div>
+
+    <div class="warning-box">
+      ⚠️ <strong>注意事項</strong><br>
+      ・設定を保存すると既存のトリガーは全て削除され、新しく作成されます<br>
+      ・時刻は0～23時の範囲で指定してください（深夜・早朝推奨）<br>
+      ・トリガーの実行時刻は前後1時間程度ずれる場合があります
+    </div>
+
+    <!-- トリガー1: 週報PDF保存 -->
+    <div class="trigger-section">
+      <div class="trigger-header">
+        <h3>📄 週報をPDF保存</h3>
+        <label class="switch">
+          <input type="checkbox" id="weeklyPdfEnabled" onchange="toggleTrigger('weeklyPdf')">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div id="weeklyPdfSettings">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="weeklyPdfDay">実行曜日</label>
+            <select id="weeklyPdfDay">
+              <option value="0">日曜日</option>
+              <option value="1" selected>月曜日</option>
+              <option value="2">火曜日</option>
+              <option value="3">水曜日</option>
+              <option value="4">木曜日</option>
+              <option value="5">金曜日</option>
+              <option value="6">土曜日</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="weeklyPdfHour">実行時刻（時）</label>
+            <input type="number" id="weeklyPdfHour" min="0" max="23" value="2">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- トリガー2: 累計時数計算 -->
+    <div class="trigger-section">
+      <div class="trigger-header">
+        <h3>🧮 累計時数を計算</h3>
+        <label class="switch">
+          <input type="checkbox" id="cumulativeHoursEnabled" onchange="toggleTrigger('cumulativeHours')">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div id="cumulativeHoursSettings">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cumulativeHoursDay">実行曜日</label>
+            <select id="cumulativeHoursDay">
+              <option value="0">日曜日</option>
+              <option value="1" selected>月曜日</option>
+              <option value="2">火曜日</option>
+              <option value="3">水曜日</option>
+              <option value="4">木曜日</option>
+              <option value="5">金曜日</option>
+              <option value="6">土曜日</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="cumulativeHoursHour">実行時刻（時）</label>
+            <input type="number" id="cumulativeHoursHour" min="0" max="23" value="2">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- トリガー3: カレンダー同期 -->
+    <div class="trigger-section">
+      <div class="trigger-header">
+        <h3>📅 Googleカレンダーと同期</h3>
+        <label class="switch">
+          <input type="checkbox" id="calendarSyncEnabled" onchange="toggleTrigger('calendarSync')">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div id="calendarSyncSettings">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="calendarSyncHour">実行時刻（時）</label>
+            <input type="number" id="calendarSyncHour" min="0" max="23" value="3">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- トリガー4: 今日の日付へ移動 -->
+    <div class="trigger-section">
+      <div class="trigger-header">
+        <h3>🔗 今日の日付へ移動</h3>
+        <label class="switch">
+          <input type="checkbox" id="dailyLinkEnabled" onchange="toggleTrigger('dailyLink')">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div id="dailyLinkSettings">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="dailyLinkHour">実行時刻（時）</label>
+            <input type="number" id="dailyLinkHour" min="0" max="23" value="4">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ボタン -->
+    <div class="button-group">
+      <button class="btn btn-primary" onclick="saveSettings()">💾 保存して設定</button>
+      <button class="btn btn-secondary" onclick="google.script.host.close()">キャンセル</button>
+    </div>
+  </div>
+
+  <script>
+    // 初期化: 既存の設定値を読み込んで表示
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(loadSettings)
+        .withFailureHandler(handleError)
+        .getTriggerSettings();
+    };
+
+    // 設定値をフォームに反映
+    function loadSettings(settings) {
+      // 週報PDF保存
+      document.getElementById('weeklyPdfEnabled').checked = settings.weeklyPdf.enabled;
+      document.getElementById('weeklyPdfDay').value = settings.weeklyPdf.day;
+      document.getElementById('weeklyPdfHour').value = settings.weeklyPdf.hour;
+      toggleTrigger('weeklyPdf');
+
+      // 累計時数計算
+      document.getElementById('cumulativeHoursEnabled').checked = settings.cumulativeHours.enabled;
+      document.getElementById('cumulativeHoursDay').value = settings.cumulativeHours.day;
+      document.getElementById('cumulativeHoursHour').value = settings.cumulativeHours.hour;
+      toggleTrigger('cumulativeHours');
+
+      // カレンダー同期
+      document.getElementById('calendarSyncEnabled').checked = settings.calendarSync.enabled;
+      document.getElementById('calendarSyncHour').value = settings.calendarSync.hour;
+      toggleTrigger('calendarSync');
+
+      // 今日の日付へ移動
+      document.getElementById('dailyLinkEnabled').checked = settings.dailyLink.enabled;
+      document.getElementById('dailyLinkHour').value = settings.dailyLink.hour;
+      toggleTrigger('dailyLink');
+    }
+
+    // トリガーの有効/無効切り替え
+    function toggleTrigger(triggerName) {
+      const enabled = document.getElementById(triggerName + 'Enabled').checked;
+      const settings = document.getElementById(triggerName + 'Settings');
+
+      if (enabled) {
+        settings.classList.remove('disabled');
+      } else {
+        settings.classList.add('disabled');
+      }
+    }
+
+    // 設定値を保存
+    function saveSettings() {
+      // 入力値の検証
+      const settings = {
+        weeklyPdf: {
+          enabled: document.getElementById('weeklyPdfEnabled').checked,
+          day: parseInt(document.getElementById('weeklyPdfDay').value),
+          hour: parseInt(document.getElementById('weeklyPdfHour').value)
+        },
+        cumulativeHours: {
+          enabled: document.getElementById('cumulativeHoursEnabled').checked,
+          day: parseInt(document.getElementById('cumulativeHoursDay').value),
+          hour: parseInt(document.getElementById('cumulativeHoursHour').value)
+        },
+        calendarSync: {
+          enabled: document.getElementById('calendarSyncEnabled').checked,
+          hour: parseInt(document.getElementById('calendarSyncHour').value)
+        },
+        dailyLink: {
+          enabled: document.getElementById('dailyLinkEnabled').checked,
+          hour: parseInt(document.getElementById('dailyLinkHour').value)
+        }
+      };
+
+      // バリデーション
+      if (!validateSettings(settings)) {
+        return;
+      }
+
+      // 保存処理を実行
+      google.script.run
+        .withSuccessHandler(handleSuccess)
+        .withFailureHandler(handleError)
+        .saveTriggerSettings(settings);
+    }
+
+    // 入力値の検証
+    function validateSettings(settings) {
+      const hours = [
+        settings.weeklyPdf.hour,
+        settings.cumulativeHours.hour,
+        settings.calendarSync.hour,
+        settings.dailyLink.hour
+      ];
+
+      for (let hour of hours) {
+        if (hour < 0 || hour > 23 || isNaN(hour)) {
+          alert('⚠️ 時刻は0～23の範囲で指定してください。');
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    // 保存成功時の処理
+    function handleSuccess(message) {
+      alert('✅ ' + message);
+      google.script.host.close();
+    }
+
+    // エラー処理
+    function handleError(error) {
+      alert('❌ エラーが発生しました:\n' + error.message);
+    }
+  </script>
+</body>
+</html>

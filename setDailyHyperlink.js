@@ -1,3 +1,9 @@
+/**
+ * @fileoverview 今日の日付へ移動機能
+ * @description B1セルに今日の日付へのハイパーリンクを設定します。
+ *              日付が見つからない場合はエラーメッセージを表示します。
+ */
+
 function setDailyHyperlink() {
   const sheet = getAnnualScheduleSheet(); // 共通関数を使用
   if (!sheet) {

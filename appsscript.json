@@ -1,46 +1,30 @@
 {
-  "timeZone": "Asia/Tokyo",
-  "dependencies": {
-    "enabledAdvancedServices": [
-      {
-        "userSymbol": "Drive",
-        "version": "v3",
-        "serviceId": "drive"
-      }
-    ]
-  },
-  "exceptionLogging": "STACKDRIVER",
-  "runtimeVersion": "V8",
-  "sheets": {
-    "macros": [
-      {
-        "menuName": "exportSheetToPDF",
-        "functionName": "exportSheetToPDF"
-      },
-      {
-        "menuName": "assignDuty",
-        "functionName": "assignDuty"
-      },
-      {
-        "menuName": "createFileName",
-        "functionName": "createFileName"
-      },
-      {
-        "menuName": "updateAnnualEvents",
-        "functionName": "updateAnnualEvents"
-      },
-      {
-        "menuName": "main",
-        "functionName": "main"
-      },
-      {
-        "menuName": "updateMasterFromEvents",
-        "functionName": "updateMasterFromEvents"
-      },
-      {
-        "menuName": "setDailyHyperlink",
-        "functionName": "setDailyHyperlink"
-      }
-    ]
-  }
+    "timeZone":  "Asia/Tokyo",
+    "dependencies":  {
+                         "enabledAdvancedServices":  [
+                                                         {
+                                                             "userSymbol":  "Drive",
+                                                             "serviceId":  "drive",
+                                                             "version":  "v3"
+                                                         }
+                                                     ]
+                     },
+    "exceptionLogging":  "STACKDRIVER",
+    "runtimeVersion":  "V8",
+    "sheets":  {
+                   "macros":  [
+                                  {
+                                      "menuName":  "saveToPDF",
+                                      "functionName":  "saveToPDF"
+                                  },
+                                  {
+                                      "menuName":  "updateAnnualEvents",
+                                      "functionName":  "updateAnnualEvents"
+                                  },
+                                  {
+                                      "menuName":  "setDailyHyperlink",
+                                      "functionName":  "setDailyHyperlink"
+                                  }
+                              ]
+               }
 }

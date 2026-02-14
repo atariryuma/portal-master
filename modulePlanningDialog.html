@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: "Yu Gothic", sans-serif;
+      margin: 0;
+      padding: 20px;
+      color: #222;
+      background: #f8fafc;
+    }
+    .container {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 18px;
+    }
+    h2 {
+      margin: 0 0 12px 0;
+      font-size: 18px;
+    }
+    p {
+      margin: 0 0 14px 0;
+      color: #475569;
+      line-height: 1.6;
+      font-size: 13px;
+    }
+    label {
+      display: block;
+      margin: 10px 0 6px;
+      font-weight: bold;
+      font-size: 13px;
+    }
+    input[type="date"] {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: #fff;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    button {
+      border: none;
+      border-radius: 6px;
+      padding: 9px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .primary {
+      background: #2563eb;
+      color: #fff;
+      flex: 1;
+    }
+    .secondary {
+      background: #e2e8f0;
+      color: #0f172a;
+      width: 110px;
+    }
+    .status {
+      margin-top: 10px;
+      min-height: 18px;
+      color: #475569;
+      font-size: 12px;
+      white-space: pre-line;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>モジュール計画期間設定</h2>
+    <p>
+      開始日と終了日を保存すると、期間内の平日かつ学校日を基準に
+      学年別の月次計画を自動生成します。
+    </p>
+
+    <label for="startDate">開始日</label>
+    <input type="date" id="startDate" required>
+
+    <label for="endDate">終了日</label>
+    <input type="date" id="endDate" required>
+
+    <div class="actions">
+      <button class="primary" id="saveButton" onclick="submitPlanningRange()">保存して再生成</button>
+      <button class="secondary" onclick="google.script.host.close()">閉じる</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <script>
+    function setStatus(text) {
+      document.getElementById('status').textContent = text || '';
+    }
+
+    function setLoading(isLoading) {
+      document.getElementById('saveButton').disabled = isLoading;
+    }
+
+    function loadDefaults() {
+      setStatus('初期値を読み込み中...');
+      google.script.run
+        .withSuccessHandler(function(defaults) {
+          document.getElementById('startDate').value = defaults.startDate || '';
+          document.getElementById('endDate').value = defaults.endDate || '';
+          setStatus('');
+        })
+        .withFailureHandler(function(error) {
+          setStatus('初期値の取得に失敗しました: ' + error.message);
+        })
+        .getModulePlanningDefaults();
+    }
+
+    function submitPlanningRange() {
+      var startDate = document.getElementById('startDate').value;
+      var endDate = document.getElementById('endDate').value;
+
+      if (!startDate || !endDate) {
+        setStatus('開始日と終了日を入力してください。');
+        return;
+      }
+
+      setLoading(true);
+      setStatus('保存・再生成を実行中...');
+
+      google.script.run
+        .withSuccessHandler(function(message) {
+          setStatus(message);
+          setLoading(false);
+        })
+        .withFailureHandler(function(error) {
+          setStatus('保存に失敗しました: ' + error.message);
+          setLoading(false);
+        })
+        .saveModulePlanningRange(startDate, endDate);
+    }
+
+    window.onload = loadDefaults;
+  </script>
+</body>
+</html>
