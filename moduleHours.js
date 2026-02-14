@@ -91,28 +91,51 @@ function getModulePlanningDefaults() {
  */
 function getModulePlanningDialogState() {
   const startedAt = new Date().getTime();
+  let initElapsedMs = 0;
+  let dataElapsedMs = 0;
+  let cumulativeElapsedMs = 0;
+
+  const initStartedAt = new Date().getTime();
   const sheets = initializeModuleHoursSheetsIfNeeded();
+  initElapsedMs = new Date().getTime() - initStartedAt;
+
+  const controlSheet = sheets.controlSheet;
   const baseDate = normalizeToDate(getCurrentOrNextSaturday());
   const fiscalYear = getFiscalYear(baseDate);
   const fiscalRange = getFiscalYearDateRange(fiscalYear);
 
-  ensureDefaultCyclePlanForFiscalYear(fiscalYear, sheets.controlSheet);
+  const dataStartedAt = new Date().getTime();
+  let layout = getModuleControlLayout(controlSheet);
+  let cyclePlanRows = readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear, null, layout);
+  const createdDefaults = ensureDefaultCyclePlanForFiscalYear(fiscalYear, controlSheet, cyclePlanRows);
+  if (createdDefaults) {
+    layout = getModuleControlLayout(controlSheet);
+    cyclePlanRows = readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear, null, layout);
+  }
+  const exceptionRows = readExceptionRows(controlSheet, layout);
+  dataElapsedMs = new Date().getTime() - dataStartedAt;
 
   const settingsMap = readModuleSettingsMap();
-  const savedRange = getModulePlanningRangeFromSettings(null, baseDate);
+  const savedRange = getModulePlanningRangeFromSettings(null, baseDate, settingsMap);
   const dailyPlanCount = getCachedDailyPlanCountForDialog(settingsMap);
-  const cyclePlans = buildDialogCyclePlansForFiscalYear(fiscalYear, sheets.controlSheet);
-  const recentExceptions = listRecentExceptionsForFiscalYear(sheets.controlSheet, fiscalYear, 10);
+  const cyclePlans = buildDialogCyclePlansForFiscalYear(fiscalYear, controlSheet, cyclePlanRows);
+  const recentExceptions = listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, 10, exceptionRows);
+  const cyclePlanRecordCount = countCyclePlanRowsForFiscalYear(controlSheet, fiscalYear, cyclePlanRows);
+  const exceptionRecordCount = countExceptionRowsForFiscalYear(controlSheet, fiscalYear, exceptionRows);
+  let cumulativeDisplayColumn = settingsMap[MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN] || '';
 
+  const cumulativeStartedAt = new Date().getTime();
   try {
     const cumulativeSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('累計時数');
     if (cumulativeSheet) {
-      const displayColumn = resolveCumulativeDisplayColumn(cumulativeSheet);
+      const displayColumn = resolveCumulativeDisplayColumn(cumulativeSheet, settingsMap);
       enforceModuleCumulativeColumnVisibility(cumulativeSheet, displayColumn);
+      cumulativeDisplayColumn = String(displayColumn);
     }
   } catch (error) {
     Logger.log('[WARNING] 累計時数の列表示制御に失敗: ' + error.toString());
   }
+  cumulativeElapsedMs = new Date().getTime() - cumulativeStartedAt;
 
   const state = {
     baseDate: formatInputDate(baseDate),
@@ -122,17 +145,20 @@ function getModulePlanningDialogState() {
     startDate: formatInputDate(savedRange.startDate),
     endDate: formatInputDate(savedRange.endDate),
     lastGeneratedAt: formatDateTimeForDisplay(settingsMap[MODULE_SETTING_KEYS.LAST_GENERATED_AT]),
-    cyclePlanRecordCount: countCyclePlanRowsForFiscalYear(sheets.controlSheet, fiscalYear),
+    cyclePlanRecordCount: cyclePlanRecordCount,
     dailyPlanRecordCount: dailyPlanCount,
-    exceptionRecordCount: countExceptionRowsForFiscalYear(sheets.controlSheet, fiscalYear),
-    cumulativeDisplayColumn: settingsMap[MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN] || '',
+    exceptionRecordCount: exceptionRecordCount,
+    cumulativeDisplayColumn: cumulativeDisplayColumn,
     cyclePlans: cyclePlans,
     recentExceptions: recentExceptions
   };
 
   const elapsedMs = new Date().getTime() - startedAt;
   if (elapsedMs >= 2000) {
-    Logger.log('[PERF] getModulePlanningDialogState: ' + elapsedMs + 'ms');
+    Logger.log('[PERF] getModulePlanningDialogState: ' + elapsedMs +
+      'ms (init=' + initElapsedMs +
+      'ms, data=' + dataElapsedMs +
+      'ms, cumulative=' + cumulativeElapsedMs + 'ms)');
   }
 
   return state;
@@ -154,10 +180,14 @@ function getCachedDailyPlanCountForDialog(settingsMap) {
 /**
  * ダイアログ表示用のクール計画を取得
  * @param {number} fiscalYear - 対象年度
+ * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
+ * @param {Array<Array<*>>=} cyclePlanRows - 事前取得済み計画行（対象年度）
  * @return {Array<Object>} 計画配列
  */
-function buildDialogCyclePlansForFiscalYear(fiscalYear, controlSheet) {
-  const plans = loadCyclePlanForFiscalYear(fiscalYear, controlSheet);
+function buildDialogCyclePlansForFiscalYear(fiscalYear, controlSheet, cyclePlanRows) {
+  const plans = Array.isArray(cyclePlanRows)
+    ? toCyclePlansFromRows(fiscalYear, cyclePlanRows)
+    : loadCyclePlanForFiscalYear(fiscalYear, controlSheet);
   return plans.map(function(plan) {
     return {
       cycleOrder: plan.cycleOrder,
@@ -179,13 +209,15 @@ function buildDialogCyclePlansForFiscalYear(fiscalYear, controlSheet) {
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 対象年度
  * @param {number} limitCount - 取得件数
+ * @param {Array<Object>=} exceptionRows - 事前取得済み例外行
  * @return {Array<Object>} 実施差分配列
  */
-function listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, limitCount) {
+function listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, limitCount, exceptionRows) {
   const limit = Math.max(1, Number(limitCount) || 10);
   const targetFiscalYear = Number(fiscalYear);
+  const rows = Array.isArray(exceptionRows) ? exceptionRows : readExceptionRows(controlSheet);
 
-  return readExceptionRows(controlSheet)
+  return rows
     .map(function(item) {
       return {
         rowNumber: item.rowNumber,
@@ -259,10 +291,10 @@ function refreshModulePlanning() {
   const baseDate = getCurrentOrNextSaturday();
   const result = syncModuleHoursWithCumulative(baseDate);
   return [
-    'モジュール学習集計を更新しました。',
+    'モジュール学習の再集計が完了しました。',
     '基準日: ' + formatInputDate(result.baseDate),
     '対象年度: ' + result.fiscalYear + '年度',
-    '日次計画件数（再計算）: ' + result.dailyPlanCount + '件'
+    '日次計画件数（再集計結果）: ' + result.dailyPlanCount + '件'
   ].join('\n');
 }
 
@@ -292,7 +324,7 @@ function saveModuleCyclePlanFromDialog(payload) {
   return [
     '計画を保存して再集計しました。',
     '対象年度: ' + fiscalYear + '年度',
-    '計画件数: ' + rows.length + '件',
+    'クール計画件数: ' + rows.length + '件',
     '基準日: ' + formatInputDate(result.baseDate)
   ].join('\n');
 }
@@ -315,7 +347,7 @@ function addModuleExceptionFromDialog(payload) {
 
   const deltaSessions = Math.round(toNumberOrZero(payload && payload.deltaSessions));
   if (!Number.isFinite(deltaSessions) || deltaSessions === 0) {
-    throw new Error('調整値は0以外の数値を入力してください。');
+    throw new Error('差分値は0以外の数値を入力してください。');
   }
 
   const reason = String(payload && payload.reason ? payload.reason : '').trim();
@@ -329,7 +361,8 @@ function addModuleExceptionFromDialog(payload) {
 
   return [
     '実施差分を保存して再集計しました。',
-    '入力: ' + formatInputDate(exceptionDate) + ' / ' + grade + '年 / ' + formatSignedSessionsAsMixedFraction(deltaSessions),
+    '入力: ' + formatInputDate(exceptionDate) + ' / ' + grade + '年 / ' +
+      formatSignedSessionsAsMixedFraction(deltaSessions) + 'コマ（' + (deltaSessions * 15) + '分）',
     '基準日: ' + formatInputDate(result.baseDate)
   ].join('\n');
 }
@@ -554,11 +587,14 @@ function buildGradeTotalsFromDailyAndExceptions(dailyTotalsByGrade, exceptionTot
  * 指定年度のデフォルトクール計画を必要時に作成
  * @param {number} fiscalYear - 対象年度
  * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
+ * @param {Array<Array<*>>=} existingRowsForFiscalYear - 事前取得済みの対象年度行
  * @return {boolean} 作成した場合true
  */
-function ensureDefaultCyclePlanForFiscalYear(fiscalYear, controlSheet) {
+function ensureDefaultCyclePlanForFiscalYear(fiscalYear, controlSheet, existingRowsForFiscalYear) {
   const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded().controlSheet;
-  const existingRows = readCyclePlanRowsByFiscalYear(sheet, fiscalYear);
+  const existingRows = Array.isArray(existingRowsForFiscalYear)
+    ? existingRowsForFiscalYear
+    : readCyclePlanRowsByFiscalYear(sheet, fiscalYear);
 
   if (existingRows.length > 0) {
     return false;
@@ -599,6 +635,16 @@ function loadCyclePlanForFiscalYear(fiscalYear, controlSheet) {
     rows = readCyclePlanRowsByFiscalYear(sheet, fiscalYear);
   }
 
+  return toCyclePlansFromRows(fiscalYear, rows);
+}
+
+/**
+ * 指定年度の計画行を計画オブジェクトへ変換
+ * @param {number} fiscalYear - 対象年度
+ * @param {Array<Array<*>>} rows - 計画行
+ * @return {Array<Object>} 正規化済み計画
+ */
+function toCyclePlansFromRows(fiscalYear, rows) {
   const plans = rows.map(function(row) {
     return {
       fiscalYear: Number(fiscalYear),
@@ -638,10 +684,13 @@ function loadCyclePlanForFiscalYear(fiscalYear, controlSheet) {
  * module_control から指定年度の計画行を抽出
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 対象年度
+ * @param {Array<Array<*>>=} allCycleRows - 事前取得済みの計画行全件
+ * @param {Object=} layout - 事前取得済みレイアウト
  * @return {Array<Array<*>>} 行データ
  */
-function readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear) {
-  return readAllCyclePlanRows(controlSheet).filter(function(row) {
+function readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear, allCycleRows, layout) {
+  const rows = Array.isArray(allCycleRows) ? allCycleRows : readAllCyclePlanRows(controlSheet, layout);
+  return rows.filter(function(row) {
     return Number(row[0]) === Number(fiscalYear);
   });
 }
@@ -649,16 +698,17 @@ function readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear) {
 /**
  * 計画行を全件取得
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @param {Object=} layout - 事前取得済みレイアウト
  * @return {Array<Array<*>>} 行データ
  */
-function readAllCyclePlanRows(controlSheet) {
-  const layout = getModuleControlLayout(controlSheet);
-  const rowCount = layout.exceptionsMarkerRow - layout.planDataStartRow;
+function readAllCyclePlanRows(controlSheet, layout) {
+  const sectionLayout = layout || getModuleControlLayout(controlSheet);
+  const rowCount = sectionLayout.exceptionsMarkerRow - sectionLayout.planDataStartRow;
   if (rowCount <= 0) {
     return [];
   }
 
-  const values = controlSheet.getRange(layout.planDataStartRow, 1, rowCount, MODULE_CONTROL_PLAN_HEADERS.length).getValues();
+  const values = controlSheet.getRange(sectionLayout.planDataStartRow, 1, rowCount, MODULE_CONTROL_PLAN_HEADERS.length).getValues();
   return values.filter(function(row) {
     return row.some(function(value) {
       return isNonEmptyCell(value);
@@ -1309,18 +1359,19 @@ function findFirstEmptyExceptionRow(controlSheet, layout) {
 /**
  * 例外行を読み込む
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * @param {Object=} layout - 事前取得済みレイアウト
  * @return {Array<Object>} 例外行
  */
-function readExceptionRows(controlSheet) {
-  const layout = getModuleControlLayout(controlSheet);
+function readExceptionRows(controlSheet, layout) {
+  const sectionLayout = layout || getModuleControlLayout(controlSheet);
   const lastRow = controlSheet.getLastRow();
 
-  if (lastRow < layout.exceptionsDataStartRow) {
+  if (lastRow < sectionLayout.exceptionsDataStartRow) {
     return [];
   }
 
   const values = controlSheet
-    .getRange(layout.exceptionsDataStartRow, 1, lastRow - layout.exceptionsDataStartRow + 1, MODULE_CONTROL_EXCEPTION_HEADERS.length)
+    .getRange(sectionLayout.exceptionsDataStartRow, 1, lastRow - sectionLayout.exceptionsDataStartRow + 1, MODULE_CONTROL_EXCEPTION_HEADERS.length)
     .getValues();
 
   const rows = [];
@@ -1334,7 +1385,7 @@ function readExceptionRows(controlSheet) {
     }
 
     rows.push({
-      rowNumber: layout.exceptionsDataStartRow + index,
+      rowNumber: sectionLayout.exceptionsDataStartRow + index,
       date: row[0],
       grade: row[1],
       deltaSessions: row[2],
@@ -1350,9 +1401,13 @@ function readExceptionRows(controlSheet) {
  * 年度別の計画行数をカウント
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 年度
+ * @param {Array<Array<*>>=} cyclePlanRows - 事前取得済みの対象年度行
  * @return {number} 行数
  */
-function countCyclePlanRowsForFiscalYear(controlSheet, fiscalYear) {
+function countCyclePlanRowsForFiscalYear(controlSheet, fiscalYear, cyclePlanRows) {
+  if (Array.isArray(cyclePlanRows)) {
+    return cyclePlanRows.length;
+  }
   return readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear).length;
 }
 
@@ -1360,10 +1415,12 @@ function countCyclePlanRowsForFiscalYear(controlSheet, fiscalYear) {
  * 年度別の例外行数をカウント
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 年度
+ * @param {Array<Object>=} exceptionRows - 事前取得済み例外行
  * @return {number} 行数
  */
-function countExceptionRowsForFiscalYear(controlSheet, fiscalYear) {
-  return readExceptionRows(controlSheet).filter(function(item) {
+function countExceptionRowsForFiscalYear(controlSheet, fiscalYear, exceptionRows) {
+  const rows = Array.isArray(exceptionRows) ? exceptionRows : readExceptionRows(controlSheet);
+  return rows.filter(function(item) {
     const date = normalizeToDate(item.date);
     return !!date && getFiscalYear(date) === Number(fiscalYear);
   }).length;
@@ -1807,10 +1864,11 @@ function enforceModuleCumulativeColumnVisibility(cumulativeSheet, displayColumn)
 /**
  * 累計時数の表示列を動的に解決
  * @param {GoogleAppsScript.Spreadsheet.Sheet} cumulativeSheet - 累計時数
+ * @param {Object=} settingsMap - 事前取得済み設定マップ
  * @return {number} 列番号（1-based）
  */
-function resolveCumulativeDisplayColumn(cumulativeSheet) {
-  const settingsMap = readModuleSettingsMap();
+function resolveCumulativeDisplayColumn(cumulativeSheet, settingsMap) {
+  const map = settingsMap || readModuleSettingsMap();
   const displayRowCount = MODULE_GRADE_MAX - MODULE_GRADE_MIN + 1;
   const preferredColumn = MODULE_CUMULATIVE_COLUMNS.DISPLAY_FALLBACK;
 
@@ -1822,7 +1880,7 @@ function resolveCumulativeDisplayColumn(cumulativeSheet) {
     return preferredColumn;
   }
 
-  const configuredColumn = Number(settingsMap[MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN]);
+  const configuredColumn = Number(map[MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN]);
   if (Number.isInteger(configuredColumn) && configuredColumn >= 1) {
     const configuredHeader = String(cumulativeSheet.getRange(2, configuredColumn).getValue() || '').trim();
     if ((configuredHeader === '' || configuredHeader === MODULE_DISPLAY_HEADER) &&
@@ -2007,10 +2065,11 @@ function collectFiscalYearsInRange(startDate, endDate) {
  * 保存済み期間を取得（未設定時は当該年度）
  * @param {*} settingsSheet - 旧互換引数（未使用）
  * @param {Date} fallbackDate - 基準日
+ * @param {Object=} settingsMap - 事前取得済み設定マップ
  * @return {Object} 期間
  */
-function getModulePlanningRangeFromSettings(settingsSheet, fallbackDate) {
-  const map = readModuleSettingsMap();
+function getModulePlanningRangeFromSettings(settingsSheet, fallbackDate, settingsMap) {
+  const map = settingsMap || readModuleSettingsMap();
   const start = normalizeToDate(map[MODULE_SETTING_KEYS.PLAN_START_DATE]);
   const end = normalizeToDate(map[MODULE_SETTING_KEYS.PLAN_END_DATE]);
 
@@ -2023,6 +2082,10 @@ function getModulePlanningRangeFromSettings(settingsSheet, fallbackDate) {
     PLAN_START_DATE: defaultRange.startDate,
     PLAN_END_DATE: defaultRange.endDate
   });
+  if (settingsMap) {
+    settingsMap[MODULE_SETTING_KEYS.PLAN_START_DATE] = formatInputDate(defaultRange.startDate);
+    settingsMap[MODULE_SETTING_KEYS.PLAN_END_DATE] = formatInputDate(defaultRange.endDate);
+  }
 
   return defaultRange;
 }

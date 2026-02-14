@@ -24,6 +24,7 @@ function aggregateSchoolEventsByGrade() {
 function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
   const templateSheetName = '時数様式';
   const GRADE_BLOCK_HEIGHT = 21; // 時数様式シート内の学年ブロック間の行数
+  const MOD_COLUMN_INDEX = 18; // R列
 
   // 学年グループ化: 低(1,2)、中(3,4)、高(5,6)
   const gradeGroups = {
@@ -51,8 +52,26 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
     showAlert('入力された日付が無効です。');
     return;
   }
+  if (startDateObj > endDateObj) {
+    showAlert('開始日は終了日以前の日付を指定してください。');
+    return;
+  }
 
-  const templateSheet = getSheetByNameOrThrow('時数様式');
+  const monthKeys = buildMonthKeysForAggregate(startDateObj, endDateObj);
+  let moduleCalculationError = '';
+
+  let modulePlanMap = null;
+  try {
+    modulePlanMap = applyModuleExceptions(
+      buildSchoolDayPlanMap(startDateObj, endDateObj),
+      endDateObj
+    );
+  } catch (error) {
+    moduleCalculationError = error.toString();
+    Logger.log('[WARNING] MOD列の算出に失敗したため、R列の既存値を保持します: ' + moduleCalculationError);
+  }
+
+  const templateSheet = getSheetByNameOrThrow(templateSheetName);
   // テンプレートは表示しない
   templateSheet.hideSheet();
 
@@ -66,6 +85,16 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
     // 新しいシート名: 例) '低学年'
     const newSheetName = groupName;
     let newSheet = ss.getSheetByName(newSheetName);
+    let preservedModValuesByGrade = null;
+    if (!modulePlanMap && newSheet) {
+      preservedModValuesByGrade = captureExistingModValuesByMonth(
+        newSheet,
+        monthKeys,
+        grades,
+        GRADE_BLOCK_HEIGHT,
+        MOD_COLUMN_INDEX
+      );
+    }
     if (!newSheet) {
       newSheet = templateSheet.copyTo(ss).setName(newSheetName);
     } else {
@@ -96,8 +125,7 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
       const results = {};
 
       // startDateObj から endDateObj まで、1ヶ月ずつ進める
-      for (let d = new Date(startDateObj); d <= endDateObj; ) {
-        const monthKey = Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM');
+      monthKeys.forEach(function(monthKey) {
         results[monthKey] = {
           "授業時数": 0,
           "儀式": 0,
@@ -112,8 +140,7 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
           "補習": 0,
           "対象日数": 0
         };
-        d.setMonth(d.getMonth() + 1);  // ループ末尾に移動
-      }
+      });
 
       // データ集計
       for (let i = 1; i < data.length; i++) {
@@ -153,10 +180,9 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
 
       // シートへの書き込み
       // 例: 上ブロックは row=4, 下ブロックは row=25 => row=4+blockOffset
-      // ⚠️ 重要: R列（18列目）は日直運用で使用中のため、書き込み対象外として保護
+      // R列（18列目）には MOD の月次実績（45分コマ換算）を出力
       let rowIndexBase = 4 + blockOffset;
-      for (let d2 = new Date(startDateObj); d2 <= endDateObj; ) {
-        const monthKey2 = Utilities.formatDate(d2, 'Asia/Tokyo', 'yyyy-MM');
+      monthKeys.forEach(function(monthKey2) {
         if (results[monthKey2]) {
           newSheet.getRange(rowIndexBase, 1).setValue(monthKey2);    // A列: 年月
           newSheet.getRange(rowIndexBase, 2).setValue(results[monthKey2]["対象日数"]);  // B列: 対象日数
@@ -173,12 +199,110 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
           newSheet.getRange(rowIndexBase, 13).setValue(results[monthKey2]["委員会活動"]); // M列: 委員会活動
           newSheet.getRange(rowIndexBase, 14).setValue(results[monthKey2]["補習"]);     // N列: 補習
           // O列～Q列（15～17列目）: 空欄
-          // R列（18列目）: 日直用の列のため上書きしない
+          if (modulePlanMap) {
+            newSheet.getRange(rowIndexBase, MOD_COLUMN_INDEX).setValue(
+              getModuleActualUnitsForMonth(modulePlanMap, monthKey2, grade)
+            ); // R列: MOD
+          } else if (preservedModValuesByGrade &&
+              Object.prototype.hasOwnProperty.call(preservedModValuesByGrade, grade) &&
+              Object.prototype.hasOwnProperty.call(preservedModValuesByGrade[grade], monthKey2)) {
+            newSheet.getRange(rowIndexBase, MOD_COLUMN_INDEX).setValue(
+              preservedModValuesByGrade[grade][monthKey2]
+            ); // R列: MOD（既存値保持）
+          }
 
           rowIndexBase++;
         }
-        d2.setMonth(d2.getMonth() + 1);  // ループ末尾に移動
-      }
+      });
     });
   });
+
+  if (moduleCalculationError) {
+    showAlert(
+      '時数様式の集計は完了しましたが、MOD列（R列）の算出に失敗したため既存値を保持しました。\n詳細: ' + moduleCalculationError,
+      '警告'
+    );
+  }
+}
+
+/**
+ * 集計対象期間の月キー一覧（yyyy-MM）を作成
+ * @param {Date} startDate - 開始日
+ * @param {Date} endDate - 終了日
+ * @return {Array<string>} 月キー配列
+ */
+function buildMonthKeysForAggregate(startDate, endDate) {
+  const keys = [];
+  let cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const lastMonth = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+
+  while (cursor <= lastMonth) {
+    keys.push(Utilities.formatDate(cursor, 'Asia/Tokyo', 'yyyy-MM'));
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+
+  return keys;
+}
+
+/**
+ * 既存シートのR列（MOD）を月キー・学年単位で退避
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
+ * @param {Array<string>} monthKeys - 対象月キー配列
+ * @param {Array<number>} grades - 対象学年配列
+ * @param {number} blockHeight - 学年ブロック高さ
+ * @param {number} modColumnIndex - R列インデックス
+ * @return {Object} 学年ごとの月キー値マップ
+ */
+function captureExistingModValuesByMonth(sheet, monthKeys, grades, blockHeight, modColumnIndex) {
+  const valuesByGrade = {};
+  if (!sheet || !Array.isArray(monthKeys) || monthKeys.length === 0 || !Array.isArray(grades)) {
+    return valuesByGrade;
+  }
+
+  grades.forEach(function(grade, index) {
+    const rowStart = 4 + (index * blockHeight);
+    const scanRowCount = Math.max(monthKeys.length, 24);
+    const monthValues = sheet.getRange(rowStart, 1, scanRowCount, 1).getValues();
+    const modValues = sheet.getRange(rowStart, modColumnIndex, scanRowCount, 1).getValues();
+    const existingByMonth = {};
+
+    for (let i = 0; i < scanRowCount; i++) {
+      const key = String(monthValues[i][0] || '').trim();
+      if (key) {
+        existingByMonth[key] = modValues[i][0];
+      }
+    }
+
+    const monthMap = {};
+    monthKeys.forEach(function(monthKey) {
+      if (Object.prototype.hasOwnProperty.call(existingByMonth, monthKey)) {
+        monthMap[monthKey] = existingByMonth[monthKey];
+      }
+    });
+
+    valuesByGrade[grade] = monthMap;
+  });
+
+  return valuesByGrade;
+}
+
+/**
+ * MOD月次マップから対象月・学年の実績値（45分コマ換算）を取得
+ * @param {Object} modulePlanMap - buildSchoolDayPlanMap/applyModuleExceptionsの結果
+ * @param {string} monthKey - yyyy-MM
+ * @param {number} grade - 学年
+ * @return {number} MOD実績
+ */
+function getModuleActualUnitsForMonth(modulePlanMap, monthKey, grade) {
+  if (!modulePlanMap || !modulePlanMap.byMonth || !modulePlanMap.byMonth[monthKey]) {
+    return 0;
+  }
+
+  const entry = modulePlanMap.byMonth[monthKey][grade];
+  if (!entry) {
+    return 0;
+  }
+
+  const value = Number(entry.actual_units);
+  return Number.isFinite(value) ? value : 0;
 }

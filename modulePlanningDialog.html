@@ -242,7 +242,7 @@
   <div class="container">
     <h2>モジュール学習管理</h2>
     <p class="lead">
-      内部シートを直接編集せず、この画面で「計画入力」と「実施差分入力」を行えます。<br>
+      内部シートを直接編集せず、この画面で「クール計画」と「実施差分」を管理できます。<br>
       保存時に再集計まで自動実行し、累計時数シートへ反映します。
     </p>
 
@@ -256,11 +256,11 @@
         <strong id="fiscalRange">-</strong>
       </div>
       <div class="summary-item">
-        <span>計画件数</span>
+        <span>クール計画件数</span>
         <strong id="cyclePlanCount">0件</strong>
       </div>
       <div class="summary-item">
-        <span>日次件数（再計算）</span>
+        <span>日次計画件数（再集計結果）</span>
         <strong id="dailyPlanCount">0件</strong>
       </div>
       <div class="summary-item">
@@ -274,8 +274,8 @@
     </div>
 
     <section class="section">
-      <h3>1. 計画入力</h3>
-      <p class="section-note">1行が1クールです。コマ数は45分単位で入力してください。</p>
+      <h3>1. クール計画入力</h3>
+      <p class="section-note">1行が1クールです。コマ数は1コマ（45分）単位で入力してください。</p>
       <div class="toolbar">
         <label for="fiscalYearInput">対象年度</label>
         <input id="fiscalYearInput" type="number" readonly>
@@ -305,7 +305,7 @@
 
     <section class="section">
       <h3>2. 実施差分入力</h3>
-      <p class="section-note">実施に合わせて差分だけ入力します。+3は+1コマ、-1は-15分です。</p>
+      <p class="section-note">実施に合わせて差分だけ入力します。差分値は15分単位で、+は追加・-は減算です（+3は+1コマ、-1は-15分）。</p>
 
       <div class="exception-form">
         <div class="field">
@@ -317,7 +317,7 @@
           <select id="exceptionGrade"></select>
         </div>
         <div class="field">
-          <label for="deltaSessionsInput">調整値（15分単位）</label>
+          <label for="deltaSessionsInput">差分値（15分=1、1コマ=3）</label>
           <input id="deltaSessionsInput" type="number" step="1" value="3" oninput="updateDeltaHint()">
         </div>
         <div class="field">
@@ -339,7 +339,7 @@
       </div>
 
       <div class="action-row">
-        <button type="button" class="primary" id="addExceptionButton" onclick="addException()">差分を追加して再集計</button>
+        <button type="button" class="primary" id="addExceptionButton" onclick="addException()">実施差分を保存して再集計</button>
       </div>
 
       <table class="exception-list" aria-label="最近の差分">
@@ -347,7 +347,7 @@
           <tr>
             <th>日付</th>
             <th>学年</th>
-            <th>調整</th>
+            <th>差分値</th>
             <th>理由</th>
             <th>メモ</th>
           </tr>
@@ -525,7 +525,7 @@
 
       if (!Array.isArray(rows) || rows.length === 0) {
         var emptyRow = document.createElement('tr');
-        emptyRow.innerHTML = '<td colspan="5">差分入力はまだありません。</td>';
+        emptyRow.innerHTML = '<td colspan="5">実施差分はまだありません。</td>';
         tbody.appendChild(emptyRow);
         return;
       }
@@ -642,7 +642,9 @@
     function updateDeltaHint() {
       var sessions = Math.round(Number(document.getElementById('deltaSessionsInput').value) || 0);
       var prefix = sessions > 0 ? '+' : '';
-      document.getElementById('deltaHint').textContent = '現在: ' + prefix + formatMixedFractionFromSessions(sessions) + 'コマ';
+      var minutes = sessions * 15;
+      var minutePrefix = minutes > 0 ? '+' : '';
+      document.getElementById('deltaHint').textContent = '現在の差分: ' + prefix + formatMixedFractionFromSessions(sessions) + 'コマ（' + minutePrefix + String(minutes) + '分）';
     }
 
     function addException() {
@@ -660,7 +662,7 @@
         return;
       }
       if (!payload.deltaSessions) {
-        setStatus('調整値は0以外で入力してください。');
+        setStatus('差分値は0以外で入力してください。');
         return;
       }
 

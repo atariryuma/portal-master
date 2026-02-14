@@ -85,6 +85,8 @@
     function submitForm() {
       var startDate = document.getElementById('startDate').value;
       var endDate = document.getElementById('endDate').value;
+      var submitButton = document.getElementById('submitButton');
+      submitButton.disabled = true;
 
       var gradeHours = {
         1: document.getElementById('grade1').value,
@@ -95,8 +97,16 @@
         6: document.getElementById('grade6').value
       };
 
-      google.script.run.processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours);
-      google.script.host.close();
+      google.script.run
+        .withSuccessHandler(function() {
+          google.script.host.close();
+        })
+        .withFailureHandler(function(error) {
+          submitButton.disabled = false;
+          var message = (error && error.message) ? error.message : String(error || '不明なエラー');
+          window.alert('集計に失敗しました: ' + message);
+        })
+        .processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours);
     }
 
     function adjustDialogSize() {
@@ -132,7 +142,7 @@
     <label for="grade6">6年:</label>
     <input type="number" id="grade6" value="1015" required>
 
-    <input type="button" value="送信" onclick="submitForm()">
+    <input type="button" id="submitButton" value="送信" onclick="submitForm()">
   </form>
 </body>
 </html>
