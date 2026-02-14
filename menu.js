@@ -48,6 +48,41 @@ function onOpen() {
   } catch (error) {
     Logger.log('[WARNING] module 管理シート初期化に失敗: ' + error.toString());
   }
+
+  try {
+    hideSheetForNormalUse_('年度更新作業');
+  } catch (error) {
+    Logger.log('[WARNING] 年度更新作業シートの非表示化に失敗: ' + error.toString());
+  }
+}
+
+function hideSheetForNormalUse_(sheetName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const targetSheet = ss.getSheetByName(sheetName);
+  if (!targetSheet || targetSheet.isSheetHidden()) {
+    return;
+  }
+
+  const visibleSheets = ss.getSheets().filter(function(sheet) {
+    return !sheet.isSheetHidden();
+  });
+  if (visibleSheets.length <= 1) {
+    Logger.log('[WARNING] 表示中シートが1枚のみのため、' + sheetName + 'シートを非表示にできません。');
+    return;
+  }
+
+  const activeSheet = ss.getActiveSheet();
+  if (activeSheet && activeSheet.getSheetId() === targetSheet.getSheetId()) {
+    const fallbackSheet = visibleSheets.find(function(sheet) {
+      return sheet.getSheetId() !== targetSheet.getSheetId();
+    });
+    if (fallbackSheet) {
+      ss.setActiveSheet(fallbackSheet);
+    }
+  }
+
+  targetSheet.hideSheet();
+  Logger.log('[INFO] ' + sheetName + 'シートを非表示にしました。');
 }
 
 function showCreatorInfo() {
