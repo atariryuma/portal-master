@@ -68,8 +68,43 @@
       font-size: 1.2em;
       text-align: center;
     }
+    .submit-status {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 12px;
+      color: #2f4f7f;
+      font-size: 0.95em;
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #c8d8ef;
+      border-top: 2px solid #357abd;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
   </style>
   <script>
+    function setSubmitting(isSubmitting, message) {
+      var submitButton = document.getElementById('submitButton');
+      var status = document.getElementById('submitStatus');
+      var msg = document.getElementById('submitMessage');
+      submitButton.disabled = isSubmitting;
+      if (isSubmitting) {
+        msg.textContent = message || '集計中...';
+        status.style.display = 'flex';
+      } else {
+        status.style.display = 'none';
+      }
+      adjustDialogSize();
+    }
+
     function setDefaultStartDate() {
       var today = new Date();
       var year = today.getMonth() < 3 ? today.getFullYear() - 1 : today.getFullYear();
@@ -85,8 +120,7 @@
     function submitForm() {
       var startDate = document.getElementById('startDate').value;
       var endDate = document.getElementById('endDate').value;
-      var submitButton = document.getElementById('submitButton');
-      submitButton.disabled = true;
+      setSubmitting(true, '集計中です。完了までお待ちください...');
 
       var gradeHours = {
         1: document.getElementById('grade1').value,
@@ -102,7 +136,7 @@
           google.script.host.close();
         })
         .withFailureHandler(function(error) {
-          submitButton.disabled = false;
+          setSubmitting(false);
           var message = (error && error.message) ? error.message : String(error || '不明なエラー');
           window.alert('集計に失敗しました: ' + message);
         })
@@ -143,6 +177,10 @@
     <input type="number" id="grade6" value="1015" required>
 
     <input type="button" id="submitButton" value="送信" onclick="submitForm()">
+    <div id="submitStatus" class="submit-status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span id="submitMessage">集計中...</span>
+    </div>
   </form>
 </body>
 </html>

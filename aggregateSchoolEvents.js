@@ -25,6 +25,7 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
   const templateSheetName = '時数様式';
   const GRADE_BLOCK_HEIGHT = 21; // 時数様式シート内の学年ブロック間の行数
   const MOD_COLUMN_INDEX = 18; // R列
+  const MOD_FRACTION_NUMBER_FORMAT = '# ?/?';
 
   // 学年グループ化: 低(1,2)、中(3,4)、高(5,6)
   const gradeGroups = {
@@ -182,6 +183,8 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
       // 例: 上ブロックは row=4, 下ブロックは row=25 => row=4+blockOffset
       // R列（18列目）には MOD の月次実績（45分コマ換算）を出力
       let rowIndexBase = 4 + blockOffset;
+      newSheet.getRange(rowIndexBase, MOD_COLUMN_INDEX, monthKeys.length, 1)
+        .setNumberFormat(MOD_FRACTION_NUMBER_FORMAT);
       monthKeys.forEach(function(monthKey2) {
         if (results[monthKey2]) {
           newSheet.getRange(rowIndexBase, 1).setValue(monthKey2);    // A列: 年月
