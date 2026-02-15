@@ -151,7 +151,8 @@ function getFullTestPlan_() {
         { name: '6-2. 年度更新設定ダイアログ定義', fn: testAnnualUpdateDialogDefinition },
         { name: '6-3. 自動トリガー設定ダイアログ定義', fn: testTriggerSettingsDialogDefinition },
         { name: '6-4. 年間行事インポート導線定義', fn: testImportAnnualEventsDefinition },
-        { name: '6-5. onOpen設定シート非表示配線', fn: testOnOpenWiresSettingsSheetHide }
+        { name: '6-5. onOpen設定シート非表示配線', fn: testOnOpenWiresSettingsSheetHide },
+        { name: '6-6. 年度更新コピー先クリア配線', fn: testCopyAndClearTargetsCopiedFile }
       ]
     }
   ];
@@ -173,7 +174,8 @@ function getQuickTestPlan_() {
         { name: 'Q-4. 集計期間バリデーション（不正日付）', fn: testValidateAggregateDateRangeRejectsInvalidDate },
         { name: 'Q-5. 集計期間バリデーション（日付順）', fn: testValidateAggregateDateRangeRejectsReverseRange },
         { name: 'Q-6. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
-        { name: 'Q-7. 設定シート非表示動作', fn: testSettingsSheetHiddenForNormalUse }
+        { name: 'Q-7. 設定シート非表示動作', fn: testSettingsSheetHiddenForNormalUse },
+        { name: 'Q-8. 年度更新コピー先クリア配線', fn: testCopyAndClearTargetsCopiedFile }
       ]
     }
   ];
@@ -1158,6 +1160,34 @@ function testOnOpenWiresSettingsSheetHide() {
   }
 
   return { success: true, message: 'onOpenの設定シート非表示配線を確認' };
+}
+
+function testCopyAndClearTargetsCopiedFile() {
+  if (typeof copyAndClear !== 'function') {
+    return { success: false, message: 'copyAndClear関数が見つかりません' };
+  }
+
+  const source = String(copyAndClear);
+  const requiredFragments = [
+    'makeCopy(',
+    'SpreadsheetApp.openById',
+    "getSheetByName('年間行事予定表')",
+    "copiedSheet.getRange('D3:S'",
+    "copiedSheet.getRange('U3:AB'"
+  ];
+  const missingFragments = requiredFragments.filter(function(fragment) {
+    return source.indexOf(fragment) === -1;
+  });
+
+  if (missingFragments.length > 0) {
+    return { success: false, message: 'コピー先クリアの導線不足: ' + missingFragments.join(', ') };
+  }
+
+  if (source.indexOf('getAnnualScheduleSheet()') !== -1) {
+    return { success: false, message: '元ファイルを直接クリアする導線が残っています' };
+  }
+
+  return { success: true, message: '年度更新はコピー先ファイルをクリアする配線を確認' };
 }
 
 // ========================================

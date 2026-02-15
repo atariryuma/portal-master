@@ -53,7 +53,7 @@ function updateAnnualEvents() {
     masterSheet.hideSheet();
 
     // 処理完了を通知
-    ui.alert('年間行事のインポート完了に伴い、マスターシートは非表示にしました。今後は「年間行事予定」シートを直接編集してください。');
+    ui.alert('年間行事のインポート完了に伴い、マスターシートは非表示にしました。今後は「年間行事予定表」シートを直接編集してください。');
   } catch (error) {
     showAlert(error.message || error.toString(), 'エラー');
   }
