@@ -24,7 +24,10 @@ function updateAnnualEvents() {
     const masterData = masterSheet.getRange('A' + MASTER_SHEET.DATA_START_ROW + ':' + MASTER_SHEET.DATA_RANGE_END + masterLastRow).getValues();
     const dateMap = createDateMapForEvents(eventSheet);
 
-    ui.alert('更新処理を開始します。');
+    const confirmation = ui.alert('確認', '年間行事予定表への更新処理を開始します。続行しますか？', ui.ButtonSet.OK_CANCEL);
+    if (confirmation !== ui.Button.OK) {
+      return;
+    }
 
     // 年間行事予定表の対象列範囲を一括読み取り
     const eventLastRow = eventSheet.getLastRow();

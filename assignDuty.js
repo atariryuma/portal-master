@@ -33,7 +33,7 @@ function assignDuty() {
       const fullName = dutyRosterData[i][0]; // C列: 氏名
       const dutyNumber = dutyRosterData[i][1]; // D列: 日直番号
 
-      if (fullName === '' || dutyNumber === '') {
+      if (!isNonEmptyCell(fullName) || !isNonEmptyCell(dutyNumber)) {
         continue;
       }
 

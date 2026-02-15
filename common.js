@@ -14,14 +14,14 @@
 const MASTER_SHEET = Object.freeze({
   NAME: 'マスター',
   DUTY_COLUMN: 41,         // AO列 (1-based)
-  DUTY_SOURCE_INDEX: 40,   // AP列 (0-based, row[40])
+  DUTY_SOURCE_INDEX: 40,   // AO列 (0-based, row[40])
   INTERNAL_EVENT_INDEX: 2, // C列 (0-based, row[2])
   EXTERNAL_EVENT_INDEX: 3, // D列 (0-based, row[3])
   DATA_START_COLUMN: 5,    // E列
   DATA_COLUMN_COUNT: 36,   // E:AN = 36列
   MAX_DATA_ROW: 370,
   DATA_START_ROW: 2,
-  LUNCH_INDEX: 41,         // row[41]
+  LUNCH_INDEX: 41,         // AP列 (0-based, row[41])
   DATA_RANGE_END: 'AP'     // 全データ読み取り範囲の終端列
 });
 
@@ -274,6 +274,7 @@ function formatDateToJapanese(date) {
   try {
     // normalizeToDate は moduleHoursDisplay.js で定義されているが、
     // GAS読み込み順が非決定的なため、ここでは自己完結型で処理する
+    // ⚠ このパース処理は normalizeToDate() と同一ロジック。変更時は両方を同期すること
     let dateObj;
     if (date instanceof Date) {
       dateObj = date;
@@ -478,23 +479,6 @@ function showAlert(message, title = '通知') {
   }
 }
 
-/**
- * エラーを安全に処理してログに記録
- * @param {Function} func - 実行する関数
- * @param {string} functionName - 関数名（ログ用）
- * @return {*} 関数の実行結果
- */
-function safeExecute(func, functionName) {
-  try {
-    return func();
-  } catch (error) {
-    const errorMessage = `${functionName}でエラーが発生しました: ${error.toString()}`;
-    Logger.log(`[ERROR] ${errorMessage}`);
-    showAlert(errorMessage, 'エラー');
-    throw error;
-  }
-}
-
 // ========================================
 // データ処理関数
 // ========================================
@@ -507,7 +491,11 @@ function safeExecute(func, functionName) {
  */
 function createDateMap(sheet, dateColumn = ANNUAL_SCHEDULE.DATE_COLUMN) {
   const lastRow = sheet.getLastRow();
-  const columnNumber = dateColumn.charCodeAt(0) - 64; // 'A' = 1, 'B' = 2
+  // 複数文字カラム（AA, AB等）にも対応
+  let columnNumber = 0;
+  for (let i = 0; i < dateColumn.length; i++) {
+    columnNumber = columnNumber * 26 + (dateColumn.charCodeAt(i) - 64);
+  }
   const dateValues = sheet.getRange(1, columnNumber, lastRow, 1).getValues();
   
   const dateMap = {};

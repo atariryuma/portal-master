@@ -90,104 +90,17 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
       const standardHourRow = JISUU_TEMPLATE.STANDARD_HOUR_ROW + blockOffset;
       newSheet.getRange(standardHourRow, 3).setValue(gradeHours[grade]);
 
-      const results = {};
+      const results = collectMonthlyResultsForGrade_(data, grade, startDateObj, endDateObj, monthKeys, categories);
 
-      monthKeys.forEach(function(monthKey) {
-        results[monthKey] = {
-          "授業時数": 0,
-          "儀式": 0,
-          "文化": 0,
-          "保健": 0,
-          "遠足": 0,
-          "勤労": 0,
-          "欠時数": 0,
-          "児童会": 0,
-          "クラブ": 0,
-          "委員会活動": 0,
-          "補習": 0,
-          "対象日数": 0
-        };
-      });
-
-      // カテゴリ略称→カテゴリ名の逆引きマップを事前構築（O(n*m)→O(n)に最適化）
-      const abbreviationToCategory = {};
-      Object.keys(categories).forEach(function(category) {
-        abbreviationToCategory[categories[category]] = category;
-      });
-
-      for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        const date = normalizeToDate(row[SCHEDULE_COLUMNS.DATE]);
-        if (!date) continue;
-
-        if (date >= startDateObj && date <= endDateObj) {
-          const monthKey = formatMonthKey(date);
-          if (Number(row[SCHEDULE_COLUMNS.GRADE]) === grade) {
-            let hasClass = false;
-            for (let j = SCHEDULE_COLUMNS.DATA_START; j <= SCHEDULE_COLUMNS.DATA_END; j++) {
-              const cellValue = row[j];
-              if (cellValue === "○") {
-                results[monthKey]["授業時数"]++;
-                hasClass = true;
-              } else if (cellValue && Object.prototype.hasOwnProperty.call(abbreviationToCategory, cellValue)) {
-                results[monthKey][abbreviationToCategory[cellValue]]++;
-                hasClass = true;
-              }
-            }
-
-            if (hasClass) {
-              results[monthKey]["対象日数"]++;
-            }
-          }
-        }
-      }
-
-      // バッチ書き込み: 月別データを2D配列として構築し一括書き込み
       const rowIndexBase = JISUU_TEMPLATE.DATA_START_ROW + blockOffset;
-      const batchData = [];
-      const modValues = [];
+      const output = buildGradeOutputRows_(monthKeys, results, modulePlanMap, preservedModValuesByGrade, grade);
 
-      monthKeys.forEach(function(monthKey2) {
-        if (results[monthKey2]) {
-          const rowData = [
-            monthKey2,                              // A列: 年月
-            results[monthKey2]["対象日数"],          // B列: 対象日数
-            results[monthKey2]["授業時数"],          // C列: 授業時数
-            results[monthKey2]["儀式"],              // D列: 儀式
-            results[monthKey2]["文化"],              // E列: 文化
-            results[monthKey2]["保健"],              // F列: 保健
-            results[monthKey2]["遠足"],              // G列: 遠足
-            results[monthKey2]["勤労"],              // H列: 勤労
-            '',                                      // I列: 空欄
-            results[monthKey2]["欠時数"],            // J列: 欠時数
-            results[monthKey2]["児童会"],            // K列: 児童会
-            results[monthKey2]["クラブ"],            // L列: クラブ
-            results[monthKey2]["委員会活動"],        // M列: 委員会活動
-            results[monthKey2]["補習"]               // N列: 補習
-          ];
-          batchData.push(rowData);
+      if (output.batchData.length > 0) {
+        newSheet.getRange(rowIndexBase, 1, output.batchData.length, 14).setValues(output.batchData);
 
-          // MOD値を別途計算
-          let modValue = '';
-          if (modulePlanMap) {
-            modValue = getModuleActualUnitsForMonth(modulePlanMap, monthKey2, grade);
-          } else if (preservedModValuesByGrade &&
-              Object.prototype.hasOwnProperty.call(preservedModValuesByGrade, grade) &&
-              Object.prototype.hasOwnProperty.call(preservedModValuesByGrade[grade], monthKey2)) {
-            modValue = preservedModValuesByGrade[grade][monthKey2];
-          }
-          modValues.push([modValue]);
-        }
-      });
-
-      if (batchData.length > 0) {
-        // A-N列を一括書き込み (14列)
-        newSheet.getRange(rowIndexBase, 1, batchData.length, 14).setValues(batchData);
-
-        // R列(MOD)を一括書き込み
-        const modRange = newSheet.getRange(rowIndexBase, JISUU_TEMPLATE.MOD_COLUMN_INDEX, modValues.length, 1);
+        const modRange = newSheet.getRange(rowIndexBase, JISUU_TEMPLATE.MOD_COLUMN_INDEX, output.modValues.length, 1);
         modRange.setNumberFormat(JISUU_TEMPLATE.MOD_FRACTION_FORMAT);
-        modRange.setValues(modValues);
+        modRange.setValues(output.modValues);
       }
     });
   });
@@ -198,6 +111,120 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
       '警告'
     );
   }
+}
+
+/**
+ * 指定学年のデータ行を走査し、月別の授業時数・カテゴリ別集計結果を返す
+ * @param {Array<Array<*>>} data - シート全行データ
+ * @param {number} grade - 対象学年（1-6）
+ * @param {Date} startDateObj - 集計開始日
+ * @param {Date} endDateObj - 集計終了日
+ * @param {Array<string>} monthKeys - 対象月キー一覧（yyyy-MM）
+ * @param {Object} categories - カテゴリ名→略称マップ
+ * @return {Object} monthKey → カテゴリ別カウントのマップ
+ */
+function collectMonthlyResultsForGrade_(data, grade, startDateObj, endDateObj, monthKeys, categories) {
+  const results = {};
+
+  monthKeys.forEach(function(monthKey) {
+    results[monthKey] = {
+      "授業時数": 0,
+      "儀式": 0,
+      "文化": 0,
+      "保健": 0,
+      "遠足": 0,
+      "勤労": 0,
+      "欠時数": 0,
+      "児童会": 0,
+      "クラブ": 0,
+      "委員会活動": 0,
+      "補習": 0,
+      "対象日数": 0
+    };
+  });
+
+  // カテゴリ略称→カテゴリ名の逆引きマップを事前構築（O(n*m)→O(n)に最適化）
+  const abbreviationToCategory = {};
+  Object.keys(categories).forEach(function(category) {
+    abbreviationToCategory[categories[category]] = category;
+  });
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const date = normalizeToDate(row[SCHEDULE_COLUMNS.DATE]);
+    if (!date) continue;
+
+    if (date >= startDateObj && date <= endDateObj) {
+      const monthKey = formatMonthKey(date);
+      if (Number(row[SCHEDULE_COLUMNS.GRADE]) === grade) {
+        let hasClass = false;
+        for (let j = SCHEDULE_COLUMNS.DATA_START; j <= SCHEDULE_COLUMNS.DATA_END; j++) {
+          const cellValue = row[j];
+          if (cellValue === "○") {
+            results[monthKey]["授業時数"]++;
+            hasClass = true;
+          } else if (cellValue && Object.prototype.hasOwnProperty.call(abbreviationToCategory, cellValue)) {
+            results[monthKey][abbreviationToCategory[cellValue]]++;
+            hasClass = true;
+          }
+        }
+
+        if (hasClass) {
+          results[monthKey]["対象日数"]++;
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
+/**
+ * 月別集計結果からシート出力用の2D配列とMOD値配列を構築
+ * @param {Array<string>} monthKeys - 対象月キー一覧（yyyy-MM）
+ * @param {Object} results - collectMonthlyResultsForGrade_ の戻り値
+ * @param {Object|null} modulePlanMap - モジュール計画マップ（算出失敗時はnull）
+ * @param {Object|null} preservedModValuesByGrade - 既存MOD値の退避データ
+ * @param {number} grade - 対象学年（1-6）
+ * @return {Object} { batchData: Array<Array<*>>, modValues: Array<Array<*>> }
+ */
+function buildGradeOutputRows_(monthKeys, results, modulePlanMap, preservedModValuesByGrade, grade) {
+  const batchData = [];
+  const modValues = [];
+
+  monthKeys.forEach(function(monthKey) {
+    if (results[monthKey]) {
+      const rowData = [
+        monthKey,                              // A列: 年月
+        results[monthKey]["対象日数"],          // B列: 対象日数
+        results[monthKey]["授業時数"],          // C列: 授業時数
+        results[monthKey]["儀式"],              // D列: 儀式
+        results[monthKey]["文化"],              // E列: 文化
+        results[monthKey]["保健"],              // F列: 保健
+        results[monthKey]["遠足"],              // G列: 遠足
+        results[monthKey]["勤労"],              // H列: 勤労
+        '',                                      // I列: 空欄
+        results[monthKey]["欠時数"],            // J列: 欠時数
+        results[monthKey]["児童会"],            // K列: 児童会
+        results[monthKey]["クラブ"],            // L列: クラブ
+        results[monthKey]["委員会活動"],        // M列: 委員会活動
+        results[monthKey]["補習"]               // N列: 補習
+      ];
+      batchData.push(rowData);
+
+      let modValue = '';
+      if (modulePlanMap) {
+        modValue = getModuleActualUnitsForMonth(modulePlanMap, monthKey, grade);
+      } else if (preservedModValuesByGrade &&
+          Object.prototype.hasOwnProperty.call(preservedModValuesByGrade, grade) &&
+          Object.prototype.hasOwnProperty.call(preservedModValuesByGrade[grade], monthKey)) {
+        modValue = preservedModValuesByGrade[grade][monthKey];
+      }
+      modValues.push([modValue]);
+    }
+  });
+
+  return { batchData: batchData, modValues: modValues };
 }
 
 /**

@@ -13,7 +13,7 @@ function copyAndClear() {
     const sourceSheet = sourceSpreadsheet.getSheetByName('年間行事予定表');
 
     if (!sourceSheet) {
-      ui.alert('エラー: 現在のファイルに「年間行事予定表」シートが見つかりません。');
+      showAlert('現在のファイルに「年間行事予定表」シートが見つかりません。', 'エラー');
       return;
     }
 
@@ -22,7 +22,7 @@ function copyAndClear() {
     const filename = String(settingsSheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.COPY_FILE_NAME).getValue() || '').trim();
 
     if (!filename) {
-      ui.alert('エラー: 複製ファイル名（C5）が空です。');
+      showAlert('複製ファイル名（C5）が空です。', 'エラー');
       return;
     }
 
@@ -41,7 +41,7 @@ function copyAndClear() {
     } else {
       const parentFolders = sourceFile.getParents();
       if (!parentFolders.hasNext()) {
-        ui.alert('エラー: コピー先フォルダを取得できません。C7にフォルダIDを設定してください。');
+        showAlert('コピー先フォルダを取得できません。C7にフォルダIDを設定してください。', 'エラー');
         return;
       }
       destinationFolder = parentFolders.next();
@@ -61,6 +61,6 @@ function copyAndClear() {
       '現在のファイル（このURL）の行事データをクリアしました。'
     );
   } catch (error) {
-    ui.alert('年度更新ファイル作成でエラーが発生しました: ' + error.toString());
+    showAlert('年度更新ファイル作成でエラーが発生しました: ' + error.toString(), 'エラー');
   }
 }

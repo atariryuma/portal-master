@@ -297,12 +297,12 @@ function getManagedProjectTriggers() {
 }
 
 function getDefaultTriggerSettings() {
-  return {
-    weeklyPdf: { enabled: true, day: 1, hour: 2 },
-    cumulativeHours: { enabled: true, day: 1, hour: 2 },
-    calendarSync: { enabled: true, hour: 3 },
-    dailyLink: { enabled: true, hour: 4 }
-  };
+  return Object.freeze({
+    weeklyPdf: Object.freeze({ enabled: true, day: 1, hour: 2 }),
+    cumulativeHours: Object.freeze({ enabled: true, day: 1, hour: 2 }),
+    calendarSync: Object.freeze({ enabled: true, hour: 3 }),
+    dailyLink: Object.freeze({ enabled: true, hour: 4 })
+  });
 }
 
 function normalizeTriggerSettings(settings) {

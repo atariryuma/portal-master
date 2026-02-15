@@ -60,6 +60,10 @@ function onOpen() {
   }
 }
 
+/**
+ * 通常利用時にシートを非表示にする（内部ヘルパー）
+ * @param {string} sheetName - 非表示にするシート名
+ */
 function hideSheetForNormalUse_(sheetName) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const targetSheet = ss.getSheetByName(sheetName);
@@ -124,6 +128,7 @@ function showUserGuide() {
     htmlFile.setWidth(1000).setHeight(700);
     SpreadsheetApp.getUi().showModalDialog(htmlFile, 'ポータルマスター - 使い方ガイド');
   } catch (error) {
+    Logger.log('[WARNING] userGuide.html の読み込みに失敗しました: ' + error.toString());
     const fallbackHtml = HtmlService.createHtmlOutput(`
       <div style="font-family: 'Yu Gothic', Arial, sans-serif; padding: 20px;">
         <h2 style="color: #2c3e50;">❓ ポータルマスター 使い方ガイド</h2>

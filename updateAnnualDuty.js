@@ -1,6 +1,6 @@
 /**
  * @fileoverview 日直のみ更新機能
- * @description マスターのAP列(日直)を、日付一致で年間行事予定表R列に一括バッチ反映します。
+ * @description マスターのAO列(日直)を、日付一致で年間行事予定表R列に一括バッチ反映します。
  */
 function updateAnnualDuty() {
   try {
@@ -17,7 +17,10 @@ function updateAnnualDuty() {
     const masterData = masterSheet.getRange('A' + MASTER_SHEET.DATA_START_ROW + ':' + MASTER_SHEET.DATA_RANGE_END + masterSheet.getLastRow()).getValues();
     const dateMap = createDateMap(eventSheet, ANNUAL_SCHEDULE.DATE_COLUMN);
 
-    ui.alert('日直のみの更新を開始します。');
+    const confirmation = ui.alert('確認', '日直のみの更新を開始します。続行しますか？', ui.ButtonSet.OK_CANCEL);
+    if (confirmation !== ui.Button.OK) {
+      return;
+    }
 
     // 年間行事予定表のR列を一括読み取り
     const eventLastRow = eventSheet.getLastRow();

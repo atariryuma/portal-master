@@ -243,20 +243,6 @@ function createGradeTotalsTemplate() {
 }
 
 /**
- * 学年別セッション合算
- * @param {Object} gradeTotals - 学年別合計
- * @param {number} grade - 学年
- * @param {number} sessions - 加算値
- * @param {string} field - 項目名
- */
-function addGradeSessions(gradeTotals, grade, sessions, field) {
-  if (!gradeTotals[grade]) {
-    return;
-  }
-  gradeTotals[grade][field] = toNumberOrZero(gradeTotals[grade][field]) + toNumberOrZero(sessions);
-}
-
-/**
  * 年度の開始日・終了日を取得
  * @param {number} fiscalYear - 年度
  * @return {Object} 期間
@@ -369,19 +355,6 @@ function getFiscalYearFromMonthKey(monthKey) {
   }
 
   return getFiscalYear(new Date(year, month - 1, 1));
-}
-
-/**
- * 月キー比較（yyyy-MM）
- * @param {string} a - 月キーA
- * @param {string} b - 月キーB
- * @return {number} 比較結果
- */
-function monthKeyCompare(a, b) {
-  if (a === b) {
-    return 0;
-  }
-  return a < b ? -1 : 1;
 }
 
 /**

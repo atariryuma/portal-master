@@ -15,7 +15,8 @@ function setDailyHyperlink() {
     const today = new Date();
     const formattedToday = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy-MM-dd");
     const dateCol = ANNUAL_SCHEDULE.DATE_COLUMN;
-    const dataRange = sheet.getRange(dateCol + ANNUAL_SCHEDULE.DATA_START_ROW + ':' + dateCol);
+    const lastRow = sheet.getLastRow();
+    const dataRange = sheet.getRange(dateCol + ANNUAL_SCHEDULE.DATA_START_ROW + ':' + dateCol + lastRow);
     const values = dataRange.getValues();
 
     let targetRow = null;

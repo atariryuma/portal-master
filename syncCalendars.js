@@ -113,6 +113,17 @@ function buildEventsByDateMap(events) {
   return map;
 }
 
+/**
+ * カレンダーイベントの差分更新を実行
+ * @param {GoogleAppsScript.Calendar.Calendar} calendar - 対象カレンダー
+ * @param {Array<Object>} columns - カラム定義配列
+ * @param {Array<*>} row - シート行データ
+ * @param {Date} date - 対象日付
+ * @param {string} eventType - イベント種別ラベル
+ * @param {number} rowIndex - 行番号（ログ用）
+ * @param {Array<GoogleAppsScript.Calendar.CalendarEvent>} existingEvents - 既存イベント
+ * @param {Array<GoogleAppsScript.Calendar.CalendarEvent>} holidays - 祝日イベント
+ */
 function processEventUpdates(calendar, columns, row, date, eventType, rowIndex, existingEvents, holidays) {
   try {
     if (!calendar) {
@@ -190,6 +201,8 @@ function processEventUpdates(calendar, columns, row, date, eventType, rowIndex, 
     });
 
     if (eventsChanged) {
+      // カレンダーAPI レート制限対策: イベント変更後に待機
+      Utilities.sleep(200);
       Logger.log(`[INFO] ${eventType}イベントの変更が完了しました。日付: ${date}`);
     }
   } catch (error) {
@@ -197,6 +210,12 @@ function processEventUpdates(calendar, columns, row, date, eventType, rowIndex, 
   }
 }
 
+/**
+ * イベントタイトルから時間情報を解析
+ * @param {string} title - イベントタイトル
+ * @param {Date} date - 対象日付
+ * @return {Object} 解析結果（startTime, endTime, title, isAllDay）
+ */
 function parseEventTimesAndDates(title, date) {
   const trimmedTitle = convertFullWidthToHalfWidth(title.trim());
   const originalTitle = trimmedTitle;
@@ -235,6 +254,13 @@ function parseEventTimesAndDates(title, date) {
   return { startTime: startTime, endTime: endTime, title: originalTitle, isAllDay: isAllDay };
 }
 
+/**
+ * 日付オブジェクトに時刻を設定
+ * @param {Date} date - 対象日付
+ * @param {string} hour - 時
+ * @param {string} minute - 分（'半', '30分', 数字等）
+ * @return {Date} 時刻設定済み日付
+ */
 function setEventTime(date, hour, minute) {
   const parsedHour = parseInt(hour, 10);
   const parsedMinute = parseMinute(minute);
@@ -242,14 +268,26 @@ function setEventTime(date, hour, minute) {
   return date;
 }
 
+/**
+ * 分表記を数値に変換
+ * @param {string|null} minute - 分表記（'半', '30分', 数字等）
+ * @return {number} 分数値
+ */
 function parseMinute(minute) {
   if (!minute || minute === '') return 0;
   if (minute === '半' || minute === '30分') return 30;
   return parseInt(minute.replace('分', ''), 10) || 0;
 }
 
+/**
+ * カレンダーイベントの一意キーを生成
+ * @param {string} title - イベントタイトル
+ * @param {Date} startTime - 開始日時
+ * @param {Date} endTime - 終了日時
+ * @return {string} 一意キー
+ */
 function buildCalendarEventKey(title, startTime, endTime) {
-  return title + '_' + startTime.getTime() + '_' + endTime.getTime();
+  return title + '|||' + startTime.getTime() + '|||' + endTime.getTime();
 }
 
 function isManagedCalendarEvent(event) {

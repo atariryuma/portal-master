@@ -16,7 +16,7 @@ function importAnnualEvents() {
     }
     const url = response.getResponseText().trim();
     if (!url || !/^https:\/\/docs\.google\.com\/spreadsheets\/d\//.test(url)) {
-      ui.alert("GoogleスプレッドシートのURLを入力してください。\n例: https://docs.google.com/spreadsheets/d/...");
+      showAlert('GoogleスプレッドシートのURLを入力してください。\n例: https://docs.google.com/spreadsheets/d/...', 'エラー');
       return;
     }
 
@@ -24,13 +24,13 @@ function importAnnualEvents() {
     try {
       sourceSpreadsheet = SpreadsheetApp.openByUrl(url);
     } catch (e) {
-      ui.alert("スプレッドシートを開けませんでした。URLが正しいか、アクセス権限があるか確認してください。");
+      showAlert('スプレッドシートを開けませんでした。URLが正しいか、アクセス権限があるか確認してください。', 'エラー');
       return;
     }
 
     const sourceSheet = sourceSpreadsheet.getSheetByName(IMPORT_CONSTANTS.SOURCE_SHEET_NAME);
     if (!sourceSheet) {
-      ui.alert("Excel小学校年間行事計画（編集用）に「" + IMPORT_CONSTANTS.SOURCE_SHEET_NAME + "」シートが見つかりません。");
+      showAlert('Excel小学校年間行事計画（編集用）に「' + IMPORT_CONSTANTS.SOURCE_SHEET_NAME + '」シートが見つかりません。', 'エラー');
       return;
     }
 
@@ -39,12 +39,12 @@ function importAnnualEvents() {
     try {
       updateSheet = getSettingsSheetOrThrow();
     } catch (error) {
-      ui.alert("設定シート（" + SETTINGS_SHEET_NAME + "）が見つかりません。");
+      showAlert('設定シート（' + SETTINGS_SHEET_NAME + '）が見つかりません。', 'エラー');
       return;
     }
     const sundayDate = normalizeToDate(updateSheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.BASE_SUNDAY).getValue());
     if (!sundayDate) {
-      ui.alert("年度更新設定（C11）に有効な日付が設定されていません。");
+      showAlert('年度更新設定（C11）に有効な日付が設定されていません。', 'エラー');
       return;
     }
 
@@ -71,19 +71,19 @@ function importAnnualEvents() {
     const sourceValues = sourceSheet.getRange(1, 1, sourceSheet.getLastRow(), 1).getValues();
     const sourceStartRow = findDateRow(sourceValues, targetDisplayString, targetDate.getFullYear());
     if (!sourceStartRow) {
-      ui.alert("コピー元シートのA列全体に対象の日付 (" + targetDisplayString + ") が見つかりませんでした。");
+      showAlert('コピー元シートのA列全体に対象の日付 (' + targetDisplayString + ') が見つかりませんでした。', 'エラー');
       return;
     }
 
     const masterSheet = activeSpreadsheet.getSheetByName(MASTER_SHEET.NAME);
     if (!masterSheet) {
-      ui.alert("マスターが見つかりません。");
+      showAlert('マスターが見つかりません。', 'エラー');
       return;
     }
     const masterValues = masterSheet.getRange(1, 1, masterSheet.getLastRow(), 1).getValues();
     const destStartRow = findDateRow(masterValues, targetDisplayString, targetDate.getFullYear());
     if (!destStartRow) {
-      ui.alert("マスターのA列に対象の日付 (" + targetDisplayString + ") が見つかりませんでした。");
+      showAlert('マスターのA列に対象の日付 (' + targetDisplayString + ') が見つかりませんでした。', 'エラー');
       return;
     }
 
@@ -91,7 +91,7 @@ function importAnnualEvents() {
     const lastCol = sourceSheet.getLastColumn();
     const sourceAvailableRows = sourceSheet.getLastRow() - sourceStartRow + 1;
     if (sourceAvailableRows < numRowsToCopy) {
-      ui.alert("コピー元シートのデータ行が不足しています。必要: " + numRowsToCopy + "行 / 実際: " + sourceAvailableRows + "行");
+      showAlert('コピー元シートのデータ行が不足しています。必要: ' + numRowsToCopy + '行 / 実際: ' + sourceAvailableRows + '行', 'エラー');
       return;
     }
 
