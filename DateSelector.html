@@ -69,13 +69,18 @@
       text-align: center;
     }
     .submit-status {
-      display: none;
+      display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
+      min-height: 20px;
       margin-top: 12px;
       color: #2f4f7f;
       font-size: 0.95em;
+      visibility: hidden;
+    }
+    .submit-status.is-visible {
+      visibility: visible;
     }
     .spinner {
       width: 16px;
@@ -95,14 +100,19 @@
       var submitButton = document.getElementById('submitButton');
       var status = document.getElementById('submitStatus');
       var msg = document.getElementById('submitMessage');
+      var form = document.getElementById('aggregateForm');
       submitButton.disabled = isSubmitting;
+      if (form) {
+        form.setAttribute('aria-busy', isSubmitting ? 'true' : 'false');
+      }
       if (isSubmitting) {
         msg.textContent = message || '集計中...';
-        status.style.display = 'flex';
+        status.classList.add('is-visible');
+        status.setAttribute('aria-hidden', 'false');
       } else {
-        status.style.display = 'none';
+        status.classList.remove('is-visible');
+        status.setAttribute('aria-hidden', 'true');
       }
-      adjustDialogSize();
     }
 
     function setDefaultStartDate() {
@@ -118,8 +128,18 @@
     }
 
     function submitForm() {
+      var form = document.getElementById('aggregateForm');
+      if (form && typeof form.reportValidity === 'function' && !form.reportValidity()) {
+        return;
+      }
+
       var startDate = document.getElementById('startDate').value;
       var endDate = document.getElementById('endDate').value;
+      if (!startDate || !endDate) {
+        window.alert('開始日と終了日を入力してください。');
+        return;
+      }
+
       setSubmitting(true, '集計中です。完了までお待ちください...');
 
       var gradeHours = {
@@ -155,7 +175,7 @@
   </script>
 </head>
 <body>
-  <form>
+  <form id="aggregateForm">
     <label for="startDate">開始日:</label>
     <input type="date" id="startDate" required>
     <label for="endDate">終了日:</label>
@@ -177,7 +197,7 @@
     <input type="number" id="grade6" value="1015" required>
 
     <input type="button" id="submitButton" value="送信" onclick="submitForm()">
-    <div id="submitStatus" class="submit-status" aria-live="polite">
+    <div id="submitStatus" class="submit-status" aria-live="polite" aria-hidden="true">
       <span class="spinner" aria-hidden="true"></span>
       <span id="submitMessage">集計中...</span>
     </div>

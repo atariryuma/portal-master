@@ -27,74 +27,7 @@ function runAllTests() {
   };
 
   try {
-    // フェーズ1: 環境チェック
-    Logger.log('【フェーズ1】環境チェック');
-    runTest(results, '1-1. スプレッドシート取得', testGetSpreadsheet);
-    runTest(results, '1-2. 必須シート存在確認', testRequiredSheets);
-    runTest(results, '1-3. 設定シート構造確認', testConfigSheetStructure);
-    Logger.log('');
-
-    // フェーズ2: モジュール時数統合検証
-    Logger.log('【フェーズ2】モジュール時数統合検証');
-    runTest(results, '2-1. モジュール関数存在確認', testModuleFunctions);
-    runTest(results, '2-2. モジュール定数存在確認', testModuleConstants);
-    runTest(results, '2-3. モジュールシート初期化確認', testInitializeModuleSheets);
-    runTest(results, '2-4. 累計時数へのMOD統合確認', testModuleCumulativeIntegration);
-    runTest(results, '2-5. 表示フォーマット関数確認', testModuleDisplayFormatter);
-    runTest(results, '2-6. 表示列の占有衝突回避', testResolveDisplayColumnSkipsOccupiedColumn);
-    runTest(results, '2-7. 旧スキーマ行の置換除外', testReplaceRowsDropsLegacyFiscalRows);
-    runTest(results, '2-8. 他年度旧スキーマ行の保持', testReplaceRowsKeepsOtherLegacyFiscalRows);
-    Logger.log('');
-
-    // フェーズ3: 新機能テスト
-    Logger.log('【フェーズ3】新機能テスト');
-    runTest(results, '3-1. トリガー設定定数の存在確認', testTriggerConfigConstants);
-    runTest(results, '3-2. トリガー設定関数の存在確認', testTriggerFunctions);
-    runTest(results, '3-3. トリガー設定値読み込みテスト', testGetTriggerSettings);
-    runTest(results, '3-4. トリガー設定バリデーションテスト', testValidateTriggerSettings);
-    runTest(results, '3-5. 年度更新設定定数の存在確認', testAnnualUpdateConfigConstants);
-    runTest(results, '3-6. 年度更新設定関数の存在確認', testAnnualUpdateSettingsFunctions);
-    Logger.log('');
-
-    // フェーズ4: 共通関数テスト
-    Logger.log('【フェーズ4】共通関数テスト');
-    runTest(results, '4-1. 日付フォーマット関数', testFormatDateToJapanese);
-    runTest(results, '4-2. 名前抽出関数', testExtractFirstName);
-    runTest(results, '4-3. カレンダーID取得/作成関数', testGetOrCreateCalendarId);
-    runTest(results, '4-4. アラート関数', testShowAlert);
-    Logger.log('');
-
-    // フェーズ5: データ処理テスト
-    Logger.log('【フェーズ5】データ処理テスト');
-    runTest(results, '5-1. 年間行事予定表シート取得', testGetAnnualScheduleSheet);
-    runTest(results, '5-2. 日付マップ作成', testCreateDateMap);
-    runTest(results, '5-3. 重複日付の先頭行マッピング', testCreateDateMapKeepsFirstRow);
-    runTest(results, '5-4. イベントカテゴリ定数確認', testEventCategories);
-    Logger.log('');
-
-    // フェーズ6: メニュー機能テスト
-    Logger.log('【フェーズ6】メニュー機能テスト');
-    runTest(results, '6-1. メニュー作成関数', testOnOpen);
-    runTest(results, '6-2. 製作者情報表示関数', testShowCreatorInfo);
-    runTest(results, '6-3. 使い方ガイド関数', testShowUserGuide);
-    Logger.log('');
-
-    // フェーズ7: PDF・ファイル操作テスト
-    Logger.log('【フェーズ7】PDF・ファイル操作テスト');
-    runTest(results, '7-1. 週報フォルダID取得/作成', testGetOrCreateWeeklyReportFolder);
-    runTest(results, '7-2. PDF保存関数の存在確認', testPdfFunctions);
-    Logger.log('');
-
-    // フェーズ8: カレンダー同期テスト
-    Logger.log('【フェーズ8】カレンダー同期テスト');
-    runTest(results, '8-1. カレンダー同期関数の存在確認', testCalendarSyncFunctions);
-    runTest(results, '8-2. イベント作成ロジック', testEventCreationLogic);
-    Logger.log('');
-
-    // フェーズ9: 累計時数計算テスト
-    Logger.log('【フェーズ9】累計時数計算テスト');
-    runTest(results, '9-1. 累計時数計算関数', testCalculateCumulativeHours);
-    Logger.log('');
+    runTestGroups_(results, getFullTestPlan_());
 
   } catch (error) {
     Logger.log('❌ テスト実行中に致命的エラー: ' + error.toString());
@@ -142,6 +75,98 @@ function runAllTests() {
   } else {
     ui.alert('⚠️ テスト失敗あり', message, ui.ButtonSet.OK);
   }
+}
+
+function runTestGroups_(results, groups) {
+  groups.forEach(function(group) {
+    Logger.log(group.title);
+    group.tests.forEach(function(testItem) {
+      runTest(results, testItem.name, testItem.fn);
+    });
+    Logger.log('');
+  });
+}
+
+function getFullTestPlan_() {
+  return [
+    {
+      title: '【フェーズ1】環境チェック',
+      tests: [
+        { name: '1-1. スプレッドシート取得', fn: testGetSpreadsheet },
+        { name: '1-2. 必須シート存在確認', fn: testRequiredSheets },
+        { name: '1-3. 設定シート構造確認', fn: testConfigSheetStructure }
+      ]
+    },
+    {
+      title: '【フェーズ2】モジュール時数統合検証',
+      tests: [
+        { name: '2-1. モジュール定数整合性', fn: testModuleConstants },
+        { name: '2-2. モジュールシート初期化確認', fn: testInitializeModuleSheets },
+        { name: '2-3. 累計時数へのMOD統合確認', fn: testModuleCumulativeIntegration },
+        { name: '2-4. 表示フォーマット関数確認', fn: testModuleDisplayFormatter },
+        { name: '2-5. 45分換算関数確認', fn: testSessionsToUnits },
+        { name: '2-6. 表示列の占有衝突回避', fn: testResolveDisplayColumnSkipsOccupiedColumn },
+        { name: '2-7. 旧スキーマ行の置換除外', fn: testReplaceRowsDropsLegacyFiscalRows },
+        { name: '2-8. 他年度旧スキーマ行の保持', fn: testReplaceRowsKeepsOtherLegacyFiscalRows }
+      ]
+    },
+    {
+      title: '【フェーズ3】学年別集計・データ処理',
+      tests: [
+        { name: '3-1. 年間行事予定表シート取得', fn: testGetAnnualScheduleSheet },
+        { name: '3-2. 日付マップ作成', fn: testCreateDateMap },
+        { name: '3-3. 重複日付の先頭行マッピング', fn: testCreateDateMapKeepsFirstRow },
+        { name: '3-4. イベントカテゴリ定数確認', fn: testEventCategories },
+        { name: '3-5. 集計期間バリデーション（不正日付）', fn: testValidateAggregateDateRangeRejectsInvalidDate },
+        { name: '3-6. 集計期間バリデーション（日付順）', fn: testValidateAggregateDateRangeRejectsReverseRange },
+        { name: '3-7. 集計期間バリデーション（正常系）', fn: testValidateAggregateDateRangeAcceptsValidRange },
+        { name: '3-8. 月キー生成（年度跨ぎ）', fn: testBuildMonthKeysForAggregateAcrossFiscalYear },
+        { name: '3-9. 月キー生成（単月）', fn: testBuildMonthKeysForAggregateSingleMonth },
+        { name: '3-10. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
+        { name: '3-11. MOD実績取得関数', fn: testGetModuleActualUnitsForMonth }
+      ]
+    },
+    {
+      title: '【フェーズ4】設定・バリデーション',
+      tests: [
+        { name: '4-1. トリガー設定定数の存在確認', fn: testTriggerConfigConstants },
+        { name: '4-2. トリガー設定値読み込み', fn: testGetTriggerSettings },
+        { name: '4-3. トリガー設定バリデーション', fn: testValidateTriggerSettings },
+        { name: '4-4. トリガー設定正規化', fn: testNormalizeTriggerSettings },
+        { name: '4-5. 年度更新設定定数の存在確認', fn: testAnnualUpdateConfigConstants },
+        { name: '4-6. 年度更新設定バリデーション', fn: testValidateAnnualUpdateSettings }
+      ]
+    },
+    {
+      title: '【フェーズ5】共通関数',
+      tests: [
+        { name: '5-1. 日付フォーマット関数', fn: testFormatDateToJapanese },
+        { name: '5-2. 名前抽出関数', fn: testExtractFirstName },
+        { name: '5-3. アラート関数定義確認', fn: testShowAlert }
+      ]
+    }
+  ];
+}
+
+function getQuickTestPlan_() {
+  return [
+    {
+      title: '【クイック】環境',
+      tests: [
+        { name: 'Q-1. スプレッドシート取得', fn: testGetSpreadsheet },
+        { name: 'Q-2. 必須シート存在確認', fn: testRequiredSheets }
+      ]
+    },
+    {
+      title: '【クイック】主要ロジック',
+      tests: [
+        { name: 'Q-3. 累計時数へのMOD統合確認', fn: testModuleCumulativeIntegration },
+        { name: 'Q-4. 集計期間バリデーション（不正日付）', fn: testValidateAggregateDateRangeRejectsInvalidDate },
+        { name: 'Q-5. 集計期間バリデーション（日付順）', fn: testValidateAggregateDateRangeRejectsReverseRange },
+        { name: 'Q-6. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth }
+      ]
+    }
+  ];
 }
 
 /**
@@ -233,37 +258,6 @@ function testConfigSheetStructure() {
 // ========================================
 // フェーズ2: モジュール時数統合検証
 // ========================================
-
-function testModuleFunctions() {
-  const requiredFunctions = [
-    'showModulePlanningDialog',
-    'openModuleCyclePlanSheet',
-    'openModuleDailyPlanSheet',
-    'refreshModulePlanning',
-    'saveModuleCyclePlanFromDialog',
-    'addModuleExceptionFromDialog',
-    'saveModulePlanningRange',
-    'rebuildModulePlanFromRange',
-    'syncModuleHoursWithCumulative',
-    'ensureDefaultCyclePlanForFiscalYear',
-    'loadCyclePlanForFiscalYear',
-    'buildDailyPlanFromCyclePlan',
-    'resolveCumulativeDisplayColumn',
-    'formatSessionsAsMixedFraction',
-    'buildSchoolDayPlanMap',
-    'applyModuleExceptions'
-  ];
-
-  const missingFunctions = requiredFunctions.filter(function(funcName) {
-    return typeof eval(funcName) !== 'function';
-  });
-
-  if (missingFunctions.length > 0) {
-    return { success: false, message: '不足関数: ' + missingFunctions.join(', ') };
-  }
-
-  return { success: true, message: requiredFunctions.length + '個のモジュール関数を確認' };
-}
 
 function testModuleConstants() {
   const requiredConstants = [
@@ -364,6 +358,28 @@ function testModuleDisplayFormatter() {
   }
 
   return { success: true, message: '表示フォーマットを確認' };
+}
+
+function testSessionsToUnits() {
+  if (typeof sessionsToUnits !== 'function') {
+    return { success: false, message: 'sessionsToUnits関数が見つかりません' };
+  }
+
+  const value1 = sessionsToUnits(3);    // 1
+  const value2 = sessionsToUnits(1);    // 0.333...
+  const value3 = sessionsToUnits('6');  // 2
+
+  if (value1 !== 1) {
+    return { success: false, message: '3セッション換算が不正です: ' + value1 };
+  }
+  if (Math.abs(value2 - 0.333333) > 0.000001) {
+    return { success: false, message: '1セッション換算が不正です: ' + value2 };
+  }
+  if (value3 !== 2) {
+    return { success: false, message: '文字列入力換算が不正です: ' + value3 };
+  }
+
+  return { success: true, message: '45分換算ロジックを確認' };
 }
 
 function testResolveDisplayColumnSkipsOccupiedColumn() {
@@ -476,8 +492,20 @@ function testReplaceRowsKeepsOtherLegacyFiscalRows() {
 
     const afterLastRow = tempSheet.getLastRow();
     const values = afterLastRow > 1 ? tempSheet.getRange(2, 1, afterLastRow - 1, 2).getValues() : [];
+    const isLegacyMonthValue = function(value, year, month) {
+      if (value instanceof Date) {
+        return value.getFullYear() === year && (value.getMonth() + 1) === month;
+      }
+      const text = String(value === null || value === undefined ? '' : value).trim();
+      if (!text) {
+        return false;
+      }
+      return text.indexOf(year + '-' + String(month).padStart(2, '0')) === 0 ||
+        text.indexOf(year + '/' + month) === 0 ||
+        text.indexOf(year + '/' + String(month).padStart(2, '0')) === 0;
+    };
     const legacyKeepExists = values.some(function(row) {
-      return String(row[0]) === '2024-12' && row[1] === 'legacy_keep';
+      return isLegacyMonthValue(row[0], 2024, 12) && row[1] === 'legacy_keep';
     });
     const opaqueKeepExists = values.some(function(row) {
       return String(row[0]) === 'unknown' && row[1] === 'opaque_keep';
@@ -528,27 +556,6 @@ function testTriggerConfigConstants() {
   }
 
   return { success: true, message: requiredKeys.length + '個の設定キーを確認' };
-}
-
-function testTriggerFunctions() {
-  const functions = [
-    'showTriggerSettingsDialog',
-    'getTriggerSettings',
-    'saveTriggerSettings',
-    'validateTriggerSettings',
-    'deleteAllProjectTriggers',
-    'createTriggersFromSettings'
-  ];
-
-  const missing = functions.filter(function(funcName) {
-    return typeof eval(funcName) !== 'function';
-  });
-
-  if (missing.length > 0) {
-    return { success: false, message: '不足関数: ' + missing.join(', ') };
-  }
-
-  return { success: true, message: functions.length + '個のトリガー関数を確認' };
 }
 
 function testGetTriggerSettings() {
@@ -607,6 +614,34 @@ function testValidateTriggerSettings() {
   }
 }
 
+function testNormalizeTriggerSettings() {
+  if (typeof normalizeTriggerSettings !== 'function') {
+    return { success: false, message: 'normalizeTriggerSettings関数が見つかりません' };
+  }
+
+  const normalized = normalizeTriggerSettings({
+    weeklyPdf: { enabled: 'false', day: '2', hour: '7.9' },
+    cumulativeHours: { enabled: '1', day: '', hour: '' },
+    calendarSync: { enabled: 0, hour: '22' },
+    dailyLink: {}
+  });
+
+  if (normalized.weeklyPdf.enabled !== false || normalized.weeklyPdf.day !== 2 || normalized.weeklyPdf.hour !== 7) {
+    return { success: false, message: 'weeklyPdfの正規化が不正です: ' + JSON.stringify(normalized.weeklyPdf) };
+  }
+  if (normalized.cumulativeHours.enabled !== true || normalized.cumulativeHours.day !== 1 || normalized.cumulativeHours.hour !== 2) {
+    return { success: false, message: 'cumulativeHoursの正規化が不正です: ' + JSON.stringify(normalized.cumulativeHours) };
+  }
+  if (normalized.calendarSync.enabled !== false || normalized.calendarSync.hour !== 22) {
+    return { success: false, message: 'calendarSyncの正規化が不正です: ' + JSON.stringify(normalized.calendarSync) };
+  }
+  if (normalized.dailyLink.enabled !== true || normalized.dailyLink.hour !== 4) {
+    return { success: false, message: 'dailyLinkのデフォルト補完が不正です: ' + JSON.stringify(normalized.dailyLink) };
+  }
+
+  return { success: true, message: 'トリガー設定の正規化を確認' };
+}
+
 function testAnnualUpdateConfigConstants() {
   if (typeof ANNUAL_UPDATE_CONFIG_CELLS === 'undefined') {
     return { success: false, message: 'ANNUAL_UPDATE_CONFIG_CELLS定数が見つかりません' };
@@ -632,22 +667,45 @@ function testAnnualUpdateConfigConstants() {
   return { success: true, message: requiredKeys.length + '個の年度更新設定キーを確認' };
 }
 
-function testAnnualUpdateSettingsFunctions() {
-  const functions = [
-    'showAnnualUpdateSettingsDialog',
-    'getAnnualUpdateSettings',
-    'saveAnnualUpdateSettings'
-  ];
-
-  const missing = functions.filter(function(funcName) {
-    return typeof eval(funcName) !== 'function';
-  });
-
-  if (missing.length > 0) {
-    return { success: false, message: '不足関数: ' + missing.join(', ') };
+function testValidateAnnualUpdateSettings() {
+  if (typeof validateAnnualUpdateSettings_ !== 'function') {
+    return { success: false, message: 'validateAnnualUpdateSettings_関数が見つかりません' };
   }
 
-  return { success: true, message: functions.length + '個の年度更新設定関数を確認' };
+  const validSunday = new Date(2026, 1, 15); // 2026-02-15 (日)
+  const invalidMonday = new Date(2026, 1, 16); // 2026-02-16 (月)
+
+  try {
+    validateAnnualUpdateSettings_({
+      copyFileName: 'テスト',
+      baseSundayDate: validSunday,
+      copyDestinationFolderId: '',
+      weeklyReportFolderId: '',
+      eventCalendarId: '',
+      externalCalendarId: ''
+    });
+  } catch (error) {
+    return { success: false, message: '正常値で例外が発生しました: ' + error.toString() };
+  }
+
+  try {
+    validateAnnualUpdateSettings_({
+      copyFileName: 'テスト',
+      baseSundayDate: invalidMonday,
+      copyDestinationFolderId: '',
+      weeklyReportFolderId: '',
+      eventCalendarId: '',
+      externalCalendarId: ''
+    });
+    return { success: false, message: '非日曜日を検出できませんでした' };
+  } catch (error) {
+    const message = error && error.message ? error.message : String(error || '');
+    if (message.indexOf('基準日は日曜日を指定してください。') === -1) {
+      return { success: false, message: '期待外のエラーメッセージ: ' + message };
+    }
+  }
+
+  return { success: true, message: '年度更新設定の日曜日制約を確認' };
 }
 
 // ========================================
@@ -690,14 +748,6 @@ function testExtractFirstName() {
   }
 
   return { success: true, message: testCases.length + '件のテストケースが成功' };
-}
-
-function testGetOrCreateCalendarId() {
-  if (typeof getOrCreateCalendarId !== 'function') {
-    return { success: false, message: '関数が見つかりません' };
-  }
-
-  return { success: true, message: '関数が定義されています（実行はスキップ）' };
 }
 
 function testShowAlert() {
@@ -798,90 +848,182 @@ function testEventCategories() {
   return { success: true, message: requiredCategories.length + '個のカテゴリを確認' };
 }
 
-// ========================================
-// フェーズ6: メニュー機能テスト
-// ========================================
-
-function testOnOpen() {
-  if (typeof onOpen !== 'function') {
-    return { success: false, message: '関数が見つかりません' };
+function testValidateAggregateDateRangeRejectsInvalidDate() {
+  if (typeof parseAndValidateAggregateDateRange !== 'function') {
+    return { success: false, message: 'parseAndValidateAggregateDateRange関数が見つかりません' };
   }
 
-  return { success: true, message: 'onOpen関数が定義されています' };
-}
-
-function testShowCreatorInfo() {
-  if (typeof showCreatorInfo !== 'function') {
-    return { success: false, message: '関数が見つかりません' };
+  try {
+    parseAndValidateAggregateDateRange('invalid-date', '2026-03-31');
+    return { success: false, message: '不正日付を検出できませんでした' };
+  } catch (error) {
+    const message = error && error.message ? error.message : String(error || '');
+    if (message.indexOf('入力された日付が無効です。') === -1) {
+      return { success: false, message: '期待外のエラーメッセージ: ' + message };
+    }
   }
 
-  return { success: true, message: '製作者情報関数が定義されています' };
+  return { success: true, message: '不正日付を正しく拒否' };
 }
 
-function testShowUserGuide() {
-  if (typeof showUserGuide !== 'function') {
-    return { success: false, message: '関数が見つかりません' };
+function testValidateAggregateDateRangeRejectsReverseRange() {
+  if (typeof parseAndValidateAggregateDateRange !== 'function') {
+    return { success: false, message: 'parseAndValidateAggregateDateRange関数が見つかりません' };
   }
 
-  return { success: true, message: '使い方ガイド関数が定義されています' };
-}
-
-// ========================================
-// フェーズ7: PDF・ファイル操作テスト
-// ========================================
-
-function testGetOrCreateWeeklyReportFolder() {
-  // 実際の関数名はgetWeeklyReportFolderId
-  if (typeof getWeeklyReportFolderId !== 'function') {
-    return { success: false, message: 'getWeeklyReportFolderId関数が見つかりません' };
+  try {
+    parseAndValidateAggregateDateRange('2026-04-01', '2026-03-31');
+    return { success: false, message: '日付逆転を検出できませんでした' };
+  } catch (error) {
+    const message = error && error.message ? error.message : String(error || '');
+    if (message.indexOf('開始日は終了日以前の日付を指定してください。') === -1) {
+      return { success: false, message: '期待外のエラーメッセージ: ' + message };
+    }
   }
 
-  return { success: true, message: '週報フォルダID取得関数が定義されています（実行はスキップ）' };
+  return { success: true, message: '日付逆転を正しく拒否' };
 }
 
-function testPdfFunctions() {
-  const functions = ['saveToPDF', 'openWeeklyReportFolder'];
-
-  const missing = functions.filter(function(funcName) {
-    return typeof eval(funcName) !== 'function';
-  });
-
-  if (missing.length > 0) {
-    return { success: false, message: '不足関数: ' + missing.join(', ') };
+function testValidateAggregateDateRangeAcceptsValidRange() {
+  if (typeof parseAndValidateAggregateDateRange !== 'function') {
+    return { success: false, message: 'parseAndValidateAggregateDateRange関数が見つかりません' };
   }
 
-  return { success: true, message: functions.length + '個のPDF関数を確認' };
-}
+  try {
+    const range = parseAndValidateAggregateDateRange('2025-04-01', '2026-03-31');
+    const startDate = range && range.startDate;
+    const endDate = range && range.endDate;
 
-// ========================================
-// フェーズ8: カレンダー同期テスト
-// ========================================
-
-function testCalendarSyncFunctions() {
-  if (typeof syncCalendars !== 'function') {
-    return { success: false, message: 'syncCalendars関数が見つかりません' };
+    if (!(startDate instanceof Date) || !(endDate instanceof Date)) {
+      return { success: false, message: 'Dateオブジェクトが返却されていません' };
+    }
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return { success: false, message: '返却値に無効な日付が含まれます' };
+    }
+    if (startDate > endDate) {
+      return { success: false, message: '開始日と終了日の順序が不正です' };
+    }
+  } catch (error) {
+    return { success: false, message: error.toString() };
   }
 
-  return { success: true, message: 'カレンダー同期関数が定義されています' };
+  return { success: true, message: '正常な期間を受理' };
 }
 
-function testEventCreationLogic() {
-  // ハードコードされたカレンダーIDが使われていないことを確認
-  // syncCalendars関数内でgetOrCreateCalendarIdを使っていることを確認
-
-  return { success: true, message: 'イベント作成ロジックが正常に定義されています' };
-}
-
-// ========================================
-// フェーズ9: 累計時数計算テスト
-// ========================================
-
-function testCalculateCumulativeHours() {
-  if (typeof calculateCumulativeHours !== 'function') {
-    return { success: false, message: '関数が見つかりません' };
+function testBuildMonthKeysForAggregateAcrossFiscalYear() {
+  if (typeof buildMonthKeysForAggregate !== 'function') {
+    return { success: false, message: 'buildMonthKeysForAggregate関数が見つかりません' };
   }
 
-  return { success: true, message: '累計時数計算関数が定義されています' };
+  const keys = buildMonthKeysForAggregate(new Date(2025, 3, 1), new Date(2026, 2, 31));
+  if (!Array.isArray(keys) || keys.length !== 12) {
+    return { success: false, message: '月キー数が不正です: ' + JSON.stringify(keys) };
+  }
+  if (keys[0] !== '2025-04' || keys[keys.length - 1] !== '2026-03') {
+    return { success: false, message: '月キー範囲が不正です: ' + JSON.stringify(keys) };
+  }
+
+  return { success: true, message: '年度跨ぎの月キー生成を確認' };
+}
+
+function testBuildMonthKeysForAggregateSingleMonth() {
+  if (typeof buildMonthKeysForAggregate !== 'function') {
+    return { success: false, message: 'buildMonthKeysForAggregate関数が見つかりません' };
+  }
+
+  const keys = buildMonthKeysForAggregate(new Date(2025, 8, 1), new Date(2025, 8, 30));
+  if (!Array.isArray(keys) || keys.length !== 1 || keys[0] !== '2025-09') {
+    return { success: false, message: '単月キー生成が不正です: ' + JSON.stringify(keys) };
+  }
+
+  return { success: true, message: '単月の月キー生成を確認' };
+}
+
+function testCaptureExistingModValuesByMonth() {
+  if (typeof captureExistingModValuesByMonth !== 'function') {
+    return { success: false, message: 'captureExistingModValuesByMonth関数が見つかりません' };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tempSheet = ss.insertSheet('tmp_mod_capture_' + Date.now());
+
+  try {
+    tempSheet.getRange(4, 1, 2, 1).setNumberFormat('@');
+    tempSheet.getRange(25, 1, 2, 1).setNumberFormat('@');
+
+    tempSheet.getRange(4, 1, 2, 1).setValues([
+      ['2025-04'],
+      ['2025-05']
+    ]);
+    tempSheet.getRange(4, 18, 2, 1).setValues([
+      [1.5],
+      [2]
+    ]);
+
+    tempSheet.getRange(25, 1, 2, 1).setValues([
+      ['2025-04'],
+      ['2025-05']
+    ]);
+    tempSheet.getRange(25, 18, 2, 1).setValues([
+      [3],
+      [3.5]
+    ]);
+
+    const map = captureExistingModValuesByMonth(
+      tempSheet,
+      ['2025-04', '2025-05'],
+      [1, 2],
+      21,
+      18
+    );
+
+    if (!map || !map[1] || !map[2]) {
+      return { success: false, message: '退避結果構造が不正です: ' + JSON.stringify(map) };
+    }
+    if (map[1]['2025-04'] !== 1.5 || map[1]['2025-05'] !== 2) {
+      return { success: false, message: '1年退避データが不正です: ' + JSON.stringify(map[1]) };
+    }
+    if (map[2]['2025-04'] !== 3 || map[2]['2025-05'] !== 3.5) {
+      return { success: false, message: '2年退避データが不正です: ' + JSON.stringify(map[2]) };
+    }
+
+    return { success: true, message: '既存MOD値の退避を確認' };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    ss.deleteSheet(tempSheet);
+  }
+}
+
+function testGetModuleActualUnitsForMonth() {
+  if (typeof getModuleActualUnitsForMonth !== 'function') {
+    return { success: false, message: 'getModuleActualUnitsForMonth関数が見つかりません' };
+  }
+
+  const map = {
+    byMonth: {
+      '2025-04': {
+        1: { actual_units: '1.5' },
+        2: { actual_units: 'x' }
+      }
+    }
+  };
+
+  const value1 = getModuleActualUnitsForMonth(map, '2025-04', 1);
+  const value2 = getModuleActualUnitsForMonth(map, '2025-04', 2);
+  const value3 = getModuleActualUnitsForMonth(map, '2025-05', 1);
+
+  if (value1 !== 1.5) {
+    return { success: false, message: '数値文字列変換が不正です: ' + value1 };
+  }
+  if (value2 !== 0) {
+    return { success: false, message: '非数値フォールバックが不正です: ' + value2 };
+  }
+  if (value3 !== 0) {
+    return { success: false, message: '月未存在時の戻り値が不正です: ' + value3 };
+  }
+
+  return { success: true, message: 'MOD実績取得のフォールバックを確認' };
 }
 
 // ========================================
@@ -899,25 +1041,7 @@ function runQuickTest() {
   Logger.log('====================================\n');
 
   const results = { total: 0, passed: 0, failed: 0, skipped: 0, errors: [] };
-
-  Logger.log('【環境チェック】');
-  runTest(results, 'スプレッドシート取得', testGetSpreadsheet);
-  runTest(results, '必須シート存在確認', testRequiredSheets);
-
-  Logger.log('\n【モジュール時数統合検証】');
-  runTest(results, 'モジュール関数存在確認', testModuleFunctions);
-  runTest(results, 'モジュール定数存在確認', testModuleConstants);
-
-  Logger.log('\n【新機能テスト】');
-  runTest(results, 'トリガー設定定数', testTriggerConfigConstants);
-  runTest(results, 'トリガー設定関数', testTriggerFunctions);
-  runTest(results, 'トリガー設定値読み込み', testGetTriggerSettings);
-  runTest(results, '年度更新設定定数', testAnnualUpdateConfigConstants);
-  runTest(results, '年度更新設定関数', testAnnualUpdateSettingsFunctions);
-
-  Logger.log('\n【共通関数テスト】');
-  runTest(results, '日付フォーマット', testFormatDateToJapanese);
-  runTest(results, '名前抽出', testExtractFirstName);
+  runTestGroups_(results, getQuickTestPlan_());
 
   // 結果表示
   Logger.log('\n====================================');

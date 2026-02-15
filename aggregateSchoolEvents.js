@@ -25,7 +25,10 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
   const templateSheetName = '時数様式';
   const GRADE_BLOCK_HEIGHT = 21; // 時数様式シート内の学年ブロック間の行数
   const MOD_COLUMN_INDEX = 18; // R列
-  const MOD_FRACTION_NUMBER_FORMAT = '# ?/?';
+  const MOD_FRACTION_NUMBER_FORMAT = '0 ?/?';
+  const dateRange = parseAndValidateAggregateDateRange(startDate, endDate);
+  const startDateObj = dateRange.startDate;
+  const endDateObj = dateRange.endDate;
 
   // 学年グループ化: 低(1,2)、中(3,4)、高(5,6)
   const gradeGroups = {
@@ -41,22 +44,9 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const srcSheet = getAnnualScheduleSheet(); // 共通関数を使用
   if (!srcSheet) {
-    showAlert('年間行事予定表シートが見つからないか、データが不完全です。');
-    return;
+    throw new Error('年間行事予定表シートが見つからないか、データが不完全です。');
   }
   const data = srcSheet.getDataRange().getValues();
-
-  const startDateObj = new Date(startDate);
-  const endDateObj = new Date(endDate);
-
-  if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
-    showAlert('入力された日付が無効です。');
-    return;
-  }
-  if (startDateObj > endDateObj) {
-    showAlert('開始日は終了日以前の日付を指定してください。');
-    return;
-  }
 
   const monthKeys = buildMonthKeysForAggregate(startDateObj, endDateObj);
   let moduleCalculationError = '';
@@ -248,6 +238,29 @@ function buildMonthKeysForAggregate(startDate, endDate) {
 }
 
 /**
+ * 学年別集計の期間入力を検証してDateへ変換
+ * @param {string} startDate - 開始日
+ * @param {string} endDate - 終了日
+ * @return {{startDate: Date, endDate: Date}} 検証済み日付
+ */
+function parseAndValidateAggregateDateRange(startDate, endDate) {
+  const startDateObj = new Date(startDate);
+  const endDateObj = new Date(endDate);
+
+  if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+    throw new Error('入力された日付が無効です。');
+  }
+  if (startDateObj > endDateObj) {
+    throw new Error('開始日は終了日以前の日付を指定してください。');
+  }
+
+  return {
+    startDate: startDateObj,
+    endDate: endDateObj
+  };
+}
+
+/**
  * 既存シートのR列（MOD）を月キー・学年単位で退避
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
  * @param {Array<string>} monthKeys - 対象月キー配列
@@ -262,15 +275,20 @@ function captureExistingModValuesByMonth(sheet, monthKeys, grades, blockHeight, 
     return valuesByGrade;
   }
 
+  const blockRowCapacity = Number(blockHeight);
+  const fallbackScanRowCount = Math.max(monthKeys.length, 24);
+  const scanRowCount = Number.isFinite(blockRowCapacity) && blockRowCapacity > 0
+    ? Math.min(fallbackScanRowCount, Math.floor(blockRowCapacity))
+    : fallbackScanRowCount;
+
   grades.forEach(function(grade, index) {
     const rowStart = 4 + (index * blockHeight);
-    const scanRowCount = Math.max(monthKeys.length, 24);
     const monthValues = sheet.getRange(rowStart, 1, scanRowCount, 1).getValues();
     const modValues = sheet.getRange(rowStart, modColumnIndex, scanRowCount, 1).getValues();
     const existingByMonth = {};
 
     for (let i = 0; i < scanRowCount; i++) {
-      const key = String(monthValues[i][0] || '').trim();
+      const key = normalizeAggregateMonthKey(monthValues[i][0]);
       if (key) {
         existingByMonth[key] = modValues[i][0];
       }
@@ -287,6 +305,19 @@ function captureExistingModValuesByMonth(sheet, monthKeys, grades, blockHeight, 
   });
 
   return valuesByGrade;
+}
+
+/**
+ * 集計シートの月キーセル値を yyyy-MM に正規化
+ * @param {*} value - セル値
+ * @return {string} 正規化済み月キー
+ */
+function normalizeAggregateMonthKey(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, 'Asia/Tokyo', 'yyyy-MM');
+  }
+
+  return String(value == null ? '' : value).trim();
 }
 
 /**
