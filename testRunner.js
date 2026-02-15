@@ -105,7 +105,7 @@ function getFullTestPlan_() {
         { name: '2-3. 累計時数へのMOD統合確認', fn: testModuleCumulativeIntegration },
         { name: '2-4. 表示フォーマット関数確認', fn: testModuleDisplayFormatter },
         { name: '2-5. 45分換算関数確認', fn: testSessionsToUnits },
-        { name: '2-6. 表示列の占有衝突回避', fn: testResolveDisplayColumnSkipsOccupiedColumn },
+        { name: '2-6. 表示列の固定列定数確認', fn: testModuleDisplayColumnIsFixed },
         { name: '2-7. 旧スキーマ行の置換除外', fn: testReplaceRowsDropsLegacyFiscalRows },
         { name: '2-8. 他年度旧スキーマ行の保持', fn: testReplaceRowsKeepsOtherLegacyFiscalRows }
       ]
@@ -301,16 +301,16 @@ function testConfigSheetStructure() {
 // ========================================
 
 function testModuleConstants() {
-  const requiredConstants = [
-    'MODULE_SHEET_NAMES',
-    'MODULE_SETTING_KEYS',
-    'MODULE_DATA_VERSION',
-    'MODULE_FISCAL_YEAR_START_MONTH',
-    'MODULE_CUMULATIVE_COLUMNS'
-  ];
+  const requiredConstantsMap = {
+    'MODULE_SHEET_NAMES': typeof MODULE_SHEET_NAMES !== 'undefined' ? MODULE_SHEET_NAMES : undefined,
+    'MODULE_SETTING_KEYS': typeof MODULE_SETTING_KEYS !== 'undefined' ? MODULE_SETTING_KEYS : undefined,
+    'MODULE_DATA_VERSION': typeof MODULE_DATA_VERSION !== 'undefined' ? MODULE_DATA_VERSION : undefined,
+    'MODULE_FISCAL_YEAR_START_MONTH': typeof MODULE_FISCAL_YEAR_START_MONTH !== 'undefined' ? MODULE_FISCAL_YEAR_START_MONTH : undefined,
+    'MODULE_CUMULATIVE_COLUMNS': typeof MODULE_CUMULATIVE_COLUMNS !== 'undefined' ? MODULE_CUMULATIVE_COLUMNS : undefined
+  };
 
-  const missingConstants = requiredConstants.filter(function(constantName) {
-    return typeof eval(constantName) === 'undefined';
+  const missingConstants = Object.keys(requiredConstantsMap).filter(function(constantName) {
+    return typeof requiredConstantsMap[constantName] === 'undefined';
   });
 
   if (missingConstants.length > 0) {
@@ -321,7 +321,7 @@ function testModuleConstants() {
     return { success: false, message: '年度開始月が4月固定になっていません' };
   }
 
-  return { success: true, message: requiredConstants.length + '個のモジュール定数を確認' };
+  return { success: true, message: Object.keys(requiredConstantsMap).length + '個のモジュール定数を確認' };
 }
 
 function testInitializeModuleSheets() {
@@ -423,49 +423,25 @@ function testSessionsToUnits() {
   return { success: true, message: '45分換算ロジックを確認' };
 }
 
-function testResolveDisplayColumnSkipsOccupiedColumn() {
-  if (typeof resolveCumulativeDisplayColumn !== 'function' ||
-      typeof upsertModuleSettingsValues !== 'function' ||
-      typeof readModuleSettingsMap !== 'function' ||
-      typeof initializeModuleHoursSheetsIfNeeded !== 'function') {
-    return { success: false, message: '必要関数が見つかりません' };
+function testModuleDisplayColumnIsFixed() {
+  if (typeof MODULE_CUMULATIVE_COLUMNS === 'undefined' ||
+      typeof MODULE_CUMULATIVE_COLUMNS.DISPLAY === 'undefined') {
+    return { success: false, message: 'MODULE_CUMULATIVE_COLUMNS.DISPLAY が定義されていません' };
   }
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const tempSheet = ss.insertSheet('tmp_mod_display_col_' + Date.now());
-  const sheets = initializeModuleHoursSheetsIfNeeded();
-  const settingsSheet = sheets.settingsSheet;
-  const settingsMap = readModuleSettingsMap(settingsSheet);
-  const previous = Object.prototype.hasOwnProperty.call(settingsMap, MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN)
-    ? settingsMap[MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN]
-    : '';
-
-  try {
-    const occupiedColumn = MODULE_CUMULATIVE_COLUMNS.DISPLAY_FALLBACK;
-    tempSheet.getRange(3, occupiedColumn).setValue('既存データ');
-    upsertModuleSettingsValues(settingsSheet, {
-      CUMULATIVE_DISPLAY_COLUMN: occupiedColumn
-    });
-
-    const resolved = resolveCumulativeDisplayColumn(tempSheet);
-    if (resolved === occupiedColumn) {
-      return { success: false, message: 'データ占有列を再利用しています（列: ' + resolved + '）' };
-    }
-
-    const resolvedHeader = tempSheet.getRange(2, resolved).getValue();
-    if (resolvedHeader !== 'MOD実施累計(表示)') {
-      return { success: false, message: '解決列のヘッダー設定が不正です: ' + resolvedHeader };
-    }
-
-    return { success: true, message: '占有列を避けて表示列を解決' };
-  } catch (error) {
-    return { success: false, message: error.toString() };
-  } finally {
-    upsertModuleSettingsValues(settingsSheet, {
-      CUMULATIVE_DISPLAY_COLUMN: previous
-    });
-    ss.deleteSheet(tempSheet);
+  if (MODULE_CUMULATIVE_COLUMNS.DISPLAY !== 16) {
+    return { success: false, message: '表示列が16(P列)ではありません: ' + MODULE_CUMULATIVE_COLUMNS.DISPLAY };
   }
+
+  if (typeof breakMergesInRange !== 'function') {
+    return { success: false, message: 'breakMergesInRange関数が見つかりません' };
+  }
+
+  if (typeof cleanupStaleDisplayColumns !== 'function') {
+    return { success: false, message: 'cleanupStaleDisplayColumns関数が見つかりません' };
+  }
+
+  return { success: true, message: 'MOD表示列の固定列定数と補助関数を確認' };
 }
 
 function testReplaceRowsDropsLegacyFiscalRows() {
@@ -1217,13 +1193,18 @@ function testCopyAndClearTargetsActiveFileAfterCopy() {
 // ========================================
 
 function testMagicNumberConstants() {
-  const requiredConstants = [
-    'MASTER_SHEET', 'DUTY_ROSTER_SHEET', 'ANNUAL_SCHEDULE',
-    'JISUU_TEMPLATE', 'WEEKLY_REPORT', 'CUMULATIVE_SHEET', 'IMPORT_CONSTANTS'
-  ];
+  const requiredConstantsMap = {
+    'MASTER_SHEET': typeof MASTER_SHEET !== 'undefined' ? MASTER_SHEET : undefined,
+    'DUTY_ROSTER_SHEET': typeof DUTY_ROSTER_SHEET !== 'undefined' ? DUTY_ROSTER_SHEET : undefined,
+    'ANNUAL_SCHEDULE': typeof ANNUAL_SCHEDULE !== 'undefined' ? ANNUAL_SCHEDULE : undefined,
+    'JISUU_TEMPLATE': typeof JISUU_TEMPLATE !== 'undefined' ? JISUU_TEMPLATE : undefined,
+    'WEEKLY_REPORT': typeof WEEKLY_REPORT !== 'undefined' ? WEEKLY_REPORT : undefined,
+    'CUMULATIVE_SHEET': typeof CUMULATIVE_SHEET !== 'undefined' ? CUMULATIVE_SHEET : undefined,
+    'IMPORT_CONSTANTS': typeof IMPORT_CONSTANTS !== 'undefined' ? IMPORT_CONSTANTS : undefined
+  };
 
-  const missingConstants = requiredConstants.filter(function(name) {
-    return typeof eval(name) === 'undefined';
+  const missingConstants = Object.keys(requiredConstantsMap).filter(function(name) {
+    return typeof requiredConstantsMap[name] === 'undefined';
   });
 
   if (missingConstants.length > 0) {
@@ -1234,29 +1215,28 @@ function testMagicNumberConstants() {
     return { success: false, message: '定数値が不正です' };
   }
 
-  return { success: true, message: requiredConstants.length + '個の定数グループを確認' };
+  return { success: true, message: Object.keys(requiredConstantsMap).length + '個の定数グループを確認' };
 }
 
 function testNoVarDeclarations() {
-  const filesToCheck = [
-    'importAnnualEvents', 'openWeeklyReportFolder', 'assignDuty',
-    'updateAnnualDuty', 'updateAnnualEvents', 'countDutyStars',
-    'saveToPDF', 'setDailyHyperlink'
+  const functionsToCheck = [
+    { name: 'importAnnualEvents', fn: importAnnualEvents },
+    { name: 'openWeeklyReportFolder', fn: openWeeklyReportFolder },
+    { name: 'assignDuty', fn: assignDuty },
+    { name: 'updateAnnualDuty', fn: updateAnnualDuty },
+    { name: 'updateAnnualEvents', fn: updateAnnualEvents },
+    { name: 'countStars', fn: countStars },
+    { name: 'saveToPDF', fn: saveToPDF },
+    { name: 'setDailyHyperlink', fn: setDailyHyperlink },
+    { name: 'breakMergesInRange', fn: breakMergesInRange },
+    { name: 'cleanupStaleDisplayColumns', fn: cleanupStaleDisplayColumns }
   ];
 
   const filesWithVar = [];
-  filesToCheck.forEach(function(fileName) {
-    const fn = eval(fileName === 'importAnnualEvents' ? 'importAnnualEvents' :
-      fileName === 'openWeeklyReportFolder' ? 'openWeeklyReportFolder' :
-      fileName === 'assignDuty' ? 'assignDuty' :
-      fileName === 'updateAnnualDuty' ? 'updateAnnualDuty' :
-      fileName === 'updateAnnualEvents' ? 'updateAnnualEvents' :
-      fileName === 'countDutyStars' ? 'countStars' :
-      fileName === 'saveToPDF' ? 'saveToPDF' :
-      'setDailyHyperlink');
-    const source = String(fn);
+  functionsToCheck.forEach(function(item) {
+    const source = String(item.fn);
     if (/\bvar\s+/.test(source)) {
-      filesWithVar.push(fileName);
+      filesWithVar.push(item.name);
     }
   });
 
@@ -1264,7 +1244,7 @@ function testNoVarDeclarations() {
     return { success: false, message: 'var使用ファイル: ' + filesWithVar.join(', ') };
   }
 
-  return { success: true, message: filesToCheck.length + 'ファイルでvar不使用を確認' };
+  return { success: true, message: functionsToCheck.length + '関数でvar不使用を確認' };
 }
 
 function testLogPrefixStandard() {
@@ -1543,24 +1523,35 @@ function testParseMinute() {
 }
 
 function testPublicFunctionDefinitions() {
-  const publicFunctions = [
-    'assignDuty', 'updateAnnualDuty', 'updateAnnualEvents', 'countStars',
-    'setDailyHyperlink', 'saveToPDF', 'openWeeklyReportFolder',
-    'syncCalendars', 'calculateCumulativeHours', 'importAnnualEvents',
-    'aggregateSchoolEventsByGrade', 'processAggregateSchoolEventsByGrade',
-    'copyAndClear', 'showAnnualUpdateSettingsDialog',
-    'showTriggerSettingsDialog', 'showModulePlanningDialog', 'runAllTests'
-  ];
+  const publicFunctionsMap = {
+    'assignDuty': assignDuty,
+    'updateAnnualDuty': updateAnnualDuty,
+    'updateAnnualEvents': updateAnnualEvents,
+    'countStars': countStars,
+    'setDailyHyperlink': setDailyHyperlink,
+    'saveToPDF': saveToPDF,
+    'openWeeklyReportFolder': openWeeklyReportFolder,
+    'syncCalendars': syncCalendars,
+    'calculateCumulativeHours': calculateCumulativeHours,
+    'importAnnualEvents': importAnnualEvents,
+    'aggregateSchoolEventsByGrade': aggregateSchoolEventsByGrade,
+    'processAggregateSchoolEventsByGrade': processAggregateSchoolEventsByGrade,
+    'copyAndClear': copyAndClear,
+    'showAnnualUpdateSettingsDialog': showAnnualUpdateSettingsDialog,
+    'showTriggerSettingsDialog': showTriggerSettingsDialog,
+    'showModulePlanningDialog': showModulePlanningDialog,
+    'runAllTests': runAllTests
+  };
 
-  const missingFunctions = publicFunctions.filter(function(name) {
-    return typeof eval(name) !== 'function';
+  const missingFunctions = Object.keys(publicFunctionsMap).filter(function(name) {
+    return typeof publicFunctionsMap[name] !== 'function';
   });
 
   if (missingFunctions.length > 0) {
     return { success: false, message: '未定義関数: ' + missingFunctions.join(', ') };
   }
 
-  return { success: true, message: publicFunctions.length + '個の公開関数を確認' };
+  return { success: true, message: Object.keys(publicFunctionsMap).length + '個の公開関数を確認' };
 }
 
 function testAssignDutyBatchReads() {
@@ -1603,23 +1594,43 @@ function testModuleHoursDecomposition() {
     'moduleHoursDisplay'
   ];
 
-  // 各ファイルからの代表的な関数が存在するか確認
-  const checkFunctions = {
-    moduleHoursConstants: ['MODULE_DEFAULT_CYCLES', 'MODULE_CONTROL_MARKERS'],
-    moduleHoursDialog: ['showModulePlanningDialog', 'getModulePlanningDialogState', 'saveModuleCyclePlanFromDialog'],
-    moduleHoursPlanning: ['rebuildModulePlanFromRange', 'buildDailyPlanFromCyclePlan', 'allocateSessionsToDateKeys'],
-    moduleHoursControl: ['initializeModuleHoursSheetsIfNeeded', 'readExceptionRows', 'readModuleSettingsMap'],
-    moduleHoursDisplay: ['syncModuleHoursWithCumulative', 'formatSessionsAsMixedFraction', 'normalizeToDate', 'toNumberOrZero']
+  // 各ファイルからの代表的な関数/定数が存在するか確認
+  const checkSymbols = {
+    moduleHoursConstants: {
+      'MODULE_DEFAULT_CYCLES': typeof MODULE_DEFAULT_CYCLES !== 'undefined',
+      'MODULE_CONTROL_MARKERS': typeof MODULE_CONTROL_MARKERS !== 'undefined'
+    },
+    moduleHoursDialog: {
+      'showModulePlanningDialog': typeof showModulePlanningDialog === 'function',
+      'getModulePlanningDialogState': typeof getModulePlanningDialogState === 'function',
+      'saveModuleCyclePlanFromDialog': typeof saveModuleCyclePlanFromDialog === 'function'
+    },
+    moduleHoursPlanning: {
+      'rebuildModulePlanFromRange': typeof rebuildModulePlanFromRange === 'function',
+      'buildDailyPlanFromCyclePlan': typeof buildDailyPlanFromCyclePlan === 'function',
+      'allocateSessionsToDateKeys': typeof allocateSessionsToDateKeys === 'function'
+    },
+    moduleHoursControl: {
+      'initializeModuleHoursSheetsIfNeeded': typeof initializeModuleHoursSheetsIfNeeded === 'function',
+      'readExceptionRows': typeof readExceptionRows === 'function',
+      'readModuleSettingsMap': typeof readModuleSettingsMap === 'function'
+    },
+    moduleHoursDisplay: {
+      'syncModuleHoursWithCumulative': typeof syncModuleHoursWithCumulative === 'function',
+      'formatSessionsAsMixedFraction': typeof formatSessionsAsMixedFraction === 'function',
+      'normalizeToDate': typeof normalizeToDate === 'function',
+      'toNumberOrZero': typeof toNumberOrZero === 'function'
+    }
   };
 
   const missing = [];
-  for (const file in checkFunctions) {
-    checkFunctions[file].forEach(function(name) {
-      if (typeof eval(name) === 'undefined') {
+  Object.keys(checkSymbols).forEach(function(file) {
+    Object.keys(checkSymbols[file]).forEach(function(name) {
+      if (!checkSymbols[file][name]) {
         missing.push(file + '/' + name);
       }
     });
-  }
+  });
 
   if (missing.length > 0) {
     return { success: false, message: '未定義: ' + missing.join(', ') };

@@ -16,12 +16,16 @@ function importAnnualEvents() {
     return;
   }
   const url = response.getResponseText().trim();
+  if (!url || !/^https:\/\/docs\.google\.com\/spreadsheets\/d\//.test(url)) {
+    ui.alert("GoogleスプレッドシートのURLを入力してください。\n例: https://docs.google.com/spreadsheets/d/...");
+    return;
+  }
 
   let sourceSpreadsheet;
   try {
     sourceSpreadsheet = SpreadsheetApp.openByUrl(url);
   } catch (e) {
-    ui.alert("無効なURLです。スプレッドシートを開けませんでした。");
+    ui.alert("スプレッドシートを開けませんでした。URLが正しいか、アクセス権限があるか確認してください。");
     return;
   }
 
@@ -39,13 +43,10 @@ function importAnnualEvents() {
     ui.alert("設定シート（" + SETTINGS_SHEET_NAME + "）が見つかりません。");
     return;
   }
-  let sundayDate = updateSheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.BASE_SUNDAY).getValue();
-  if (!(sundayDate instanceof Date)) {
-    sundayDate = new Date(sundayDate);
-    if (isNaN(sundayDate.getTime())) {
-      ui.alert("年度更新設定（C11）に有効な日付が設定されていません。");
-      return;
-    }
+  let sundayDate = normalizeToDate(updateSheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.BASE_SUNDAY).getValue());
+  if (!sundayDate) {
+    ui.alert("年度更新設定（C11）に有効な日付が設定されていません。");
+    return;
   }
 
   const year = sundayDate.getFullYear();

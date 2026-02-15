@@ -230,8 +230,7 @@ const MODULE_SETTING_KEYS = {
   PLAN_END_DATE: 'PLAN_END_DATE',
   LAST_GENERATED_AT: 'LAST_GENERATED_AT',
   LAST_DAILY_PLAN_COUNT: 'LAST_DAILY_PLAN_COUNT',
-  DATA_VERSION: 'DATA_VERSION',
-  CUMULATIVE_DISPLAY_COLUMN: 'CUMULATIVE_DISPLAY_COLUMN'
+  DATA_VERSION: 'DATA_VERSION'
 };
 
 /**
@@ -254,7 +253,7 @@ const MODULE_CUMULATIVE_COLUMNS = {
   PLAN: 13,    // M列
   ACTUAL: 14,  // N列
   DIFF: 15,    // O列
-  DISPLAY_FALLBACK: 16 // P列（動的表示列の既定開始位置）
+  DISPLAY: 16  // P列（表示列）
 };
 
 // ========================================
@@ -284,8 +283,9 @@ function formatDateToJapanese(date) {
  */
 function getCurrentOrNextSaturday() {
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const dayOfWeek = today.getDay();
-  
+
   if (dayOfWeek === 6) {
     // 今日が土曜日の場合
     return today;
@@ -328,7 +328,7 @@ function extractFirstName(fullName) {
  */
 function joinNamesWithNewline(names) {
   if (!Array.isArray(names)) return '';
-  return names.filter(name => name).join('\n');
+  return names.filter(function(name) { return name; }).join('\n');
 }
 
 // ========================================
@@ -493,7 +493,7 @@ function createDateMap(sheet, dateColumn = ANNUAL_SCHEDULE.DATE_COLUMN) {
   const dateValues = sheet.getRange(1, columnNumber, lastRow, 1).getValues();
   
   const dateMap = {};
-  dateValues.forEach((row, index) => {
+  dateValues.forEach(function(row, index) {
     const date = formatDateToJapanese(row[0]);
     if (date && !Object.prototype.hasOwnProperty.call(dateMap, date)) {
       // 同一日付が複数行に存在する場合は先頭行を採用する
@@ -515,10 +515,9 @@ function convertFullWidthToHalfWidth(str) {
   return str.replace(/[！-～]/g, function(tmpStr) {
     return String.fromCharCode(tmpStr.charCodeAt(0) - 0xFEE0);
   })
-
-  .replace(/￥/g, "\\")
-  .replace(/　/g, " ")
-  .replace(/〜/g, "~");
+    .replace(/￥/g, "\\")
+    .replace(/　/g, " ")
+    .replace(/〜/g, "~");
 }
 
 // ========================================

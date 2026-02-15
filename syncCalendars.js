@@ -33,17 +33,17 @@ function syncCalendars() {
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const date = row[ANNUAL_SCHEDULE.DATE_INDEX];
+    const date = normalizeToDate(row[ANNUAL_SCHEDULE.DATE_INDEX]);
 
     if (!date) continue;
 
-    processEventUpdates(sheet, eventCalendar, eventColumns, row, date, "行事予定", i + 1, holidayCalendar);
-    processEventUpdates(sheet, externalCalendar, externalColumns, row, date, "対外行事", i + 1, holidayCalendar);
+    processEventUpdates(eventCalendar, eventColumns, row, date, "行事予定", i + 1, holidayCalendar);
+    processEventUpdates(externalCalendar, externalColumns, row, date, "対外行事", i + 1, holidayCalendar);
   }
   Logger.log("[INFO] カレンダーの同期が完了しました。");
 }
 
-function processEventUpdates(sheet, calendar, columns, row, date, eventType, rowIndex, holidayCalendar) {
+function processEventUpdates(calendar, columns, row, date, eventType, rowIndex, holidayCalendar) {
   try {
     if (!calendar) {
       Logger.log(`[WARNING] ${eventType}カレンダーが取得できないため、行 ${rowIndex} をスキップしました。`);
@@ -55,19 +55,20 @@ function processEventUpdates(sheet, calendar, columns, row, date, eventType, row
     const newEvents = [];
     let eventsChanged = false;
 
-    columns.forEach(({ titleCol }) => {
-      const titleCell = sheet.getRange(rowIndex, titleCol).getValue();
+    columns.forEach(function(colDef) {
+      // バッチ読み取り済みの data[row] から直接取得（個別 getRange().getValue() を排除）
+      const titleCell = row[colDef.titleCol - 1];
       if (titleCell) {
-        const titles = titleCell
+        const titles = String(titleCell)
           .split('\n')
-          .map(t => t.trim().replace(/^・/, ''))
-          .filter(t => t);
+          .map(function(t) { return t.trim().replace(/^・/, ''); })
+          .filter(function(t) { return t; });
 
-        titles.forEach((title) => {
-          const isHoliday = holidays.some(holiday =>
-            holiday.getTitle() === title ||
-            holiday.getTitle() === "振替休日"
-          );
+        titles.forEach(function(title) {
+          const isHoliday = holidays.some(function(holiday) {
+            return holiday.getTitle() === title ||
+              holiday.getTitle() === "振替休日";
+          });
           if (!isHoliday) {
             const eventInfo = parseEventTimesAndDates(title, date);
             if (eventInfo) {
@@ -80,7 +81,7 @@ function processEventUpdates(sheet, calendar, columns, row, date, eventType, row
 
     const existingEventMap = {};
     const managedExistingEventMap = {};
-    existingEvents.forEach(event => {
+    existingEvents.forEach(function(event) {
       const key = buildCalendarEventKey(event.getTitle(), event.getStartTime(), event.getEndTime());
       existingEventMap[key] = event;
       if (isManagedCalendarEvent(event)) {
@@ -89,20 +90,20 @@ function processEventUpdates(sheet, calendar, columns, row, date, eventType, row
     });
 
     const newEventMap = {};
-    newEvents.forEach(eventObj => {
+    newEvents.forEach(function(eventObj) {
       const key = buildCalendarEventKey(eventObj.title, eventObj.startTime, eventObj.endTime);
       newEventMap[key] = eventObj;
     });
 
-    for (const key in managedExistingEventMap) {
+    Object.keys(managedExistingEventMap).forEach(function(key) {
       if (!newEventMap[key]) {
         managedExistingEventMap[key].deleteEvent();
         eventsChanged = true;
         Logger.log(`[INFO] 削除された${eventType}イベント: タイトル "${managedExistingEventMap[key].getTitle()}"`);
       }
-    }
+    });
 
-    for (const key in newEventMap) {
+    Object.keys(newEventMap).forEach(function(key) {
       if (!existingEventMap[key]) {
         const eventObj = newEventMap[key];
         let createdEvent;
@@ -118,7 +119,7 @@ function processEventUpdates(sheet, calendar, columns, row, date, eventType, row
         eventsChanged = true;
         Logger.log(`[INFO] 新規作成された${eventType}イベント: タイトル "${eventObj.title}"、開始日時 ${eventObj.startTime}`);
       }
-    }
+    });
 
     if (eventsChanged) {
       Logger.log(`[INFO] ${eventType}イベントの変更が完了しました。日付: ${date}`);

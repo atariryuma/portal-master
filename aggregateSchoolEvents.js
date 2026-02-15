@@ -111,22 +111,22 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
 
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
-        const date = new Date(row[SCHEDULE_COLUMNS.DATE]);
-        if (isNaN(date.getTime())) continue;
+        const date = normalizeToDate(row[SCHEDULE_COLUMNS.DATE]);
+        if (!date) continue;
 
         if (date >= startDateObj && date <= endDateObj) {
-          const monthKey = Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy-MM');
-          if (row[SCHEDULE_COLUMNS.GRADE] == grade) {
+          const monthKey = formatMonthKey(date);
+          if (Number(row[SCHEDULE_COLUMNS.GRADE]) === grade) {
             let hasClass = false;
             for (let j = SCHEDULE_COLUMNS.DATA_START; j <= SCHEDULE_COLUMNS.DATA_END; j++) {
-              if (row[j] == "○") {
+              if (row[j] === "○") {
                 results[monthKey]["授業時数"]++;
                 hasClass = true;
               }
             }
             Object.keys(categories).forEach(function(category) {
               for (let j = SCHEDULE_COLUMNS.DATA_START; j <= SCHEDULE_COLUMNS.DATA_END; j++) {
-                if (row[j] == categories[category]) {
+                if (row[j] === categories[category]) {
                   results[monthKey][category]++;
                   hasClass = true;
                 }
@@ -200,28 +200,20 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
 
 /**
  * 集計対象期間の月キー一覧（yyyy-MM）を作成
+ * listMonthKeysInRange (moduleHoursPlanning.js) へ委譲
  */
 function buildMonthKeysForAggregate(startDate, endDate) {
-  const keys = [];
-  let cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-  const lastMonth = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
-
-  while (cursor <= lastMonth) {
-    keys.push(Utilities.formatDate(cursor, 'Asia/Tokyo', 'yyyy-MM'));
-    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-  }
-
-  return keys;
+  return listMonthKeysInRange(startDate, endDate);
 }
 
 /**
  * 学年別集計の期間入力を検証してDateへ変換
  */
 function parseAndValidateAggregateDateRange(startDate, endDate) {
-  const startDateObj = new Date(startDate);
-  const endDateObj = new Date(endDate);
+  const startDateObj = normalizeToDate(startDate);
+  const endDateObj = normalizeToDate(endDate);
 
-  if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+  if (!startDateObj || !endDateObj) {
     throw new Error('入力された日付が無効です。');
   }
   if (startDateObj > endDateObj) {
@@ -280,7 +272,7 @@ function captureExistingModValuesByMonth(sheet, monthKeys, grades, blockHeight, 
  */
 function normalizeAggregateMonthKey(value) {
   if (value instanceof Date && !isNaN(value.getTime())) {
-    return Utilities.formatDate(value, 'Asia/Tokyo', 'yyyy-MM');
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM');
   }
 
   return String(value == null ? '' : value).trim();
