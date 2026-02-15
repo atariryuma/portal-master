@@ -50,7 +50,10 @@ function assignDuty() {
       return;
     }
 
-    ui.alert('実行', '日直表を基にマスターへ日直を割り当てます。', ui.ButtonSet.OK);
+    const confirmation = ui.alert('確認', '日直表を基にマスターへ日直を割り当てます。続行しますか？', ui.ButtonSet.OK_CANCEL);
+    if (confirmation !== ui.Button.OK) {
+      return;
+    }
 
     // AO列の日直欄を一度クリア
     const endRow = Math.min(MASTER_SHEET.MAX_DATA_ROW, masterSheet.getMaxRows());
@@ -69,7 +72,7 @@ function assignDuty() {
     let dutyIndex = 0;
     for (let i = 0; i < masterData.length; i++) {
       const rowValues = masterData[i];
-      const hasText = rowValues.some(value => typeof value === 'string' && value !== '');
+      const hasText = rowValues.some(function(value) { return typeof value === 'string' && value !== ''; });
 
       if (!hasText) {
         outputData.push(['']);

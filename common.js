@@ -11,7 +11,7 @@
  * マスターシート定数
  * @const {Object}
  */
-const MASTER_SHEET = {
+const MASTER_SHEET = Object.freeze({
   NAME: 'マスター',
   DUTY_COLUMN: 41,         // AO列 (1-based)
   DUTY_SOURCE_INDEX: 40,   // AP列 (0-based, row[40])
@@ -23,25 +23,25 @@ const MASTER_SHEET = {
   DATA_START_ROW: 2,
   LUNCH_INDEX: 41,         // row[41]
   DATA_RANGE_END: 'AP'     // 全データ読み取り範囲の終端列
-};
+});
 
 /**
  * 日直表シート定数
  * @const {Object}
  */
-const DUTY_ROSTER_SHEET = {
+const DUTY_ROSTER_SHEET = Object.freeze({
   NAME: '日直表',
   NAME_COLUMN: 3,          // C列
   NUMBER_COLUMN: 4,        // D列
   OUTPUT_COLUMN: 5,        // E列
   DATA_START_ROW: 2
-};
+});
 
 /**
  * 年間行事予定表定数
  * @const {Object}
  */
-const ANNUAL_SCHEDULE = {
+const ANNUAL_SCHEDULE = Object.freeze({
   SHEET_NAME: '年間行事予定表',
   DATA_START_ROW: 2,            // データ開始行
   DATE_COLUMN: 'B',             // B列: 日付
@@ -54,14 +54,18 @@ const ANNUAL_SCHEDULE = {
   ATTENDANCE_ROWS: 6,
   ATTENDANCE_COLS: 6,
   LUNCH_COLUMN: 27,             // AA列: 給食
+  CLEAR_EVENT_RANGE: 'D',       // 年度更新クリア: 校内行事開始列
+  CLEAR_EVENT_END: 'S',         // 年度更新クリア: 校内行事終了列
+  CLEAR_DATA_RANGE: 'U',        // 年度更新クリア: 校時データ開始列
+  CLEAR_DATA_END: 'AB',         // 年度更新クリア: 校時データ終了列
   HOLIDAY_CALENDAR_NAME: '日本の祝日'
-};
+});
 
 /**
  * 時数様式テンプレート定数
  * @const {Object}
  */
-const JISUU_TEMPLATE = {
+const JISUU_TEMPLATE = Object.freeze({
   SHEET_NAME: '時数様式',
   GRADE_BLOCK_HEIGHT: 21,
   MOD_COLUMN_INDEX: 18,        // R列
@@ -69,14 +73,14 @@ const JISUU_TEMPLATE = {
   DATA_START_ROW: 4,
   GRADE_LABEL_ROW: 2,
   STANDARD_HOUR_ROW: 17
-};
+});
 
 /**
  * 週報定数
  * @const {Object}
  */
-const WEEKLY_REPORT = {
-  SHEET_NAMES: ['週報（時数あり）', '週報（時数あり）次週'],
+const WEEKLY_REPORT = Object.freeze({
+  SHEET_NAMES: Object.freeze(['週報（時数あり）', '週報（時数あり）次週']),
   TRIGGER_CELL: 'U41',
   FIRST_RANGE_START: 40,
   FIRST_RANGE_COUNT: 6,
@@ -86,32 +90,32 @@ const WEEKLY_REPORT = {
   MAX_HEIGHT: 14,
   NAME_RANGE: 'B1:D1',
   DATE_RANGE: 'M1:P1'
-};
+});
 
 /**
  * 累計時数シート定数
  * @const {Object}
  */
-const CUMULATIVE_SHEET = {
+const CUMULATIVE_SHEET = Object.freeze({
   NAME: '累計時数',
   GRADE_START_ROW: 3,
   DATE_CELL: 'A1'
-};
+});
 
 /**
  * インポート定数
  * @const {Object}
  */
-const IMPORT_CONSTANTS = {
+const IMPORT_CONSTANTS = Object.freeze({
   ROWS_TO_COPY: 366,
   SOURCE_SHEET_NAME: 'メインデータ'
-};
+});
 
 /**
  * 行事カテゴリーの定義
  * @const {Object}
  */
-const EVENT_CATEGORIES = {
+const EVENT_CATEGORIES = Object.freeze({
   "儀式": "儀式",
   "文化": "文化",
   "保健": "保健",
@@ -122,7 +126,7 @@ const EVENT_CATEGORIES = {
   "クラブ": "クラ",
   "委員会活動": "委員",
   "補習": "補習"
-};
+});
 
 /**
  * 累計対象カテゴリ（EVENT_CATEGORIESから「補習」を除外）
@@ -130,19 +134,19 @@ const EVENT_CATEGORIES = {
  *   EVENT_CATEGORIESと同じファイルで定義する
  * @const {Array<string>}
  */
-const CUMULATIVE_EVENT_CATEGORIES = Object.keys(EVENT_CATEGORIES).filter(function(key) {
+const CUMULATIVE_EVENT_CATEGORIES = Object.freeze(Object.keys(EVENT_CATEGORIES).filter(function(key) {
   return key !== '補習';
-});
+}));
 
 /**
  * 設定シートのセル位置
  * @const {Object}
  */
-const CONFIG_CELLS = {
+const CONFIG_CELLS = Object.freeze({
   WEEKLY_REPORT_FOLDER_ID: 'C14',  // 週報フォルダID
   CALENDAR_EVENT_ID: 'C15',         // 行事予定カレンダーID
   CALENDAR_EXTERNAL_ID: 'C16'       // 対外行事カレンダーID
-};
+});
 
 /**
  * 設定シート名
@@ -154,20 +158,20 @@ const SETTINGS_SHEET_NAME = 'app_config';
  * 年度更新関連設定のセル位置
  * @const {Object}
  */
-const ANNUAL_UPDATE_CONFIG_CELLS = {
+const ANNUAL_UPDATE_CONFIG_CELLS = Object.freeze({
   COPY_FILE_NAME: 'C5',
   COPY_DESTINATION_FOLDER_ID: 'C7',
   BASE_SUNDAY: 'C11',
   WEEKLY_REPORT_FOLDER_ID: 'C14',
   EVENT_CALENDAR_ID: 'C15',
   EXTERNAL_CALENDAR_ID: 'C16'
-};
+});
 
 /**
  * 自動トリガー設定のセル位置
  * @const {Object}
  */
-const TRIGGER_CONFIG_CELLS = {
+const TRIGGER_CONFIG_CELLS = Object.freeze({
   WEEKLY_PDF_ENABLED: 'C18',
   WEEKLY_PDF_DAY: 'C19',
   WEEKLY_PDF_HOUR: 'C20',
@@ -179,13 +183,13 @@ const TRIGGER_CONFIG_CELLS = {
   DAILY_LINK_ENABLED: 'C26',
   DAILY_LINK_HOUR: 'C27',
   LAST_UPDATE: 'C28'
-};
+});
 
 /**
  * 曜日番号とScriptApp.WeekDayのマッピング
  * @const {Object}
  */
-const WEEKDAY_MAP = {
+const WEEKDAY_MAP = Object.freeze({
   0: ScriptApp.WeekDay.SUNDAY,
   1: ScriptApp.WeekDay.MONDAY,
   2: ScriptApp.WeekDay.TUESDAY,
@@ -193,24 +197,24 @@ const WEEKDAY_MAP = {
   4: ScriptApp.WeekDay.THURSDAY,
   5: ScriptApp.WeekDay.FRIDAY,
   6: ScriptApp.WeekDay.SATURDAY
-};
+});
 
 /**
  * 年間行事予定表のカラムインデックス（0-based）
  * @const {Object}
  */
-const SCHEDULE_COLUMNS = {
+const SCHEDULE_COLUMNS = Object.freeze({
   DATE: 0,              // 日付列（A列）
   GRADE: 19,            // 学年列（T列）
   DATA_START: 20,       // データ開始列（U列）
   DATA_END: 25          // データ終了列（Z列）
-};
+});
 
 /**
  * モジュール学習管理の設定
  * @const {Object}
  */
-const MODULE_SHEET_NAMES = {
+const MODULE_SHEET_NAMES = Object.freeze({
   CONTROL: 'module_control',
   // 旧シート名（移行用に保持）
   SETTINGS: 'module_settings',
@@ -219,19 +223,19 @@ const MODULE_SHEET_NAMES = {
   PLAN: 'module_plan',
   EXCEPTIONS: 'module_exceptions',
   SUMMARY: 'module_summary'
-};
+});
 
 /**
  * module_settings シートで使用するキー
  * @const {Object}
  */
-const MODULE_SETTING_KEYS = {
+const MODULE_SETTING_KEYS = Object.freeze({
   PLAN_START_DATE: 'PLAN_START_DATE',
   PLAN_END_DATE: 'PLAN_END_DATE',
   LAST_GENERATED_AT: 'LAST_GENERATED_AT',
   LAST_DAILY_PLAN_COUNT: 'LAST_DAILY_PLAN_COUNT',
   DATA_VERSION: 'DATA_VERSION'
-};
+});
 
 /**
  * モジュール学習データバージョン
@@ -249,12 +253,12 @@ const MODULE_FISCAL_YEAR_START_MONTH = 4;
  * 累計時数シートへのモジュール出力列（1-based）
  * @const {Object}
  */
-const MODULE_CUMULATIVE_COLUMNS = {
+const MODULE_CUMULATIVE_COLUMNS = Object.freeze({
   PLAN: 13,    // M列
   ACTUAL: 14,  // N列
   DIFF: 15,    // O列
   DISPLAY: 16  // P列（表示列）
-};
+});
 
 // ========================================
 // 日付処理関数
@@ -268,7 +272,21 @@ const MODULE_CUMULATIVE_COLUMNS = {
 function formatDateToJapanese(date) {
   if (!date) return '';
   try {
-    const dateObj = date instanceof Date ? date : new Date(date);
+    // normalizeToDate は moduleHoursDisplay.js で定義されているが、
+    // GAS読み込み順が非決定的なため、ここでは自己完結型で処理する
+    let dateObj;
+    if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === 'string') {
+      const ymd = date.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (ymd) {
+        dateObj = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+      } else {
+        dateObj = new Date(date);
+      }
+    } else {
+      dateObj = new Date(date);
+    }
     if (isNaN(dateObj.getTime())) return '';
     return Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'M月d日');
   } catch (e) {

@@ -33,7 +33,7 @@ function syncModuleHoursWithCumulativeInternal(baseDate, options) {
   const exceptionTotals = loadExceptionTotals(fiscalYear, normalizedBaseDate, sheets.controlSheet);
   const gradeTotals = buildGradeTotalsFromDailyAndExceptions(buildResult.totalsByGrade, exceptionTotals);
 
-  writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate, null);
+  writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate);
 
   const settingsUpdates = {
     LAST_GENERATED_AT: new Date(),

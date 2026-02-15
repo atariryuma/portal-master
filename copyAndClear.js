@@ -51,8 +51,8 @@ function copyAndClear() {
 
     const lastRow = sourceSheet.getLastRow();
     if (lastRow >= 3) {
-      sourceSheet.getRange('D3:S' + lastRow).clearContent();   // 校内行事〜その他
-      sourceSheet.getRange('U3:AB' + lastRow).clearContent();  // 校時データ〜給食
+      sourceSheet.getRange(ANNUAL_SCHEDULE.CLEAR_EVENT_RANGE + '3:' + ANNUAL_SCHEDULE.CLEAR_EVENT_END + lastRow).clearContent();
+      sourceSheet.getRange(ANNUAL_SCHEDULE.CLEAR_DATA_RANGE + '3:' + ANNUAL_SCHEDULE.CLEAR_DATA_END + lastRow).clearContent();
     }
 
     ui.alert(

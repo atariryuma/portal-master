@@ -1,6 +1,6 @@
 /**
  * @fileoverview 日直のみ更新機能
- * @description マスターのAP列(日直)を、日付一致で年間行事予定表R列に反映します。
+ * @description マスターのAP列(日直)を、日付一致で年間行事予定表R列に一括バッチ反映します。
  */
 function updateAnnualDuty() {
   try {
@@ -19,21 +19,26 @@ function updateAnnualDuty() {
 
     ui.alert('日直のみの更新を開始します。');
 
-    const dutyUpdates = [];
+    // 年間行事予定表のR列を一括読み取り
+    const eventLastRow = eventSheet.getLastRow();
+    const dutyValues = eventSheet.getRange(1, ANNUAL_SCHEDULE.DUTY_COLUMN, eventLastRow, 1).getValues();
 
-    masterData.forEach((row, index) => {
+    let updateCount = 0;
+
+    masterData.forEach(function(row) {
       const date = formatDateToJapanese(row[0]);
-      const duty = row[MASTER_SHEET.DUTY_SOURCE_INDEX]; // AP列
+      const duty = row[MASTER_SHEET.DUTY_SOURCE_INDEX];
 
       if (dateMap[date]) {
-        dutyUpdates.push({ row: dateMap[date], value: duty });
-        Logger.log(`[DEBUG] Processing row ${index + 2}/${masterData.length}, Date: ${date}, Duty: ${duty}`);
+        dutyValues[dateMap[date] - 1][0] = duty;
+        updateCount++;
       }
     });
 
-    dutyUpdates.forEach(update => {
-      eventSheet.getRange(update.row, ANNUAL_SCHEDULE.DUTY_COLUMN).setValue(update.value);
-    });
+    // 一括書き込み
+    if (updateCount > 0) {
+      eventSheet.getRange(1, ANNUAL_SCHEDULE.DUTY_COLUMN, eventLastRow, 1).setValues(dutyValues);
+    }
 
     ui.alert('日直のインポートが完了しました。');
   } catch (error) {

@@ -11,8 +11,8 @@
  * 曜日名の配列（0=日曜、1=月曜...6=土曜）
  * @const {Array<string>}
  */
-const DAY_NAMES = ['日', '月', '火', '水', '木', '金', '土'];
-const MANAGED_TRIGGER_FUNCTIONS = ['saveToPDF', 'calculateCumulativeHours', 'syncCalendars', 'setDailyHyperlink'];
+const DAY_NAMES = Object.freeze(['日', '月', '火', '水', '木', '金', '土']);
+const MANAGED_TRIGGER_FUNCTIONS = Object.freeze(['saveToPDF', 'calculateCumulativeHours', 'syncCalendars', 'setDailyHyperlink']);
 
 // ========================================
 // メイン関数
@@ -125,11 +125,11 @@ function validateTriggerSettings(settings) {
     settings.dailyLink.hour
   ];
 
-  for (let hour of hours) {
+  hours.forEach(function(hour) {
     if (typeof hour !== 'number' || hour < 0 || hour > 23) {
       throw new Error('実行時刻は0～23の範囲で指定してください。');
     }
-  }
+  });
 
   // 曜日の検証
   const days = [
@@ -137,12 +137,11 @@ function validateTriggerSettings(settings) {
     settings.cumulativeHours.day
   ];
 
-  for (let day of days) {
+  days.forEach(function(day) {
     if (typeof day !== 'number' || day < 0 || day > 6) {
       throw new Error('実行曜日は0～6の範囲で指定してください。');
     }
-  }
-
+  });
 }
 
 // ========================================
@@ -369,8 +368,3 @@ function toIntOrDefault(value, defaultValue) {
   }
   return Math.floor(num);
 }
-
-// ========================================
-// 後方互換性のための関数
-// ========================================
-

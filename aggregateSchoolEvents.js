@@ -109,6 +109,12 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
         };
       });
 
+      // カテゴリ略称→カテゴリ名の逆引きマップを事前構築（O(n*m)→O(n)に最適化）
+      const abbreviationToCategory = {};
+      Object.keys(categories).forEach(function(category) {
+        abbreviationToCategory[categories[category]] = category;
+      });
+
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
         const date = normalizeToDate(row[SCHEDULE_COLUMNS.DATE]);
@@ -119,19 +125,15 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
           if (Number(row[SCHEDULE_COLUMNS.GRADE]) === grade) {
             let hasClass = false;
             for (let j = SCHEDULE_COLUMNS.DATA_START; j <= SCHEDULE_COLUMNS.DATA_END; j++) {
-              if (row[j] === "○") {
+              const cellValue = row[j];
+              if (cellValue === "○") {
                 results[monthKey]["授業時数"]++;
+                hasClass = true;
+              } else if (cellValue && Object.prototype.hasOwnProperty.call(abbreviationToCategory, cellValue)) {
+                results[monthKey][abbreviationToCategory[cellValue]]++;
                 hasClass = true;
               }
             }
-            Object.keys(categories).forEach(function(category) {
-              for (let j = SCHEDULE_COLUMNS.DATA_START; j <= SCHEDULE_COLUMNS.DATA_END; j++) {
-                if (row[j] === categories[category]) {
-                  results[monthKey][category]++;
-                  hasClass = true;
-                }
-              }
-            });
 
             if (hasClass) {
               results[monthKey]["対象日数"]++;
@@ -275,7 +277,7 @@ function normalizeAggregateMonthKey(value) {
     return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM');
   }
 
-  return String(value == null ? '' : value).trim();
+  return String(value === null || value === undefined ? '' : value).trim();
 }
 
 /**

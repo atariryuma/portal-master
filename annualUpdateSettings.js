@@ -23,13 +23,15 @@ function showAnnualUpdateSettingsDialog() {
 function getAnnualUpdateSettings() {
   try {
     const sheet = getAnnualUpdateSettingsSheet_();
+    // バッチ読み取り: C5:C16を一括取得
+    const values = sheet.getRange('C5:C16').getValues();
     return {
-      copyFileName: toTrimmedTextAnnualUpdate_(sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.COPY_FILE_NAME).getValue()),
-      copyDestinationFolderId: toTrimmedTextAnnualUpdate_(sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.COPY_DESTINATION_FOLDER_ID).getValue()),
-      baseSunday: formatAnnualUpdateDateForInput_(sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.BASE_SUNDAY).getValue()),
-      weeklyReportFolderId: toTrimmedTextAnnualUpdate_(sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.WEEKLY_REPORT_FOLDER_ID).getValue()),
-      eventCalendarId: toTrimmedTextAnnualUpdate_(sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.EVENT_CALENDAR_ID).getValue()),
-      externalCalendarId: toTrimmedTextAnnualUpdate_(sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.EXTERNAL_CALENDAR_ID).getValue())
+      copyFileName: toTrimmedTextAnnualUpdate_(values[0][0]),             // C5
+      copyDestinationFolderId: toTrimmedTextAnnualUpdate_(values[2][0]),  // C7
+      baseSunday: formatAnnualUpdateDateForInput_(values[6][0]),          // C11
+      weeklyReportFolderId: toTrimmedTextAnnualUpdate_(values[9][0]),     // C14
+      eventCalendarId: toTrimmedTextAnnualUpdate_(values[10][0]),         // C15
+      externalCalendarId: toTrimmedTextAnnualUpdate_(values[11][0])       // C16
     };
   } catch (error) {
     Logger.log('[ERROR] 年度更新設定の取得に失敗: ' + error.toString());
@@ -48,12 +50,16 @@ function saveAnnualUpdateSettings(settings) {
     validateAnnualUpdateSettings_(normalized);
 
     const sheet = getAnnualUpdateSettingsSheet_();
-    sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.COPY_FILE_NAME).setValue(normalized.copyFileName);
-    sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.COPY_DESTINATION_FOLDER_ID).setValue(normalized.copyDestinationFolderId);
-    sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.BASE_SUNDAY).setValue(normalized.baseSundayDate);
-    sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.WEEKLY_REPORT_FOLDER_ID).setValue(normalized.weeklyReportFolderId);
-    sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.EVENT_CALENDAR_ID).setValue(normalized.eventCalendarId);
-    sheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.EXTERNAL_CALENDAR_ID).setValue(normalized.externalCalendarId);
+    // C5, C7, C11は非連続のため個別書き込み
+    sheet.getRange('C5').setValue(normalized.copyFileName);
+    sheet.getRange('C7').setValue(normalized.copyDestinationFolderId);
+    sheet.getRange('C11').setValue(normalized.baseSundayDate);
+    // C14:C16は連続のためバッチ書き込み
+    sheet.getRange('C14:C16').setValues([
+      [normalized.weeklyReportFolderId],
+      [normalized.eventCalendarId],
+      [normalized.externalCalendarId]
+    ]);
 
     Logger.log('[INFO] 年度更新設定を保存しました。');
     return '年度更新設定を保存しました。';
@@ -160,5 +166,5 @@ function formatAnnualUpdateDateForInput_(value) {
 }
 
 function toTrimmedTextAnnualUpdate_(value) {
-  return String(value == null ? '' : value).trim();
+  return String(value === null || value === undefined ? '' : value).trim();
 }

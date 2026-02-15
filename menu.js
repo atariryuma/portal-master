@@ -46,13 +46,11 @@ function onOpen() {
     .addSubMenu(helpMenu)
     .addToUi();
 
-  // 内部管理シートは通常利用で見せない
+  // 内部管理シートは通常利用で見せない（軽量な非表示のみ。完全初期化はモジュール機能の初回使用時に遅延実行）
   try {
-    if (typeof initializeModuleHoursSheetsIfNeeded === 'function') {
-      initializeModuleHoursSheetsIfNeeded();
-    }
+    hideSheetForNormalUse_(MODULE_SHEET_NAMES.CONTROL);
   } catch (error) {
-    Logger.log('[WARNING] module 管理シート初期化に失敗: ' + error.toString());
+    Logger.log('[WARNING] module_control シートの非表示化に失敗: ' + error.toString());
   }
 
   try {

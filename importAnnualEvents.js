@@ -67,24 +67,13 @@ function importAnnualEvents() {
     }
 
     const targetDisplayString = Utilities.formatDate(targetDate, Session.getScriptTimeZone(), "yyyy/MM/dd");
-    Logger.log("[DEBUG] targetDisplayString: " + targetDisplayString);
-
-    const sourceDisplayLogRowCount = Math.min(10, sourceSheet.getLastRow());
-    const sourceDispValues = sourceSheet.getRange(1, 1, sourceDisplayLogRowCount, 1).getDisplayValues();
-    Logger.log("[DEBUG] sourceSheet A列上位10行 (getDisplayValues): " + JSON.stringify(sourceDispValues));
 
     const sourceValues = sourceSheet.getRange(1, 1, sourceSheet.getLastRow(), 1).getValues();
-    const sourceLogConverted = [];
-    for (let i = 0; i < Math.min(10, sourceValues.length); i++) {
-      sourceLogConverted.push(convertCellValue(sourceValues[i][0], targetDate.getFullYear()));
-    }
     const sourceStartRow = findDateRow(sourceValues, targetDisplayString, targetDate.getFullYear());
-    Logger.log("[DEBUG] sourceSheet A列上位10行 (converted): " + JSON.stringify(sourceLogConverted));
     if (!sourceStartRow) {
       ui.alert("コピー元シートのA列全体に対象の日付 (" + targetDisplayString + ") が見つかりませんでした。");
       return;
     }
-    Logger.log("[DEBUG] コピー元対象開始行: " + sourceStartRow);
 
     const masterSheet = activeSpreadsheet.getSheetByName(MASTER_SHEET.NAME);
     if (!masterSheet) {
@@ -92,17 +81,11 @@ function importAnnualEvents() {
       return;
     }
     const masterValues = masterSheet.getRange(1, 1, masterSheet.getLastRow(), 1).getValues();
-    const masterLogConverted = [];
-    for (let j = 0; j < Math.min(10, masterValues.length); j++) {
-      masterLogConverted.push(convertCellValue(masterValues[j][0], targetDate.getFullYear()));
-    }
     const destStartRow = findDateRow(masterValues, targetDisplayString, targetDate.getFullYear());
-    Logger.log("[DEBUG] masterSheet A列上位10行 (converted): " + JSON.stringify(masterLogConverted));
     if (!destStartRow) {
       ui.alert("マスターのA列に対象の日付 (" + targetDisplayString + ") が見つかりませんでした。");
       return;
     }
-    Logger.log("[DEBUG] 貼り付け先対象開始行: " + destStartRow);
 
     const numRowsToCopy = IMPORT_CONSTANTS.ROWS_TO_COPY;
     const lastCol = sourceSheet.getLastColumn();

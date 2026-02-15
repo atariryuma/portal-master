@@ -202,7 +202,7 @@ function parseEventTimesAndDates(title, date) {
   const originalTitle = trimmedTitle;
 
   let isAllDay = false;
-  let startTime = new Date(date);
+  let startTime = new Date(date.getTime());
   let endTime = null;
 
   const timePatternRange = /(\d{1,2})[:：時](\d{2}|\d{1,2}分?|半)?(?:\s*[~～]\s*)(\d{1,2})[:：時](\d{2}|\d{1,2}分?|半)?/;
@@ -210,44 +210,42 @@ function parseEventTimesAndDates(title, date) {
 
   let timeMatch = trimmedTitle.match(timePatternRange);
   if (timeMatch) {
-    const [_, startHour, startMinute, endHour, endMinute] = timeMatch;
-    startTime = setEventTime(startTime, startHour, startMinute);
-    endTime = setEventTime(new Date(date), endHour, endMinute);
+    startTime = setEventTime(startTime, timeMatch[1], timeMatch[2]);
+    endTime = setEventTime(new Date(date.getTime()), timeMatch[3], timeMatch[4]);
 
     if (endTime <= startTime) {
       endTime.setDate(endTime.getDate() + 1);
     }
 
     isAllDay = false;
-    return {startTime, endTime, title: originalTitle, isAllDay};
+    return { startTime: startTime, endTime: endTime, title: originalTitle, isAllDay: isAllDay };
   }
 
   timeMatch = trimmedTitle.match(timePatternSingle);
   if (timeMatch) {
-    const [_, startHour, startMinute] = timeMatch;
-    startTime = setEventTime(startTime, startHour, startMinute);
+    startTime = setEventTime(startTime, timeMatch[1], timeMatch[2]);
     endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
 
     isAllDay = false;
-    return {startTime, endTime, title: originalTitle, isAllDay};
+    return { startTime: startTime, endTime: endTime, title: originalTitle, isAllDay: isAllDay };
   }
 
   isAllDay = true;
   endTime = new Date(startTime.getTime() + 24 * 60 * 60 * 1000);
-  return {startTime, endTime, title: originalTitle, isAllDay};
+  return { startTime: startTime, endTime: endTime, title: originalTitle, isAllDay: isAllDay };
 }
 
 function setEventTime(date, hour, minute) {
-  hour = parseInt(hour);
-  minute = parseMinute(minute);
-  date.setHours(hour, minute, 0, 0);
+  const parsedHour = parseInt(hour, 10);
+  const parsedMinute = parseMinute(minute);
+  date.setHours(parsedHour, parsedMinute, 0, 0);
   return date;
 }
 
 function parseMinute(minute) {
   if (!minute || minute === '') return 0;
   if (minute === '半' || minute === '30分') return 30;
-  return parseInt(minute.replace('分', '')) || 0;
+  return parseInt(minute.replace('分', ''), 10) || 0;
 }
 
 function buildCalendarEventKey(title, startTime, endTime) {

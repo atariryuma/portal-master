@@ -56,13 +56,18 @@ function exportSheetToPDF(sheet) {
     const folderId = getWeeklyReportFolderId();
     const folder = DriveApp.getFolderById(folderId);
 
-    const files = folder.getFilesByName(fileName + '.pdf');
-    while (files.hasNext()) {
-      const file = files.next();
-      DriveApp.getFileById(file.getId()).setTrashed(true);
+    // 新規作成を先に行い、成功後に旧ファイルを削除（作成失敗時のデータ消失を防止）
+    const oldFiles = [];
+    const existingFiles = folder.getFilesByName(fileName + '.pdf');
+    while (existingFiles.hasNext()) {
+      oldFiles.push(existingFiles.next());
     }
 
     folder.createFile(blob);
+
+    oldFiles.forEach(function(file) {
+      file.setTrashed(true);
+    });
     Logger.log(`[INFO] ファイル「${fileName}.pdf」をフォルダ「${folder.getName()}」に保存しました。`);
   } catch (error) {
     Logger.log(`[ERROR] PDF出力中にエラー（シート: ${sheet.getName()}）: ${error.toString()}`);
@@ -100,7 +105,5 @@ function createFileName(sheet) {
 }
 
 function formatDateRangeForPdf_(dateRange) {
-  const start = new Date(dateRange[0]);
-  const end = new Date(dateRange[dateRange.length - 1]);
-  return formatDateToJapanese(start) + '～' + formatDateToJapanese(end);
+  return formatDateToJapanese(dateRange[0]) + '～' + formatDateToJapanese(dateRange[dateRange.length - 1]);
 }

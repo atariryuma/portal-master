@@ -6,7 +6,7 @@
  */
 
 // カラム定数はcommon.jsのSCHEDULE_COLUMNSを使用
-const CUMULATIVE_COLUMN_MAP = {
+const CUMULATIVE_COLUMN_MAP = Object.freeze({
   "授業時数": 3,
   "儀式": 4,
   "文化": 5,
@@ -17,7 +17,7 @@ const CUMULATIVE_COLUMN_MAP = {
   "児童会": 10,
   "クラブ": 11,
   "委員会活動": 12
-};
+});
 
 // CUMULATIVE_EVENT_CATEGORIESはcommon.jsで定義（GASファイル読み込み順序の制約）
 
@@ -52,7 +52,6 @@ function calculateCumulativeHours() {
     const formattedDate = formatDateToJapanese(thisSaturday) + 'までの累計時数';
 
     cumulativeSheet.getRange(CUMULATIVE_SHEET.DATE_CELL).setValue(formattedDate);
-    Logger.log("[DEBUG] この週の土曜日の日付: " + Utilities.formatDate(thisSaturday, Session.getScriptTimeZone(), 'yyyy/MM/dd'));
 
     grades.forEach(function(grade) {
       const results = calculateResultsForGrade(data, grade, thisSaturday, categories);
