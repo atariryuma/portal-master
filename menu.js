@@ -56,16 +56,20 @@ function onOpen() {
   }
 
   try {
-    hideSheetForNormalUse_('年度更新作業');
+    hideSheetForNormalUse_(SETTINGS_SHEET_NAME);
   } catch (error) {
-    Logger.log('[WARNING] 年度更新作業シートの非表示化に失敗: ' + error.toString());
+    Logger.log('[WARNING] 設定シートの非表示化に失敗: ' + error.toString());
   }
 }
 
 function hideSheetForNormalUse_(sheetName) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const targetSheet = ss.getSheetByName(sheetName);
-  if (!targetSheet || targetSheet.isSheetHidden()) {
+  if (!targetSheet) {
+    Logger.log('[WARNING] ' + sheetName + 'シートが見つかりません。');
+    return;
+  }
+  if (targetSheet.isSheetHidden()) {
     return;
   }
 

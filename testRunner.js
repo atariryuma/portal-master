@@ -141,8 +141,17 @@ function getFullTestPlan_() {
       title: '【フェーズ5】共通関数',
       tests: [
         { name: '5-1. 日付フォーマット関数', fn: testFormatDateToJapanese },
-        { name: '5-2. 名前抽出関数', fn: testExtractFirstName },
-        { name: '5-3. アラート関数定義確認', fn: testShowAlert }
+        { name: '5-2. 名前抽出関数', fn: testExtractFirstName }
+      ]
+    },
+    {
+      title: '【フェーズ6】運用導線（非破壊）',
+      tests: [
+        { name: '6-1. 設定シート非表示動作', fn: testSettingsSheetHiddenForNormalUse },
+        { name: '6-2. 年度更新設定ダイアログ定義', fn: testAnnualUpdateDialogDefinition },
+        { name: '6-3. 自動トリガー設定ダイアログ定義', fn: testTriggerSettingsDialogDefinition },
+        { name: '6-4. 年間行事インポート導線定義', fn: testImportAnnualEventsDefinition },
+        { name: '6-5. onOpen設定シート非表示配線', fn: testOnOpenWiresSettingsSheetHide }
       ]
     }
   ];
@@ -163,7 +172,8 @@ function getQuickTestPlan_() {
         { name: 'Q-3. 累計時数へのMOD統合確認', fn: testModuleCumulativeIntegration },
         { name: 'Q-4. 集計期間バリデーション（不正日付）', fn: testValidateAggregateDateRangeRejectsInvalidDate },
         { name: 'Q-5. 集計期間バリデーション（日付順）', fn: testValidateAggregateDateRangeRejectsReverseRange },
-        { name: 'Q-6. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth }
+        { name: 'Q-6. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
+        { name: 'Q-7. 設定シート非表示動作', fn: testSettingsSheetHiddenForNormalUse }
       ]
     }
   ];
@@ -210,7 +220,7 @@ function testGetSpreadsheet() {
 
 function testRequiredSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const requiredSheets = ['マスター', '年度更新作業', '時数様式'];
+  const requiredSheets = ['マスター', '時数様式'];
   const missingSheets = [];
 
   requiredSheets.forEach(function(sheetName) {
@@ -223,15 +233,21 @@ function testRequiredSheets() {
     return { success: false, message: '不足シート: ' + missingSheets.join(', ') };
   }
 
-  return { success: true, message: requiredSheets.length + '個の必須シートを確認' };
+  try {
+    getSettingsSheetOrThrow();
+  } catch (error) {
+    return { success: false, message: '設定シート（' + SETTINGS_SHEET_NAME + '）が見つかりません' };
+  }
+
+  return { success: true, message: (requiredSheets.length + 1) + '個の必須シートを確認' };
 }
 
 function testConfigSheetStructure() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('年度更新作業');
-
-  if (!sheet) {
-    return { success: false, message: '年度更新作業シートが見つかりません' };
+  let sheet;
+  try {
+    sheet = getSettingsSheetOrThrow();
+  } catch (error) {
+    return { success: false, message: '設定シート（' + SETTINGS_SHEET_NAME + '）が見つかりません' };
   }
 
   // 年度更新設定セル + トリガー設定セルの確認
@@ -530,7 +546,7 @@ function testReplaceRowsKeepsOtherLegacyFiscalRows() {
 }
 
 // ========================================
-// フェーズ3: 新機能テスト
+// 設定・バリデーション
 // ========================================
 
 function testTriggerConfigConstants() {
@@ -709,7 +725,7 @@ function testValidateAnnualUpdateSettings() {
 }
 
 // ========================================
-// フェーズ4: 共通関数テスト
+// 共通関数テスト
 // ========================================
 
 function testFormatDateToJapanese() {
@@ -750,16 +766,8 @@ function testExtractFirstName() {
   return { success: true, message: testCases.length + '件のテストケースが成功' };
 }
 
-function testShowAlert() {
-  if (typeof showAlert !== 'function') {
-    return { success: false, message: '関数が見つかりません' };
-  }
-
-  return { success: true, message: '関数が定義されています' };
-}
-
 // ========================================
-// フェーズ5: データ処理テスト
+// データ処理テスト
 // ========================================
 
 function testGetAnnualScheduleSheet() {
@@ -1024,6 +1032,132 @@ function testGetModuleActualUnitsForMonth() {
   }
 
   return { success: true, message: 'MOD実績取得のフォールバックを確認' };
+}
+
+function testSettingsSheetHiddenForNormalUse() {
+  if (typeof hideSheetForNormalUse_ !== 'function') {
+    return { success: false, message: 'hideSheetForNormalUse_関数が見つかりません' };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const settingsSheet = ss.getSheetByName(SETTINGS_SHEET_NAME);
+  if (!settingsSheet) {
+    return { success: false, message: SETTINGS_SHEET_NAME + 'シートが見つかりません' };
+  }
+
+  const wasHidden = settingsSheet.isSheetHidden();
+  const activeSheet = ss.getActiveSheet();
+  const activeSheetId = activeSheet ? activeSheet.getSheetId() : null;
+  const visibleCount = ss.getSheets().filter(function(sheet) {
+    return !sheet.isSheetHidden();
+  }).length;
+
+  if (!wasHidden && visibleCount <= 1) {
+    return { skip: true, message: '表示中シートが1枚のみのため非表示テストをスキップ' };
+  }
+
+  try {
+    hideSheetForNormalUse_(SETTINGS_SHEET_NAME);
+    if (!settingsSheet.isSheetHidden()) {
+      return { success: false, message: SETTINGS_SHEET_NAME + 'シートが非表示になりません' };
+    }
+    return {
+      success: true,
+      message: wasHidden ? '既に非表示状態を確認' : '非表示化動作を確認（テスト後に元へ復元）'
+    };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    if (!wasHidden && settingsSheet.isSheetHidden()) {
+      settingsSheet.showSheet();
+
+      if (activeSheetId !== null) {
+        const originalActiveSheet = ss.getSheets().find(function(sheet) {
+          return sheet.getSheetId() === activeSheetId;
+        });
+        if (originalActiveSheet && !originalActiveSheet.isSheetHidden()) {
+          ss.setActiveSheet(originalActiveSheet);
+        }
+      }
+    }
+  }
+}
+
+function testAnnualUpdateDialogDefinition() {
+  if (typeof showAnnualUpdateSettingsDialog !== 'function') {
+    return { success: false, message: 'showAnnualUpdateSettingsDialog関数が見つかりません' };
+  }
+
+  try {
+    const html = HtmlService.createHtmlOutputFromFile('annualUpdateSettingsDialog');
+    const content = html.getContent();
+    if (!content || content.length === 0) {
+      return { success: false, message: '年度更新設定ダイアログHTMLが空です' };
+    }
+    return { success: true, message: '年度更新設定ダイアログHTMLを確認' };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  }
+}
+
+function testTriggerSettingsDialogDefinition() {
+  if (typeof showTriggerSettingsDialog !== 'function') {
+    return { success: false, message: 'showTriggerSettingsDialog関数が見つかりません' };
+  }
+
+  try {
+    const html = HtmlService.createHtmlOutputFromFile('triggerSettingsDialog');
+    const content = html.getContent();
+    if (!content || content.length === 0) {
+      return { success: false, message: '自動トリガー設定ダイアログHTMLが空です' };
+    }
+    return { success: true, message: '自動トリガー設定ダイアログHTMLを確認' };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  }
+}
+
+function testImportAnnualEventsDefinition() {
+  if (typeof importAnnualEvents !== 'function') {
+    return { success: false, message: 'importAnnualEvents関数が見つかりません' };
+  }
+
+  const source = String(importAnnualEvents);
+  const requiredFragments = [
+    'getSettingsSheetOrThrow',
+    'ANNUAL_UPDATE_CONFIG_CELLS.BASE_SUNDAY',
+    'SpreadsheetApp.openByUrl'
+  ];
+
+  const missingFragments = requiredFragments.filter(function(fragment) {
+    return source.indexOf(fragment) === -1;
+  });
+
+  if (missingFragments.length > 0) {
+    return { success: false, message: '導線コード不足: ' + missingFragments.join(', ') };
+  }
+
+  if (source.indexOf('年度更新作業') !== -1) {
+    return { success: false, message: '旧設定シート名参照が残っています' };
+  }
+
+  return { success: true, message: '年間行事インポート導線を確認' };
+}
+
+function testOnOpenWiresSettingsSheetHide() {
+  if (typeof onOpen !== 'function') {
+    return { success: false, message: 'onOpen関数が見つかりません' };
+  }
+
+  const source = String(onOpen);
+  if (source.indexOf('hideSheetForNormalUse_') === -1 || source.indexOf('SETTINGS_SHEET_NAME') === -1) {
+    return { success: false, message: 'onOpenの設定シート非表示配線が見つかりません' };
+  }
+  if (source.indexOf('年度更新作業') !== -1) {
+    return { success: false, message: 'onOpenに旧設定シート名参照が残っています' };
+  }
+
+  return { success: true, message: 'onOpenの設定シート非表示配線を確認' };
 }
 
 // ========================================

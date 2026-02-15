@@ -38,12 +38,7 @@ function showTriggerSettingsDialog() {
  */
 function getTriggerSettings() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const settingsSheet = ss.getSheetByName('年度更新作業');
-
-    if (!settingsSheet) {
-      throw new Error('年度更新作業シートが見つかりません。');
-    }
+    const settingsSheet = getSettingsSheetOrThrow();
 
     // 設定値を読み込み（空の場合はデフォルト値を使用）
     const rawSettings = {
@@ -82,12 +77,7 @@ function getTriggerSettings() {
  */
 function saveTriggerSettings(settings) {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const settingsSheet = ss.getSheetByName('年度更新作業');
-
-    if (!settingsSheet) {
-      throw new Error('年度更新作業シートが見つかりません。');
-    }
+    const settingsSheet = getSettingsSheetOrThrow();
 
     // 入力値を正規化して検証
     const normalizedSettings = normalizeTriggerSettings(settings);

@@ -35,6 +35,12 @@ const CONFIG_CELLS = {
 };
 
 /**
+ * 設定シート名
+ * @const {string}
+ */
+const SETTINGS_SHEET_NAME = 'app_config';
+
+/**
  * 年度更新関連設定のセル位置
  * @const {Object}
  */
@@ -225,11 +231,7 @@ function joinNamesWithNewline(names) {
  */
 function getWeeklyReportFolderId() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const settingsSheet = ss.getSheetByName('年度更新作業');
-  
-  if (!settingsSheet) {
-    throw new Error('年度更新作業シートが見つかりません。');
-  }
+  const settingsSheet = getSettingsSheetOrThrow();
   
   // 設定シートからフォルダIDを取得
   const folderId = settingsSheet.getRange(CONFIG_CELLS.WEEKLY_REPORT_FOLDER_ID).getValue();
@@ -275,12 +277,7 @@ function getWeeklyReportFolderId() {
  * @return {string} カレンダーID
  */
 function getOrCreateCalendarId(calendarType) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const settingsSheet = ss.getSheetByName('年度更新作業');
-  
-  if (!settingsSheet) {
-    throw new Error('年度更新作業シートが見つかりません。');
-  }
+  const settingsSheet = getSettingsSheetOrThrow();
   
   const cellKey = calendarType === 'EVENT' ? 
     CONFIG_CELLS.CALENDAR_EVENT_ID : 
@@ -316,6 +313,22 @@ function getOrCreateCalendarId(calendarType) {
   Logger.log(`[INFO] 新規作成された${calendarName}ID: ${calendarId}`);
   
   return calendarId;
+}
+
+/**
+ * 設定シート（app_config）を取得
+ * @return {GoogleAppsScript.Spreadsheet.Sheet} 設定シート
+ * @throws {Error} 設定シートが見つからない場合
+ */
+function getSettingsSheetOrThrow() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SETTINGS_SHEET_NAME);
+
+  if (!sheet) {
+    throw new Error('設定シート（' + SETTINGS_SHEET_NAME + '）が見つかりません。');
+  }
+
+  return sheet;
 }
 
 // ========================================

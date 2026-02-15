@@ -1,7 +1,7 @@
 /**
  * 別スプレッドシートの「メインデータ」シートから、  
  * アクティブなスプレッドシート内の「マスター」シートへ、  
- * 対象日（年度更新設定の基準日=C11セルの日曜日の翌日＝4月1日）から366行分の  
+ * 対象日（設定シートの基準日=C11セルの日曜日の翌日＝4月1日）から366行分の  
  * 値・書式（数値書式、背景色、フォント色、フォントファミリー）を転記するスクリプト。
  *
  * ※コピー元シートのA列は「4月1日」などと表示されている場合があるため、  
@@ -41,11 +41,13 @@ function importAnnualEvents() {
     return;
   }
   
-  // 3. アクティブなスプレッドシート（ポータルマスター）の年度更新設定（C11）から、
+  // 3. アクティブなスプレッドシート（ポータルマスター）の設定シート（C11）から、
   var activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var updateSheet = activeSpreadsheet.getSheetByName("年度更新作業");
-  if (!updateSheet) {
-    ui.alert("年度更新作業シートが見つかりません。");
+  var updateSheet;
+  try {
+    updateSheet = getSettingsSheetOrThrow();
+  } catch (error) {
+    ui.alert("設定シート（" + SETTINGS_SHEET_NAME + "）が見つかりません。");
     return;
   }
   var sundayDate = updateSheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.BASE_SUNDAY).getValue();

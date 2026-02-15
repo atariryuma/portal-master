@@ -23,7 +23,7 @@ and annual rollover tasks.
 ## Required Sheets
 At minimum, these sheets must exist:
 - `マスター`
-- `年度更新作業`
+- `app_config`
 - `時数様式`
 - `年間行事予定表` (required for schedule-based operations)
 

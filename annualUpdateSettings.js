@@ -1,5 +1,5 @@
 /**
- * @fileoverview 年度更新作業シートの設定値をダイアログで管理する機能
+ * @fileoverview 設定シート（app_config）の設定値をダイアログで管理する機能
  */
 
 /**
@@ -64,11 +64,7 @@ function saveAnnualUpdateSettings(settings) {
 }
 
 function getAnnualUpdateSettingsSheet_() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('年度更新作業');
-  if (!sheet) {
-    throw new Error('年度更新作業シートが見つかりません。');
-  }
-  return sheet;
+  return getSettingsSheetOrThrow();
 }
 
 function normalizeAnnualUpdateSettings_(settings) {

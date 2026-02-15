@@ -7,7 +7,7 @@
 function copyAndClear() {
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();   //アクティブなスプレッドシートを取得
-  var sh1 = getSheetByNameOrThrow('年度更新作業');    //「年度更新作業」シートの指定
+  var sh1 = getSettingsSheetOrThrow();    // 設定シート（app_config）の指定
   var sh2 = getAnnualScheduleSheet();    // 共通関数を使用
 
   if (!sh2) {
