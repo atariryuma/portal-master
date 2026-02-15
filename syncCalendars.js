@@ -28,6 +28,23 @@ function syncCalendars() {
     Logger.log('[WARNING] 「日本の祝日」カレンダーが見つかりません。祝日スキップなしで同期します。');
   }
 
+  // データから日付範囲を算出してイベントを一括取得（per-row API呼び出しを排除）
+  const dateRange = extractDateRangeFromData(data);
+  if (!dateRange) {
+    Logger.log('[INFO] 同期対象の日付データがありません。');
+    return;
+  }
+
+  const fetchEnd = new Date(dateRange.maxDate.getTime() + 24 * 60 * 60 * 1000);
+  const eventEventsMap = buildEventsByDateMap(eventCalendar.getEvents(dateRange.minDate, fetchEnd));
+  const externalEventsMap = buildEventsByDateMap(externalCalendar.getEvents(dateRange.minDate, fetchEnd));
+  const holidayEventsMap = holidayCalendar
+    ? buildEventsByDateMap(holidayCalendar.getEvents(dateRange.minDate, fetchEnd))
+    : {};
+
+  Logger.log('[INFO] カレンダーイベントを一括取得しました（' +
+    formatInputDate(dateRange.minDate) + ' ～ ' + formatInputDate(dateRange.maxDate) + '）');
+
   const eventColumns = [{ titleCol: ANNUAL_SCHEDULE.INTERNAL_EVENT_COLUMN }];
   const externalColumns = [{ titleCol: ANNUAL_SCHEDULE.EXTERNAL_EVENT_COLUMN }];
 
@@ -37,21 +54,72 @@ function syncCalendars() {
 
     if (!date) continue;
 
-    processEventUpdates(eventCalendar, eventColumns, row, date, "行事予定", i + 1, holidayCalendar);
-    processEventUpdates(externalCalendar, externalColumns, row, date, "対外行事", i + 1, holidayCalendar);
+    const dateKey = formatInputDate(date);
+    processEventUpdates(eventCalendar, eventColumns, row, date,
+      "行事予定", i + 1, eventEventsMap[dateKey] || [], holidayEventsMap[dateKey] || []);
+    processEventUpdates(externalCalendar, externalColumns, row, date,
+      "対外行事", i + 1, externalEventsMap[dateKey] || [], holidayEventsMap[dateKey] || []);
   }
   Logger.log("[INFO] カレンダーの同期が完了しました。");
 }
 
-function processEventUpdates(calendar, columns, row, date, eventType, rowIndex, holidayCalendar) {
+/**
+ * データ行群から最小・最大日付を算出
+ * @param {Array<Array<*>>} data - シートデータ
+ * @return {?Object} {minDate, maxDate} または null
+ */
+function extractDateRangeFromData(data) {
+  let minDate = null;
+  let maxDate = null;
+
+  for (let i = 1; i < data.length; i++) {
+    const date = normalizeToDate(data[i][ANNUAL_SCHEDULE.DATE_INDEX]);
+    if (!date) continue;
+
+    if (!minDate || date < minDate) {
+      minDate = date;
+    }
+    if (!maxDate || date > maxDate) {
+      maxDate = date;
+    }
+  }
+
+  if (!minDate || !maxDate) {
+    return null;
+  }
+
+  return { minDate: minDate, maxDate: maxDate };
+}
+
+/**
+ * イベント配列を日付キー別マップに変換
+ * @param {Array<GoogleAppsScript.Calendar.CalendarEvent>} events - イベント配列
+ * @return {Object} dateKey => イベント配列
+ */
+function buildEventsByDateMap(events) {
+  const map = {};
+
+  events.forEach(function(event) {
+    const startDate = normalizeToDate(event.getStartTime());
+    if (!startDate) return;
+
+    const dateKey = formatInputDate(startDate);
+    if (!map[dateKey]) {
+      map[dateKey] = [];
+    }
+    map[dateKey].push(event);
+  });
+
+  return map;
+}
+
+function processEventUpdates(calendar, columns, row, date, eventType, rowIndex, existingEvents, holidays) {
   try {
     if (!calendar) {
       Logger.log(`[WARNING] ${eventType}カレンダーが取得できないため、行 ${rowIndex} をスキップしました。`);
       return;
     }
 
-    const holidays = holidayCalendar ? holidayCalendar.getEventsForDay(date) : [];
-    const existingEvents = calendar.getEventsForDay(date) || [];
     const newEvents = [];
     let eventsChanged = false;
 
