@@ -1,7 +1,7 @@
 /**
  * @fileoverview 年度更新ファイル作成機能
- * @description 新年度用にスプレッドシートをコピーし、コピー先ファイルの行事データをクリアします。
- *              元ファイルは変更しません。
+ * @description 新年度用にスプレッドシートをバックアップとしてコピーし、
+ *              現在利用中のファイル（URL不変）の行事データをクリアします。
  */
 
 function copyAndClear() {
@@ -10,6 +10,12 @@ function copyAndClear() {
   try {
     const sourceSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     const settingsSheet = getSettingsSheetOrThrow();
+    const sourceSheet = sourceSpreadsheet.getSheetByName('年間行事予定表');
+
+    if (!sourceSheet) {
+      ui.alert('エラー: 現在のファイルに「年間行事予定表」シートが見つかりません。');
+      return;
+    }
 
     const sourceFile = DriveApp.getFileById(sourceSpreadsheet.getId());
     const folderId = String(settingsSheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.COPY_DESTINATION_FOLDER_ID).getValue() || '').trim();
@@ -17,6 +23,15 @@ function copyAndClear() {
 
     if (!filename) {
       ui.alert('エラー: 複製ファイル名（C5）が空です。');
+      return;
+    }
+
+    const confirmation = ui.alert(
+      '年度更新の確認',
+      'バックアップを作成した後、このファイル（現在のURL）の「年間行事予定表」データをクリアします。\n続行しますか？',
+      ui.ButtonSet.OK_CANCEL
+    );
+    if (confirmation !== ui.Button.OK) {
       return;
     }
 
@@ -33,24 +48,17 @@ function copyAndClear() {
     }
 
     const copiedFile = sourceFile.makeCopy(filename, destinationFolder);
-    const copiedSpreadsheet = SpreadsheetApp.openById(copiedFile.getId());
-    const copiedSheet = copiedSpreadsheet.getSheetByName('年間行事予定表');
 
-    if (!copiedSheet) {
-      ui.alert('エラー: コピー先ファイルに「年間行事予定表」シートが見つかりません。');
-      return;
-    }
-
-    const lastRow = copiedSheet.getLastRow();
+    const lastRow = sourceSheet.getLastRow();
     if (lastRow >= 3) {
-      copiedSheet.getRange('D3:S' + lastRow).clearContent();   // 校内行事〜その他
-      copiedSheet.getRange('U3:AB' + lastRow).clearContent();  // 校時データ〜給食
+      sourceSheet.getRange('D3:S' + lastRow).clearContent();   // 校内行事〜その他
+      sourceSheet.getRange('U3:AB' + lastRow).clearContent();  // 校時データ〜給食
     }
 
     ui.alert(
       '年度更新ファイルを作成しました。\n' +
-      'コピー先ファイルの行事データをクリアしました。\n' +
-      '元ファイルは変更していません。'
+      'バックアップ: ' + copiedFile.getName() + '\n' +
+      '現在のファイル（このURL）の行事データをクリアしました。'
     );
   } catch (error) {
     ui.alert('年度更新ファイル作成でエラーが発生しました: ' + error.toString());
