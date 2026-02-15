@@ -1171,8 +1171,8 @@ function testCopyAndClearTargetsActiveFileAfterCopy() {
   const requiredFragments = [
     'makeCopy(',
     "getSheetByName('年間行事予定表')",
-    "sourceSheet.getRange('D3:S'",
-    "sourceSheet.getRange('U3:AB'"
+    'ANNUAL_SCHEDULE.CLEAR_EVENT_RANGE',
+    'ANNUAL_SCHEDULE.CLEAR_DATA_RANGE'
   ];
   const missingFragments = requiredFragments.filter(function(fragment) {
     return source.indexOf(fragment) === -1;
