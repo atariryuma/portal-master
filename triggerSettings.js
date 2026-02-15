@@ -142,7 +142,6 @@ function validateTriggerSettings(settings) {
     }
   }
 
-  Logger.log('[INFO] 設定値の検証が完了しました。');
 }
 
 // ========================================

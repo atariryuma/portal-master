@@ -1,71 +1,106 @@
-﻿/**
+/**
  * @fileoverview 日直割り当て機能
  * @description 日直表の番号順に、マスターシートへ日直を割り当てます。
  */
 function assignDuty() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const ui = SpreadsheetApp.getUi();
-  const dutySheet = ss.getSheetByName('日直表');
-  const masterSheet = ss.getSheetByName('マスター');
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ui = SpreadsheetApp.getUi();
+    const dutySheet = ss.getSheetByName(DUTY_ROSTER_SHEET.NAME);
+    const masterSheet = ss.getSheetByName(MASTER_SHEET.NAME);
 
-  if (!dutySheet || !masterSheet) {
-    showAlert('日直表またはマスターシートが見つかりません。', 'エラー');
-    return;
-  }
-
-  const dutyPairs = {};
-  const lastRow = dutySheet.getLastRow();
-
-  for (let row = 2; row <= lastRow; row++) {
-    const fullName = dutySheet.getRange(row, 3).getValue(); // C列: 氏名
-    const dutyNumber = dutySheet.getRange(row, 4).getValue(); // D列: 日直番号
-
-    if (fullName === '' || dutyNumber === '') {
-      continue;
+    if (!dutySheet || !masterSheet) {
+      showAlert('日直表またはマスターシートが見つかりません。', 'エラー');
+      return;
     }
 
-    if (!dutyPairs[dutyNumber]) {
-      dutyPairs[dutyNumber] = [];
+    const lastRow = dutySheet.getLastRow();
+    if (lastRow < DUTY_ROSTER_SHEET.DATA_START_ROW) {
+      showAlert('日直表に割り当て可能なデータがありません。', '通知');
+      return;
     }
 
-    dutyPairs[dutyNumber].push(extractFirstName(fullName));
-  }
+    // バッチ読み取り: C列・D列を一括取得
+    const dutyRosterData = dutySheet.getRange(
+      DUTY_ROSTER_SHEET.DATA_START_ROW,
+      DUTY_ROSTER_SHEET.NAME_COLUMN,
+      lastRow - DUTY_ROSTER_SHEET.DATA_START_ROW + 1,
+      DUTY_ROSTER_SHEET.NUMBER_COLUMN - DUTY_ROSTER_SHEET.NAME_COLUMN + 1
+    ).getValues();
 
-  const dutyNumbers = Object.keys(dutyPairs);
-  if (dutyNumbers.length === 0) {
-    showAlert('日直表に割り当て可能なデータがありません。', '通知');
-    return;
-  }
+    const dutyPairs = {};
+    for (let i = 0; i < dutyRosterData.length; i++) {
+      const fullName = dutyRosterData[i][0]; // C列: 氏名
+      const dutyNumber = dutyRosterData[i][1]; // D列: 日直番号
 
-  ui.alert('実行', '日直表を基にマスターへ日直を割り当てます。', ui.ButtonSet.OK);
+      if (fullName === '' || dutyNumber === '') {
+        continue;
+      }
 
-  // AO列の日直欄を一度クリア（処理対象の最終行まで）
-  const endRow = Math.min(370, masterSheet.getMaxRows());
-  masterSheet.getRange('AO2:AO' + endRow).clearContent();
+      if (!dutyPairs[dutyNumber]) {
+        dutyPairs[dutyNumber] = [];
+      }
 
-  let dutyIndex = 0;
-  for (let row = 2; row <= endRow; row++) {
-    const rowValues = masterSheet.getRange(row, 5, 1, 36).getValues()[0]; // E:AN
-    const hasText = rowValues.some(value => typeof value === 'string' && value !== '');
-
-    if (!hasText) {
-      continue;
+      dutyPairs[dutyNumber].push(extractFirstName(fullName));
     }
 
-    const dutyNumber = dutyNumbers[dutyIndex];
-    const namesToAssign = dutyPairs[dutyNumber];
-
-    if (namesToAssign && namesToAssign.length > 0) {
-      const formattedNames = joinNamesWithNewline(namesToAssign);
-      const cell = masterSheet.getRange(row, 41); // AO列
-      cell.setNumberFormat('@');
-      cell.setValue(formattedNames);
-      cell.setVerticalAlignment('middle').setHorizontalAlignment('center');
+    const dutyNumbers = Object.keys(dutyPairs);
+    if (dutyNumbers.length === 0) {
+      showAlert('日直表に割り当て可能なデータがありません。', '通知');
+      return;
     }
 
-    dutyIndex = (dutyIndex + 1) % dutyNumbers.length;
-  }
+    ui.alert('実行', '日直表を基にマスターへ日直を割り当てます。', ui.ButtonSet.OK);
 
-  ui.alert('完了', '日直の割り当てが完了しました。', ui.ButtonSet.OK);
+    // AO列の日直欄を一度クリア
+    const endRow = Math.min(MASTER_SHEET.MAX_DATA_ROW, masterSheet.getMaxRows());
+    masterSheet.getRange('AO2:AO' + endRow).clearContent();
+
+    // バッチ読み取り: E:AN列を一括取得
+    const masterData = masterSheet.getRange(
+      MASTER_SHEET.DATA_START_ROW,
+      MASTER_SHEET.DATA_START_COLUMN,
+      endRow - MASTER_SHEET.DATA_START_ROW + 1,
+      MASTER_SHEET.DATA_COLUMN_COUNT
+    ).getValues();
+
+    // 出力用配列を構築
+    const outputData = [];
+    let dutyIndex = 0;
+    for (let i = 0; i < masterData.length; i++) {
+      const rowValues = masterData[i];
+      const hasText = rowValues.some(value => typeof value === 'string' && value !== '');
+
+      if (!hasText) {
+        outputData.push(['']);
+        continue;
+      }
+
+      const dutyNumber = dutyNumbers[dutyIndex];
+      const namesToAssign = dutyPairs[dutyNumber];
+
+      if (namesToAssign && namesToAssign.length > 0) {
+        outputData.push([joinNamesWithNewline(namesToAssign)]);
+      } else {
+        outputData.push(['']);
+      }
+
+      dutyIndex = (dutyIndex + 1) % dutyNumbers.length;
+    }
+
+    // バッチ書き込み: AO列に一括設定
+    const outputRange = masterSheet.getRange(
+      MASTER_SHEET.DATA_START_ROW,
+      MASTER_SHEET.DUTY_COLUMN,
+      outputData.length,
+      1
+    );
+    outputRange.setNumberFormat('@');
+    outputRange.setValues(outputData);
+    outputRange.setVerticalAlignment('middle').setHorizontalAlignment('center');
+
+    ui.alert('完了', '日直の割り当てが完了しました。', ui.ButtonSet.OK);
+  } catch (error) {
+    showAlert('日直割り当て中にエラーが発生しました: ' + error.toString(), 'エラー');
+  }
 }
-

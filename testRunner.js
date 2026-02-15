@@ -154,6 +154,29 @@ function getFullTestPlan_() {
         { name: '6-5. onOpen設定シート非表示配線', fn: testOnOpenWiresSettingsSheetHide },
         { name: '6-6. 年度更新現行ファイルクリア配線', fn: testCopyAndClearTargetsActiveFileAfterCopy }
       ]
+    },
+    {
+      title: '【フェーズ7】最適化検証',
+      tests: [
+        { name: '7-1. マジックナンバー定数確認', fn: testMagicNumberConstants },
+        { name: '7-2. var宣言ゼロ検証', fn: testNoVarDeclarations },
+        { name: '7-3. ログプレフィックス標準化', fn: testLogPrefixStandard },
+        { name: '7-4. エラーハンドリング完備', fn: testErrorHandlingPresence },
+        { name: '7-5. XSS安全性確認', fn: testOpenWeeklyReportFolderXssSafe },
+        { name: '7-6. 累計カテゴリ導出確認', fn: testCumulativeCategoriesDerivedFromEventCategories },
+        { name: '7-7. 日付変換ヘルパー', fn: testConvertCellValue },
+        { name: '7-8. 日付行検索', fn: testFindDateRow },
+        { name: '7-9. イベント時間解析', fn: testParseEventTimesAndDates },
+        { name: '7-10. 累計計算ロジック', fn: testCalculateResultsForGrade },
+        { name: '7-11. 月キー正規化', fn: testNormalizeAggregateMonthKey },
+        { name: '7-12. 名前結合関数', fn: testJoinNamesWithNewline },
+        { name: '7-13. 全角半角変換', fn: testConvertFullWidthToHalfWidth },
+        { name: '7-14. 分解析関数', fn: testParseMinute },
+        { name: '7-15. 公開関数定義確認', fn: testPublicFunctionDefinitions },
+        { name: '7-16. バッチ読み取り確認', fn: testAssignDutyBatchReads },
+        { name: '7-17. 重複コード排除確認', fn: testNoDuplicateDateFormatter },
+        { name: '7-18. moduleHours分割確認', fn: testModuleHoursDecomposition }
+      ]
     }
   ];
 }
@@ -758,7 +781,7 @@ function testExtractFirstName() {
     { input: '佐藤　花子', expected: '花子' }  // 全角スペース
   ];
 
-  for (var i = 0; i < testCases.length; i++) {
+  for (let i = 0; i < testCases.length; i++) {
     const result = extractFirstName(testCases[i].input);
     if (result !== testCases[i].expected) {
       return { success: false, message: '入力: ' + testCases[i].input + ', 期待値: ' + testCases[i].expected + ', 実際: ' + result };
@@ -1187,6 +1210,422 @@ function testCopyAndClearTargetsActiveFileAfterCopy() {
   }
 
   return { success: true, message: '年度更新はコピー後に現行ファイルをクリアする配線を確認' };
+}
+
+// ========================================
+// フェーズ7: 最適化検証テスト
+// ========================================
+
+function testMagicNumberConstants() {
+  const requiredConstants = [
+    'MASTER_SHEET', 'DUTY_ROSTER_SHEET', 'ANNUAL_SCHEDULE',
+    'JISUU_TEMPLATE', 'WEEKLY_REPORT', 'CUMULATIVE_SHEET', 'IMPORT_CONSTANTS'
+  ];
+
+  const missingConstants = requiredConstants.filter(function(name) {
+    return typeof eval(name) === 'undefined';
+  });
+
+  if (missingConstants.length > 0) {
+    return { success: false, message: '不足定数: ' + missingConstants.join(', ') };
+  }
+
+  if (MASTER_SHEET.DUTY_COLUMN !== 41 || ANNUAL_SCHEDULE.DUTY_COLUMN !== 18) {
+    return { success: false, message: '定数値が不正です' };
+  }
+
+  return { success: true, message: requiredConstants.length + '個の定数グループを確認' };
+}
+
+function testNoVarDeclarations() {
+  const filesToCheck = [
+    'importAnnualEvents', 'openWeeklyReportFolder', 'assignDuty',
+    'updateAnnualDuty', 'updateAnnualEvents', 'countDutyStars',
+    'saveToPDF', 'setDailyHyperlink'
+  ];
+
+  const filesWithVar = [];
+  filesToCheck.forEach(function(fileName) {
+    const fn = eval(fileName === 'importAnnualEvents' ? 'importAnnualEvents' :
+      fileName === 'openWeeklyReportFolder' ? 'openWeeklyReportFolder' :
+      fileName === 'assignDuty' ? 'assignDuty' :
+      fileName === 'updateAnnualDuty' ? 'updateAnnualDuty' :
+      fileName === 'updateAnnualEvents' ? 'updateAnnualEvents' :
+      fileName === 'countDutyStars' ? 'countStars' :
+      fileName === 'saveToPDF' ? 'saveToPDF' :
+      'setDailyHyperlink');
+    const source = String(fn);
+    if (/\bvar\s+/.test(source)) {
+      filesWithVar.push(fileName);
+    }
+  });
+
+  if (filesWithVar.length > 0) {
+    return { success: false, message: 'var使用ファイル: ' + filesWithVar.join(', ') };
+  }
+
+  return { success: true, message: filesToCheck.length + 'ファイルでvar不使用を確認' };
+}
+
+function testLogPrefixStandard() {
+  const functionsToCheck = [
+    { name: 'formatDateToJapanese', fn: formatDateToJapanese },
+    { name: 'saveToPDF', fn: saveToPDF },
+    { name: 'calculateCumulativeHours', fn: calculateCumulativeHours }
+  ];
+
+  const unprefixed = [];
+  functionsToCheck.forEach(function(item) {
+    const source = String(item.fn);
+    const logCalls = source.match(/Logger\.log\([^)]+\)/g) || [];
+    logCalls.forEach(function(call) {
+      if (!/\[(INFO|WARNING|ERROR|DEBUG)\]/.test(call)) {
+        unprefixed.push(item.name + ': ' + call.substring(0, 50));
+      }
+    });
+  });
+
+  if (unprefixed.length > 0) {
+    return { success: false, message: 'プレフィックスなし: ' + unprefixed.join('; ') };
+  }
+
+  return { success: true, message: 'ログプレフィックス標準化を確認' };
+}
+
+function testErrorHandlingPresence() {
+  const functionsToCheck = [
+    { name: 'assignDuty', fn: assignDuty },
+    { name: 'updateAnnualDuty', fn: updateAnnualDuty },
+    { name: 'countStars', fn: countStars },
+    { name: 'setDailyHyperlink', fn: setDailyHyperlink },
+    { name: 'saveToPDF', fn: saveToPDF },
+    { name: 'openWeeklyReportFolder', fn: openWeeklyReportFolder }
+  ];
+
+  const missingTryCatch = [];
+  functionsToCheck.forEach(function(item) {
+    const source = String(item.fn);
+    if (source.indexOf('try') === -1 || source.indexOf('catch') === -1) {
+      missingTryCatch.push(item.name);
+    }
+  });
+
+  if (missingTryCatch.length > 0) {
+    return { success: false, message: 'try/catch未実装: ' + missingTryCatch.join(', ') };
+  }
+
+  return { success: true, message: functionsToCheck.length + '関数のエラーハンドリングを確認' };
+}
+
+function testOpenWeeklyReportFolderXssSafe() {
+  const source = String(openWeeklyReportFolder);
+  if (source.indexOf('createHtmlOutput') !== -1 && source.indexOf('folderId') !== -1 && source.indexOf('+') !== -1) {
+    if (source.indexOf('createTemplate') === -1) {
+      return { success: false, message: 'HTML直接連結によるXSSリスクがあります' };
+    }
+  }
+
+  if (source.indexOf('var ') !== -1) {
+    return { success: false, message: 'var宣言が残っています' };
+  }
+
+  return { success: true, message: 'XSS安全性とconst/let使用を確認' };
+}
+
+function testCumulativeCategoriesDerivedFromEventCategories() {
+  if (!Array.isArray(CUMULATIVE_EVENT_CATEGORIES)) {
+    return { success: false, message: 'CUMULATIVE_EVENT_CATEGORIESが配列ではありません' };
+  }
+
+  const allFromEventCategories = CUMULATIVE_EVENT_CATEGORIES.every(function(cat) {
+    return Object.prototype.hasOwnProperty.call(EVENT_CATEGORIES, cat);
+  });
+
+  if (!allFromEventCategories) {
+    return { success: false, message: 'EVENT_CATEGORIESに含まれないカテゴリがあります' };
+  }
+
+  if (CUMULATIVE_EVENT_CATEGORIES.indexOf('補習') !== -1) {
+    return { success: false, message: '「補習」が累計対象に含まれています' };
+  }
+
+  return { success: true, message: 'EVENT_CATEGORIESからの導出を確認（補習除外）' };
+}
+
+function testConvertCellValue() {
+  if (typeof convertCellValue !== 'function') {
+    return { success: false, message: 'convertCellValue関数が見つかりません' };
+  }
+
+  const case1 = convertCellValue(new Date(2025, 3, 1), 2025);
+  if (case1 !== '2025/04/01') {
+    return { success: false, message: 'Date変換が不正: ' + case1 };
+  }
+
+  const case2 = convertCellValue('4月1日', 2025);
+  if (case2 !== '2025/04/01') {
+    return { success: false, message: '文字列変換が不正: ' + case2 };
+  }
+
+  const case3 = convertCellValue('', 2025);
+  if (case3 !== '') {
+    return { success: false, message: '空文字列の処理が不正: ' + case3 };
+  }
+
+  const case4 = convertCellValue(null, 2025);
+  if (case4 !== '') {
+    return { success: false, message: 'null処理が不正: ' + case4 };
+  }
+
+  return { success: true, message: '4ケースの日付変換を確認' };
+}
+
+function testFindDateRow() {
+  if (typeof findDateRow !== 'function') {
+    return { success: false, message: 'findDateRow関数が見つかりません' };
+  }
+
+  const testValues = [[''], [new Date(2025, 3, 1)], [new Date(2025, 3, 2)]];
+  const result = findDateRow(testValues, '2025/04/02', 2025);
+  if (result !== 3) {
+    return { success: false, message: '行検索結果が不正: 期待3, 実際' + result };
+  }
+
+  const notFound = findDateRow(testValues, '2025/05/01', 2025);
+  if (notFound !== null) {
+    return { success: false, message: '未存在検索がnullを返しません: ' + notFound };
+  }
+
+  return { success: true, message: '日付行検索を確認' };
+}
+
+function testParseEventTimesAndDates() {
+  if (typeof parseEventTimesAndDates !== 'function') {
+    return { success: false, message: 'parseEventTimesAndDates関数が見つかりません' };
+  }
+
+  const testDate = new Date(2025, 3, 1);
+
+  const allDay = parseEventTimesAndDates('入学式', testDate);
+  if (!allDay.isAllDay) {
+    return { success: false, message: '全日イベント判定が不正' };
+  }
+
+  const rangeTime = parseEventTimesAndDates('会議 10:00~12:00', testDate);
+  if (rangeTime.isAllDay) {
+    return { success: false, message: '時間範囲イベントが全日扱いされています' };
+  }
+
+  const singleTime = parseEventTimesAndDates('集会 9:00', testDate);
+  if (singleTime.isAllDay) {
+    return { success: false, message: '単一時間イベントが全日扱いされています' };
+  }
+
+  return { success: true, message: '3パターンのイベント時間解析を確認' };
+}
+
+function testCalculateResultsForGrade() {
+  if (typeof calculateResultsForGrade !== 'function') {
+    return { success: false, message: 'calculateResultsForGrade関数が見つかりません' };
+  }
+
+  const mockData = [
+    ['header', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '○', '○', '', '', '', ''],
+    [new Date(2025, 3, 1), '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, '○', '○', '○', '', '', '']
+  ];
+
+  const categories = { '儀式': '儀式' };
+  const endDate = new Date(2025, 3, 30);
+  const results = calculateResultsForGrade(mockData, 1, endDate, categories);
+
+  if (results["授業時数"] !== 3) {
+    return { success: false, message: '授業時数が不正: ' + results["授業時数"] };
+  }
+
+  return { success: true, message: '累計計算ロジックを確認' };
+}
+
+function testNormalizeAggregateMonthKey() {
+  if (typeof normalizeAggregateMonthKey !== 'function') {
+    return { success: false, message: 'normalizeAggregateMonthKey関数が見つかりません' };
+  }
+
+  const case1 = normalizeAggregateMonthKey(new Date(2025, 3, 15));
+  if (case1 !== '2025-04') {
+    return { success: false, message: 'Date正規化が不正: ' + case1 };
+  }
+
+  const case2 = normalizeAggregateMonthKey('2025-04');
+  if (case2 !== '2025-04') {
+    return { success: false, message: '文字列正規化が不正: ' + case2 };
+  }
+
+  const case3 = normalizeAggregateMonthKey(null);
+  if (case3 !== '') {
+    return { success: false, message: 'null正規化が不正: ' + case3 };
+  }
+
+  return { success: true, message: '3パターンの月キー正規化を確認' };
+}
+
+function testJoinNamesWithNewline() {
+  if (typeof joinNamesWithNewline !== 'function') {
+    return { success: false, message: 'joinNamesWithNewline関数が見つかりません' };
+  }
+
+  const case1 = joinNamesWithNewline(['太郎', '花子']);
+  if (case1 !== '太郎\n花子') {
+    return { success: false, message: '2名結合が不正: ' + JSON.stringify(case1) };
+  }
+
+  const case2 = joinNamesWithNewline(['太郎', '', '花子']);
+  if (case2 !== '太郎\n花子') {
+    return { success: false, message: '空名フィルタが不正: ' + JSON.stringify(case2) };
+  }
+
+  const case3 = joinNamesWithNewline([]);
+  if (case3 !== '') {
+    return { success: false, message: '空配列処理が不正: ' + JSON.stringify(case3) };
+  }
+
+  const case4 = joinNamesWithNewline(null);
+  if (case4 !== '') {
+    return { success: false, message: 'null処理が不正: ' + JSON.stringify(case4) };
+  }
+
+  return { success: true, message: '4ケースの名前結合を確認' };
+}
+
+function testConvertFullWidthToHalfWidth() {
+  if (typeof convertFullWidthToHalfWidth !== 'function') {
+    return { success: false, message: 'convertFullWidthToHalfWidth関数が見つかりません' };
+  }
+
+  const case1 = convertFullWidthToHalfWidth('１２：３０');
+  if (case1 !== '12:30') {
+    return { success: false, message: '全角数字変換が不正: ' + case1 };
+  }
+
+  const case2 = convertFullWidthToHalfWidth('');
+  if (case2 !== '') {
+    return { success: false, message: '空文字列処理が不正' };
+  }
+
+  const case3 = convertFullWidthToHalfWidth('abc');
+  if (case3 !== 'abc') {
+    return { success: false, message: '半角文字がそのまま返らない: ' + case3 };
+  }
+
+  return { success: true, message: '3ケースの全角半角変換を確認' };
+}
+
+function testParseMinute() {
+  if (typeof parseMinute !== 'function') {
+    return { success: false, message: 'parseMinute関数が見つかりません' };
+  }
+
+  const cases = [
+    { input: '', expected: 0 },
+    { input: '半', expected: 30 },
+    { input: '30分', expected: 30 },
+    { input: '15', expected: 15 },
+    { input: null, expected: 0 }
+  ];
+
+  for (let i = 0; i < cases.length; i++) {
+    const result = parseMinute(cases[i].input);
+    if (result !== cases[i].expected) {
+      return { success: false, message: '入力"' + cases[i].input + '": 期待' + cases[i].expected + ', 実際' + result };
+    }
+  }
+
+  return { success: true, message: cases.length + 'ケースの分解析を確認' };
+}
+
+function testPublicFunctionDefinitions() {
+  const publicFunctions = [
+    'assignDuty', 'updateAnnualDuty', 'updateAnnualEvents', 'countStars',
+    'setDailyHyperlink', 'saveToPDF', 'openWeeklyReportFolder',
+    'syncCalendars', 'calculateCumulativeHours', 'importAnnualEvents',
+    'aggregateSchoolEventsByGrade', 'processAggregateSchoolEventsByGrade',
+    'copyAndClear', 'showAnnualUpdateSettingsDialog',
+    'showTriggerSettingsDialog', 'showModulePlanningDialog', 'runAllTests'
+  ];
+
+  const missingFunctions = publicFunctions.filter(function(name) {
+    return typeof eval(name) !== 'function';
+  });
+
+  if (missingFunctions.length > 0) {
+    return { success: false, message: '未定義関数: ' + missingFunctions.join(', ') };
+  }
+
+  return { success: true, message: publicFunctions.length + '個の公開関数を確認' };
+}
+
+function testAssignDutyBatchReads() {
+  const source = String(assignDuty);
+
+  // ループ内の個別getValue呼び出しがないことを確認
+  const hasIndividualReads = /for\s*\([^)]*\)\s*\{[^}]*getRange\([^)]*\)\.getValue\(\)/s.test(source);
+  if (hasIndividualReads) {
+    return { success: false, message: 'ループ内に個別getValueが残っています' };
+  }
+
+  // バッチ読み取りのgetValuesが存在することを確認
+  if (source.indexOf('getValues()') === -1) {
+    return { success: false, message: 'バッチ読み取り（getValues）が見つかりません' };
+  }
+
+  return { success: true, message: 'バッチ読み取りパターンを確認' };
+}
+
+function testNoDuplicateDateFormatter() {
+  const source = String(typeof formatDateRangeForPdf_ === 'function' ? formatDateRangeForPdf_ : function(){});
+  if (source.indexOf('formatDateToJapanese') !== -1) {
+    return { success: true, message: 'PDF日付フォーマットがformatDateToJapaneseを再利用' };
+  }
+
+  // formatDateRange がまだ存在する場合は重複
+  if (typeof formatDateRange === 'function') {
+    return { success: false, message: '旧formatDateRange関数が残っています' };
+  }
+
+  return { success: true, message: '重複日付フォーマッターなし' };
+}
+
+function testModuleHoursDecomposition() {
+  const expectedFiles = [
+    'moduleHoursConstants',
+    'moduleHoursDialog',
+    'moduleHoursPlanning',
+    'moduleHoursControl',
+    'moduleHoursDisplay'
+  ];
+
+  // 各ファイルからの代表的な関数が存在するか確認
+  const checkFunctions = {
+    moduleHoursConstants: ['MODULE_DEFAULT_CYCLES', 'MODULE_CONTROL_MARKERS'],
+    moduleHoursDialog: ['showModulePlanningDialog', 'getModulePlanningDialogState', 'saveModuleCyclePlanFromDialog'],
+    moduleHoursPlanning: ['rebuildModulePlanFromRange', 'buildDailyPlanFromCyclePlan', 'allocateSessionsToDateKeys'],
+    moduleHoursControl: ['initializeModuleHoursSheetsIfNeeded', 'readExceptionRows', 'readModuleSettingsMap'],
+    moduleHoursDisplay: ['syncModuleHoursWithCumulative', 'formatSessionsAsMixedFraction', 'normalizeToDate', 'toNumberOrZero']
+  };
+
+  const missing = [];
+  for (const file in checkFunctions) {
+    checkFunctions[file].forEach(function(name) {
+      if (typeof eval(name) === 'undefined') {
+        missing.push(file + '/' + name);
+      }
+    });
+  }
+
+  if (missing.length > 0) {
+    return { success: false, message: '未定義: ' + missing.join(', ') };
+  }
+
+  return { success: true, message: expectedFiles.length + 'ファイルの代表関数/定数がすべて定義済み' };
 }
 
 // ========================================

@@ -5,11 +5,25 @@
  */
 
 function openWeeklyReportFolder() {
-  // 共通関数を使用してフォルダIDを取得
-  var folderId = getWeeklyReportFolderId();
-  var folderUrl = 'https://drive.google.com/drive/folders/' + folderId;
-  var htmlOutput = HtmlService.createHtmlOutput('<p>週報フォルダを開くには、<a href="' + folderUrl + '" target="_blank">ここをクリックしてください。</a></p>')
+  try {
+    const folderId = getWeeklyReportFolderId();
+
+    // フォルダIDの形式バリデーション
+    if (!/^[A-Za-z0-9_-]+$/.test(folderId)) {
+      showAlert('フォルダIDの形式が不正です。', 'エラー');
+      return;
+    }
+
+    const template = HtmlService.createTemplate(
+      '<p>週報フォルダを開くには、<a href="https://drive.google.com/drive/folders/<?= encodeURIComponent(folderId) ?>" target="_blank">ここをクリックしてください。</a></p>'
+    );
+    template.folderId = folderId;
+
+    const htmlOutput = template.evaluate()
       .setWidth(250)
       .setHeight(80);
-  SpreadsheetApp.getUi().showModalDialog(htmlOutput, '週報フォルダを開く');
+    SpreadsheetApp.getUi().showModalDialog(htmlOutput, '週報フォルダを開く');
+  } catch (error) {
+    showAlert('週報フォルダを開く際にエラーが発生しました: ' + error.toString(), 'エラー');
+  }
 }

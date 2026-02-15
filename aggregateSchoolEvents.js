@@ -22,27 +22,20 @@ function aggregateSchoolEventsByGrade() {
  * テンプレート名: '時数様式'
  */
 function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
-  const templateSheetName = '時数様式';
-  const GRADE_BLOCK_HEIGHT = 21; // 時数様式シート内の学年ブロック間の行数
-  const MOD_COLUMN_INDEX = 18; // R列
-  const MOD_FRACTION_NUMBER_FORMAT = '0 ?/?';
   const dateRange = parseAndValidateAggregateDateRange(startDate, endDate);
   const startDateObj = dateRange.startDate;
   const endDateObj = dateRange.endDate;
 
-  // 学年グループ化: 低(1,2)、中(3,4)、高(5,6)
   const gradeGroups = {
     '低学年': [1, 2],
     '中学年': [3, 4],
     '高学年': [5, 6],
   };
 
-  // 行事カテゴリ(従来通り)
-  // 共通関数からカテゴリーを取得
   const categories = EVENT_CATEGORIES;
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const srcSheet = getAnnualScheduleSheet(); // 共通関数を使用
+  const srcSheet = getAnnualScheduleSheet();
   if (!srcSheet) {
     throw new Error('年間行事予定表シートが見つからないか、データが不完全です。');
   }
@@ -62,18 +55,12 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
     Logger.log('[WARNING] MOD列の算出に失敗したため、R列の既存値を保持します: ' + moduleCalculationError);
   }
 
-  const templateSheet = getSheetByNameOrThrow(templateSheetName);
-  // テンプレートは表示しない
+  const templateSheet = getSheetByNameOrThrow(JISUU_TEMPLATE.SHEET_NAME);
   templateSheet.hideSheet();
 
-  /**
-   * gradeGroups でループ: 低学年、中学年、高学年の3パターン
-   */
   Object.keys(gradeGroups).forEach(function(groupName) {
-    // 例: groupName='低学年'、grades=[1,2]
     const grades = gradeGroups[groupName];
 
-    // 新しいシート名: 例) '低学年'
     const newSheetName = groupName;
     let newSheet = ss.getSheetByName(newSheetName);
     let preservedModValuesByGrade = null;
@@ -82,40 +69,29 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
         newSheet,
         monthKeys,
         grades,
-        GRADE_BLOCK_HEIGHT,
-        MOD_COLUMN_INDEX
+        JISUU_TEMPLATE.GRADE_BLOCK_HEIGHT,
+        JISUU_TEMPLATE.MOD_COLUMN_INDEX
       );
     }
     if (!newSheet) {
       newSheet = templateSheet.copyTo(ss).setName(newSheetName);
     } else {
-      // 既存があればクリアしてテンプレートをコピー
       newSheet.clear();
       templateSheet.getRange('A1:Z100').copyTo(newSheet.getRange('A1:Z100'));
     }
     newSheet.showSheet();
 
-    // 今回は「grades.length=2」想定 (低学年なら1,2年)
-    // 1つ目の学年をシートの上部ブロック (A2, row=4～)
-    // 2つ目の学年をシートの下部ブロック (A23, row=25～)
     grades.forEach(function(grade, idx) {
-      // idx=0 → 1学年目, idx=1 → 2学年目
-      // ブロックの行オフセット(上から何行ずらすか)
-      // 例: idx=0 → 0行、idx=1 → +21行
-      const blockOffset = idx * GRADE_BLOCK_HEIGHT;
+      const blockOffset = idx * JISUU_TEMPLATE.GRADE_BLOCK_HEIGHT;
 
-      // 学年ラベルの配置: A2（1学年目）、A23（2学年目）
-      const gradeCellRow = 2 + blockOffset;
+      const gradeCellRow = JISUU_TEMPLATE.GRADE_LABEL_ROW + blockOffset;
       newSheet.getRange(gradeCellRow, 1).setValue('【' + grade + '年】');
 
-      // 標準授業時数の配置: C17（1学年目）、C38（2学年目）
-      const standardHourRow = 17 + blockOffset;
+      const standardHourRow = JISUU_TEMPLATE.STANDARD_HOUR_ROW + blockOffset;
       newSheet.getRange(standardHourRow, 3).setValue(gradeHours[grade]);
 
-      // 集計結果を格納するオブジェクト results
       const results = {};
 
-      // startDateObj から endDateObj まで、1ヶ月ずつ進める
       monthKeys.forEach(function(monthKey) {
         results[monthKey] = {
           "授業時数": 0,
@@ -133,7 +109,6 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
         };
       });
 
-      // データ集計
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
         const date = new Date(row[SCHEDULE_COLUMNS.DATE]);
@@ -141,17 +116,14 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
 
         if (date >= startDateObj && date <= endDateObj) {
           const monthKey = Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy-MM');
-          // 学年列から学年を取得: grade(1～6)
           if (row[SCHEDULE_COLUMNS.GRADE] == grade) {
             let hasClass = false;
-            // 授業(○)をカウント
             for (let j = SCHEDULE_COLUMNS.DATA_START; j <= SCHEDULE_COLUMNS.DATA_END; j++) {
               if (row[j] == "○") {
                 results[monthKey]["授業時数"]++;
                 hasClass = true;
               }
             }
-            // 行事カテゴリをカウント
             Object.keys(categories).forEach(function(category) {
               for (let j = SCHEDULE_COLUMNS.DATA_START; j <= SCHEDULE_COLUMNS.DATA_END; j++) {
                 if (row[j] == categories[category]) {
@@ -161,7 +133,6 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
               }
             });
 
-            // その日になにかしら(授業 or 行事)があったら 対象日数+1
             if (hasClass) {
               results[monthKey]["対象日数"]++;
             }
@@ -169,44 +140,53 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
         }
       }
 
-      // シートへの書き込み
-      // 例: 上ブロックは row=4, 下ブロックは row=25 => row=4+blockOffset
-      // R列（18列目）には MOD の月次実績（45分コマ換算）を出力
-      let rowIndexBase = 4 + blockOffset;
-      newSheet.getRange(rowIndexBase, MOD_COLUMN_INDEX, monthKeys.length, 1)
-        .setNumberFormat(MOD_FRACTION_NUMBER_FORMAT);
+      // バッチ書き込み: 月別データを2D配列として構築し一括書き込み
+      const rowIndexBase = JISUU_TEMPLATE.DATA_START_ROW + blockOffset;
+      const batchData = [];
+      const modValues = [];
+
       monthKeys.forEach(function(monthKey2) {
         if (results[monthKey2]) {
-          newSheet.getRange(rowIndexBase, 1).setValue(monthKey2);    // A列: 年月
-          newSheet.getRange(rowIndexBase, 2).setValue(results[monthKey2]["対象日数"]);  // B列: 対象日数
-          newSheet.getRange(rowIndexBase, 3).setValue(results[monthKey2]["授業時数"]);  // C列: 授業時数
-          newSheet.getRange(rowIndexBase, 4).setValue(results[monthKey2]["儀式"]);      // D列: 儀式
-          newSheet.getRange(rowIndexBase, 5).setValue(results[monthKey2]["文化"]);      // E列: 文化
-          newSheet.getRange(rowIndexBase, 6).setValue(results[monthKey2]["保健"]);      // F列: 保健
-          newSheet.getRange(rowIndexBase, 7).setValue(results[monthKey2]["遠足"]);      // G列: 遠足
-          newSheet.getRange(rowIndexBase, 8).setValue(results[monthKey2]["勤労"]);      // H列: 勤労
-          // I列（9列目）: 空欄
-          newSheet.getRange(rowIndexBase, 10).setValue(results[monthKey2]["欠時数"]);   // J列: 欠時数
-          newSheet.getRange(rowIndexBase, 11).setValue(results[monthKey2]["児童会"]);   // K列: 児童会
-          newSheet.getRange(rowIndexBase, 12).setValue(results[monthKey2]["クラブ"]);   // L列: クラブ
-          newSheet.getRange(rowIndexBase, 13).setValue(results[monthKey2]["委員会活動"]); // M列: 委員会活動
-          newSheet.getRange(rowIndexBase, 14).setValue(results[monthKey2]["補習"]);     // N列: 補習
-          // O列～Q列（15～17列目）: 空欄
+          const rowData = [
+            monthKey2,                              // A列: 年月
+            results[monthKey2]["対象日数"],          // B列: 対象日数
+            results[monthKey2]["授業時数"],          // C列: 授業時数
+            results[monthKey2]["儀式"],              // D列: 儀式
+            results[monthKey2]["文化"],              // E列: 文化
+            results[monthKey2]["保健"],              // F列: 保健
+            results[monthKey2]["遠足"],              // G列: 遠足
+            results[monthKey2]["勤労"],              // H列: 勤労
+            '',                                      // I列: 空欄
+            results[monthKey2]["欠時数"],            // J列: 欠時数
+            results[monthKey2]["児童会"],            // K列: 児童会
+            results[monthKey2]["クラブ"],            // L列: クラブ
+            results[monthKey2]["委員会活動"],        // M列: 委員会活動
+            results[monthKey2]["補習"]               // N列: 補習
+          ];
+          batchData.push(rowData);
+
+          // MOD値を別途計算
+          let modValue = '';
           if (modulePlanMap) {
-            newSheet.getRange(rowIndexBase, MOD_COLUMN_INDEX).setValue(
-              getModuleActualUnitsForMonth(modulePlanMap, monthKey2, grade)
-            ); // R列: MOD
+            modValue = getModuleActualUnitsForMonth(modulePlanMap, monthKey2, grade);
           } else if (preservedModValuesByGrade &&
               Object.prototype.hasOwnProperty.call(preservedModValuesByGrade, grade) &&
               Object.prototype.hasOwnProperty.call(preservedModValuesByGrade[grade], monthKey2)) {
-            newSheet.getRange(rowIndexBase, MOD_COLUMN_INDEX).setValue(
-              preservedModValuesByGrade[grade][monthKey2]
-            ); // R列: MOD（既存値保持）
+            modValue = preservedModValuesByGrade[grade][monthKey2];
           }
-
-          rowIndexBase++;
+          modValues.push([modValue]);
         }
       });
+
+      if (batchData.length > 0) {
+        // A-N列を一括書き込み (14列)
+        newSheet.getRange(rowIndexBase, 1, batchData.length, 14).setValues(batchData);
+
+        // R列(MOD)を一括書き込み
+        const modRange = newSheet.getRange(rowIndexBase, JISUU_TEMPLATE.MOD_COLUMN_INDEX, modValues.length, 1);
+        modRange.setNumberFormat(JISUU_TEMPLATE.MOD_FRACTION_FORMAT);
+        modRange.setValues(modValues);
+      }
     });
   });
 
@@ -220,9 +200,6 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
 
 /**
  * 集計対象期間の月キー一覧（yyyy-MM）を作成
- * @param {Date} startDate - 開始日
- * @param {Date} endDate - 終了日
- * @return {Array<string>} 月キー配列
  */
 function buildMonthKeysForAggregate(startDate, endDate) {
   const keys = [];
@@ -239,9 +216,6 @@ function buildMonthKeysForAggregate(startDate, endDate) {
 
 /**
  * 学年別集計の期間入力を検証してDateへ変換
- * @param {string} startDate - 開始日
- * @param {string} endDate - 終了日
- * @return {{startDate: Date, endDate: Date}} 検証済み日付
  */
 function parseAndValidateAggregateDateRange(startDate, endDate) {
   const startDateObj = new Date(startDate);
@@ -262,12 +236,6 @@ function parseAndValidateAggregateDateRange(startDate, endDate) {
 
 /**
  * 既存シートのR列（MOD）を月キー・学年単位で退避
- * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
- * @param {Array<string>} monthKeys - 対象月キー配列
- * @param {Array<number>} grades - 対象学年配列
- * @param {number} blockHeight - 学年ブロック高さ
- * @param {number} modColumnIndex - R列インデックス
- * @return {Object} 学年ごとの月キー値マップ
  */
 function captureExistingModValuesByMonth(sheet, monthKeys, grades, blockHeight, modColumnIndex) {
   const valuesByGrade = {};
@@ -282,7 +250,7 @@ function captureExistingModValuesByMonth(sheet, monthKeys, grades, blockHeight, 
     : fallbackScanRowCount;
 
   grades.forEach(function(grade, index) {
-    const rowStart = 4 + (index * blockHeight);
+    const rowStart = JISUU_TEMPLATE.DATA_START_ROW + (index * blockHeight);
     const monthValues = sheet.getRange(rowStart, 1, scanRowCount, 1).getValues();
     const modValues = sheet.getRange(rowStart, modColumnIndex, scanRowCount, 1).getValues();
     const existingByMonth = {};
@@ -309,8 +277,6 @@ function captureExistingModValuesByMonth(sheet, monthKeys, grades, blockHeight, 
 
 /**
  * 集計シートの月キーセル値を yyyy-MM に正規化
- * @param {*} value - セル値
- * @return {string} 正規化済み月キー
  */
 function normalizeAggregateMonthKey(value) {
   if (value instanceof Date && !isNaN(value.getTime())) {
@@ -322,10 +288,6 @@ function normalizeAggregateMonthKey(value) {
 
 /**
  * MOD月次マップから対象月・学年の実績値（45分コマ換算）を取得
- * @param {Object} modulePlanMap - buildSchoolDayPlanMap/applyModuleExceptionsの結果
- * @param {string} monthKey - yyyy-MM
- * @param {number} grade - 学年
- * @return {number} MOD実績
  */
 function getModuleActualUnitsForMonth(modulePlanMap, monthKey, grade) {
   if (!modulePlanMap || !modulePlanMap.byMonth || !modulePlanMap.byMonth[monthKey]) {

@@ -8,6 +8,106 @@
 // ========================================
 
 /**
+ * マスターシート定数
+ * @const {Object}
+ */
+const MASTER_SHEET = {
+  NAME: 'マスター',
+  DUTY_COLUMN: 41,         // AO列 (1-based)
+  DUTY_SOURCE_INDEX: 40,   // AP列 (0-based, row[40])
+  INTERNAL_EVENT_INDEX: 2, // C列 (0-based, row[2])
+  EXTERNAL_EVENT_INDEX: 3, // D列 (0-based, row[3])
+  DATA_START_COLUMN: 5,    // E列
+  DATA_COLUMN_COUNT: 36,   // E:AN = 36列
+  MAX_DATA_ROW: 370,
+  DATA_START_ROW: 2,
+  LUNCH_INDEX: 41,         // row[41]
+  DATA_RANGE_END: 'AP'     // 全データ読み取り範囲の終端列
+};
+
+/**
+ * 日直表シート定数
+ * @const {Object}
+ */
+const DUTY_ROSTER_SHEET = {
+  NAME: '日直表',
+  NAME_COLUMN: 3,          // C列
+  NUMBER_COLUMN: 4,        // D列
+  OUTPUT_COLUMN: 5,        // E列
+  DATA_START_ROW: 2
+};
+
+/**
+ * 年間行事予定表定数
+ * @const {Object}
+ */
+const ANNUAL_SCHEDULE = {
+  SHEET_NAME: '年間行事予定表',
+  DATA_START_ROW: 2,            // データ開始行
+  DATE_COLUMN: 'B',             // B列: 日付
+  DATE_INDEX: 1,                // B列 (0-based, getDataRange用)
+  INTERNAL_EVENT_COLUMN: 4,     // D列: 校内行事
+  EXTERNAL_EVENT_COLUMN: 13,    // M列: 対外行事
+  DUTY_COLUMN: 18,              // R列: 日直
+  DUTY_COLUMN_LETTER: 'R',     // R列文字表記
+  ATTENDANCE_START_COLUMN: 21,  // U列: 校時データ開始
+  ATTENDANCE_ROWS: 6,
+  ATTENDANCE_COLS: 6,
+  LUNCH_COLUMN: 27,             // AA列: 給食
+  HOLIDAY_CALENDAR_NAME: '日本の祝日'
+};
+
+/**
+ * 時数様式テンプレート定数
+ * @const {Object}
+ */
+const JISUU_TEMPLATE = {
+  SHEET_NAME: '時数様式',
+  GRADE_BLOCK_HEIGHT: 21,
+  MOD_COLUMN_INDEX: 18,        // R列
+  MOD_FRACTION_FORMAT: '0 ?/?',
+  DATA_START_ROW: 4,
+  GRADE_LABEL_ROW: 2,
+  STANDARD_HOUR_ROW: 17
+};
+
+/**
+ * 週報定数
+ * @const {Object}
+ */
+const WEEKLY_REPORT = {
+  SHEET_NAMES: ['週報（時数あり）', '週報（時数あり）次週'],
+  TRIGGER_CELL: 'U41',
+  FIRST_RANGE_START: 40,
+  FIRST_RANGE_COUNT: 6,
+  SECOND_RANGE_START: 57,
+  SECOND_RANGE_COUNT: 6,
+  MIN_HEIGHT: 6,
+  MAX_HEIGHT: 14,
+  NAME_RANGE: 'B1:D1',
+  DATE_RANGE: 'M1:P1'
+};
+
+/**
+ * 累計時数シート定数
+ * @const {Object}
+ */
+const CUMULATIVE_SHEET = {
+  NAME: '累計時数',
+  GRADE_START_ROW: 3,
+  DATE_CELL: 'A1'
+};
+
+/**
+ * インポート定数
+ * @const {Object}
+ */
+const IMPORT_CONSTANTS = {
+  ROWS_TO_COPY: 366,
+  SOURCE_SHEET_NAME: 'メインデータ'
+};
+
+/**
  * 行事カテゴリーの定義
  * @const {Object}
  */
@@ -23,6 +123,16 @@ const EVENT_CATEGORIES = {
   "委員会活動": "委員",
   "補習": "補習"
 };
+
+/**
+ * 累計対象カテゴリ（EVENT_CATEGORIESから「補習」を除外）
+ * ※ トップレベルで他ファイルの定数を参照するとGASの読み込み順でエラーになるため、
+ *   EVENT_CATEGORIESと同じファイルで定義する
+ * @const {Array<string>}
+ */
+const CUMULATIVE_EVENT_CATEGORIES = Object.keys(EVENT_CATEGORIES).filter(function(key) {
+  return key !== '補習';
+});
 
 /**
  * 設定シートのセル位置
@@ -163,7 +273,7 @@ function formatDateToJapanese(date) {
     if (isNaN(dateObj.getTime())) return '';
     return Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'M月d日');
   } catch (e) {
-    Logger.log('日付フォーマットエラー: ' + e.toString());
+    Logger.log('[ERROR] 日付フォーマットエラー: ' + e.toString());
     return '';
   }
 }
@@ -377,7 +487,7 @@ function safeExecute(func, functionName) {
  * @param {string} dateColumn - 日付列（'A', 'B'など）
  * @return {Object} 日付をキーとしたマップ（{"M月d日": 最初の行番号}）
  */
-function createDateMap(sheet, dateColumn = 'B') {
+function createDateMap(sheet, dateColumn = ANNUAL_SCHEDULE.DATE_COLUMN) {
   const lastRow = sheet.getLastRow();
   const columnNumber = dateColumn.charCodeAt(0) - 64; // 'A' = 1, 'B' = 2
   const dateValues = sheet.getRange(1, columnNumber, lastRow, 1).getValues();
@@ -422,7 +532,7 @@ function convertFullWidthToHalfWidth(str) {
 function getAnnualScheduleSheet() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('年間行事予定表');
+    const sheet = ss.getSheetByName(ANNUAL_SCHEDULE.SHEET_NAME);
 
     if (!sheet) {
       Logger.log('[WARNING] 年間行事予定表シートが見つかりません');
@@ -438,7 +548,6 @@ function getAnnualScheduleSheet() {
       return null;
     }
 
-    Logger.log('[INFO] 年間行事予定表シートを正常に取得しました（行数: ' + lastRow + ', 列数: ' + lastColumn + '）');
     return sheet;
 
   } catch (error) {
