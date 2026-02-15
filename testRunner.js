@@ -356,7 +356,8 @@ function testModuleCumulativeIntegration() {
   }
 
   try {
-    syncModuleHoursWithCumulative(new Date());
+    // calculateCumulativeHoursと同じ基準日を使用して、テスト実行による副作用を最小化
+    syncModuleHoursWithCumulative(getCurrentOrNextSaturday());
     const cumulativeSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('累計時数');
     if (!cumulativeSheet) {
       return { success: false, message: '累計時数シートが見つかりません' };

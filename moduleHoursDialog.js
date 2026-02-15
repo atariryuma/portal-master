@@ -66,15 +66,14 @@ function getModulePlanningDialogState() {
   const recentExceptions = listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, 10, exceptionRows);
   const cyclePlanRecordCount = countCyclePlanRowsForFiscalYear(controlSheet, fiscalYear, cyclePlanRows);
   const exceptionRecordCount = countExceptionRowsForFiscalYear(controlSheet, fiscalYear, exceptionRows);
-  let cumulativeDisplayColumn = settingsMap[MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN] || '';
+  const cumulativeDisplayColumn = String(MODULE_CUMULATIVE_COLUMNS.DISPLAY);
 
   const cumulativeStartedAt = new Date().getTime();
   try {
     const cumulativeSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CUMULATIVE_SHEET.NAME);
     if (cumulativeSheet) {
-      const displayColumn = resolveCumulativeDisplayColumn(cumulativeSheet, settingsMap);
-      enforceModuleCumulativeColumnVisibility(cumulativeSheet, displayColumn);
-      cumulativeDisplayColumn = String(displayColumn);
+      cumulativeSheet.hideColumns(MODULE_CUMULATIVE_COLUMNS.PLAN, 3);
+      cumulativeSheet.showColumns(MODULE_CUMULATIVE_COLUMNS.DISPLAY, 1);
     }
   } catch (error) {
     Logger.log('[WARNING] 累計時数の列表示制御に失敗: ' + error.toString());
@@ -196,35 +195,6 @@ function listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, limitCount,
         note: item.note
       };
     });
-}
-
-/**
- * 旧互換: 管理画面を開く
- * @param {string=} section - 表示セクション（plan / exceptions）
- * @return {string} 完了メッセージ
- */
-function openModuleControlSheet(section) {
-  showModulePlanningDialog();
-  if (section === 'exceptions') {
-    return 'モジュール学習管理を開きました（実施差分入力）。';
-  }
-  return 'モジュール学習管理を開きました（計画入力）。';
-}
-
-/**
- * 旧互換: cycle 計画シートを開く
- * @return {string} 完了メッセージ
- */
-function openModuleCyclePlanSheet() {
-  return openModuleControlSheet('plan');
-}
-
-/**
- * 旧互換: daily 計画シートを開く
- * @return {string} 完了メッセージ
- */
-function openModuleDailyPlanSheet() {
-  return openModuleControlSheet('exceptions');
 }
 
 /**

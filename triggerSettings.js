@@ -40,25 +40,26 @@ function getTriggerSettings() {
   try {
     const settingsSheet = getSettingsSheetOrThrow();
 
-    // 設定値を読み込み（空の場合はデフォルト値を使用）
+    // バッチ読み取り: C18:C27を一括取得（10セル）
+    const values = settingsSheet.getRange('C18:C27').getValues();
     const rawSettings = {
       weeklyPdf: {
-        enabled: settingsSheet.getRange(TRIGGER_CONFIG_CELLS.WEEKLY_PDF_ENABLED).getValue(),
-        day: settingsSheet.getRange(TRIGGER_CONFIG_CELLS.WEEKLY_PDF_DAY).getValue(),
-        hour: settingsSheet.getRange(TRIGGER_CONFIG_CELLS.WEEKLY_PDF_HOUR).getValue()
+        enabled: values[0][0],  // C18
+        day: values[1][0],      // C19
+        hour: values[2][0]      // C20
       },
       cumulativeHours: {
-        enabled: settingsSheet.getRange(TRIGGER_CONFIG_CELLS.CUMULATIVE_HOURS_ENABLED).getValue(),
-        day: settingsSheet.getRange(TRIGGER_CONFIG_CELLS.CUMULATIVE_HOURS_DAY).getValue(),
-        hour: settingsSheet.getRange(TRIGGER_CONFIG_CELLS.CUMULATIVE_HOURS_HOUR).getValue()
+        enabled: values[3][0],  // C21
+        day: values[4][0],      // C22
+        hour: values[5][0]      // C23
       },
       calendarSync: {
-        enabled: settingsSheet.getRange(TRIGGER_CONFIG_CELLS.CALENDAR_SYNC_ENABLED).getValue(),
-        hour: settingsSheet.getRange(TRIGGER_CONFIG_CELLS.CALENDAR_SYNC_HOUR).getValue()
+        enabled: values[6][0],  // C24
+        hour: values[7][0]      // C25
       },
       dailyLink: {
-        enabled: settingsSheet.getRange(TRIGGER_CONFIG_CELLS.DAILY_LINK_ENABLED).getValue(),
-        hour: settingsSheet.getRange(TRIGGER_CONFIG_CELLS.DAILY_LINK_HOUR).getValue()
+        enabled: values[8][0],  // C26
+        hour: values[9][0]      // C27
       }
     };
 
@@ -154,23 +155,19 @@ function validateTriggerSettings(settings) {
  * @param {Object} settings - 設定値オブジェクト
  */
 function saveTriggerSettingsToSheet(sheet, settings) {
-  // 週報PDF保存
-  sheet.getRange(TRIGGER_CONFIG_CELLS.WEEKLY_PDF_ENABLED).setValue(settings.weeklyPdf.enabled);
-  sheet.getRange(TRIGGER_CONFIG_CELLS.WEEKLY_PDF_DAY).setValue(settings.weeklyPdf.day);
-  sheet.getRange(TRIGGER_CONFIG_CELLS.WEEKLY_PDF_HOUR).setValue(settings.weeklyPdf.hour);
-
-  // 累計時数計算
-  sheet.getRange(TRIGGER_CONFIG_CELLS.CUMULATIVE_HOURS_ENABLED).setValue(settings.cumulativeHours.enabled);
-  sheet.getRange(TRIGGER_CONFIG_CELLS.CUMULATIVE_HOURS_DAY).setValue(settings.cumulativeHours.day);
-  sheet.getRange(TRIGGER_CONFIG_CELLS.CUMULATIVE_HOURS_HOUR).setValue(settings.cumulativeHours.hour);
-
-  // カレンダー同期
-  sheet.getRange(TRIGGER_CONFIG_CELLS.CALENDAR_SYNC_ENABLED).setValue(settings.calendarSync.enabled);
-  sheet.getRange(TRIGGER_CONFIG_CELLS.CALENDAR_SYNC_HOUR).setValue(settings.calendarSync.hour);
-
-  // 今日の日付へ移動
-  sheet.getRange(TRIGGER_CONFIG_CELLS.DAILY_LINK_ENABLED).setValue(settings.dailyLink.enabled);
-  sheet.getRange(TRIGGER_CONFIG_CELLS.DAILY_LINK_HOUR).setValue(settings.dailyLink.hour);
+  // バッチ書き込み: C18:C27を一括設定（10セル）
+  sheet.getRange('C18:C27').setValues([
+    [settings.weeklyPdf.enabled],        // C18
+    [settings.weeklyPdf.day],            // C19
+    [settings.weeklyPdf.hour],           // C20
+    [settings.cumulativeHours.enabled],  // C21
+    [settings.cumulativeHours.day],      // C22
+    [settings.cumulativeHours.hour],     // C23
+    [settings.calendarSync.enabled],     // C24
+    [settings.calendarSync.hour],        // C25
+    [settings.dailyLink.enabled],        // C26
+    [settings.dailyLink.hour]            // C27
+  ]);
 
   Logger.log('[INFO] 設定値をシートに保存しました。');
 }
@@ -185,7 +182,7 @@ function saveTriggerSettingsToSheet(sheet, settings) {
 function deleteAllProjectTriggers() {
   const triggers = getManagedProjectTriggers();
 
-  triggers.forEach(trigger => {
+  triggers.forEach(function(trigger) {
     ScriptApp.deleteTrigger(trigger);
   });
 
@@ -377,10 +374,3 @@ function toIntOrDefault(value, defaultValue) {
 // 後方互換性のための関数
 // ========================================
 
-/**
- * 旧形式の自動処理設定（後方互換性のため残す）
- * 実際にはダイアログを表示する
- */
-function setAutomaticProcesses() {
-  showTriggerSettingsDialog();
-}

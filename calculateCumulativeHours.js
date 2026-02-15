@@ -24,14 +24,19 @@ const CUMULATIVE_COLUMN_MAP = {
 function writeResultsToSheet(sheet, grade, results) {
   const gradeRow = CUMULATIVE_SHEET.GRADE_START_ROW + (grade - 1);
 
-  Object.keys(results).forEach(function(key) {
-    const column = CUMULATIVE_COLUMN_MAP[key];
-    if (!column) {
-      Logger.log('[WARNING] 累計時数シートに未定義のカテゴリをスキップしました: ' + key);
-      return;
-    }
-    sheet.getRange(gradeRow, column).setValue(results[key]);
+  // バッチ書き込み: 全カテゴリの値を配列に構築して一括設定
+  const sortedKeys = Object.keys(CUMULATIVE_COLUMN_MAP).sort(function(a, b) {
+    return CUMULATIVE_COLUMN_MAP[a] - CUMULATIVE_COLUMN_MAP[b];
   });
+  const minCol = CUMULATIVE_COLUMN_MAP[sortedKeys[0]];
+  const maxCol = CUMULATIVE_COLUMN_MAP[sortedKeys[sortedKeys.length - 1]];
+  const row = new Array(maxCol - minCol + 1).fill('');
+
+  sortedKeys.forEach(function(key) {
+    row[CUMULATIVE_COLUMN_MAP[key] - minCol] = results[key] !== undefined ? results[key] : 0;
+  });
+
+  sheet.getRange(gradeRow, minCol, 1, row.length).setValues([row]);
 }
 
 function calculateCumulativeHours() {
@@ -69,27 +74,27 @@ function calculateResultsForGrade(data, grade, endDate, categories) {
     results[key] = 0;
   });
 
+  // カテゴリ略称→カテゴリ名の逆引きマップを事前構築（ループ内検索を排除）
+  const abbreviationToCategory = {};
+  Object.keys(categories).forEach(function(category) {
+    abbreviationToCategory[categories[category]] = category;
+  });
+
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const dateValue = row[SCHEDULE_COLUMNS.DATE];
-    if (!dateValue) continue;
+    const date = normalizeToDate(row[SCHEDULE_COLUMNS.DATE]);
+    if (!date || date > endDate) continue;
 
-    const date = new Date(dateValue);
-
-    if (isNaN(date.getTime()) || date > endDate) continue;
-
-    if (row[SCHEDULE_COLUMNS.GRADE] == grade) {
+    if (Number(row[SCHEDULE_COLUMNS.GRADE]) === grade) {
+      // 1回のカラムスキャンで授業時数とカテゴリを同時にカウント
       for (let j = SCHEDULE_COLUMNS.DATA_START; j <= SCHEDULE_COLUMNS.DATA_END; j++) {
-        if (row[j] == "○") results["授業時数"]++;
-      }
-
-      Object.keys(categories).forEach(function (category) {
-        for (let j = SCHEDULE_COLUMNS.DATA_START; j <= SCHEDULE_COLUMNS.DATA_END; j++) {
-          if (row[j] == categories[category]) {
-            results[category]++;
-          }
+        const cellValue = row[j];
+        if (cellValue === "○") {
+          results["授業時数"]++;
+        } else if (cellValue && Object.prototype.hasOwnProperty.call(abbreviationToCategory, cellValue)) {
+          results[abbreviationToCategory[cellValue]]++;
         }
-      });
+      }
     }
   }
 

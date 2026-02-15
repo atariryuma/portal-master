@@ -33,7 +33,6 @@ function syncModuleHoursWithCumulativeInternal(baseDate, options) {
   const exceptionTotals = loadExceptionTotals(fiscalYear, normalizedBaseDate, sheets.controlSheet);
   const gradeTotals = buildGradeTotalsFromDailyAndExceptions(buildResult.totalsByGrade, exceptionTotals);
 
-  writeModuleSummary(gradeTotals, fiscalYear, normalizedBaseDate, null);
   writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate, null);
 
   const settingsUpdates = {
@@ -61,23 +60,17 @@ function syncModuleHoursWithCumulativeInternal(baseDate, options) {
 }
 
 /**
- * 旧互換: summary 出力（現在は保存せずログのみ）
- * @param {Object} gradeTotals - 学年別合計
- * @param {number} fiscalYear - 対象年度
- * @param {Date} baseDate - 基準日
- */
-function writeModuleSummary(gradeTotals, fiscalYear, baseDate) {
-  Logger.log('[INFO] module_summary への保存は廃止済み（FY' + fiscalYear + ', 基準日: ' + formatInputDate(baseDate) + '）');
-  return gradeTotals;
-}
-
-/**
  * 累計時数シートへモジュール累計を出力
  * @param {Object} gradeTotals - 学年別合計
  * @param {Date} baseDate - 基準日
  */
 function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
   const cumulativeSheet = getSheetByNameOrThrow(CUMULATIVE_SHEET.NAME);
+  const displayColumn = MODULE_CUMULATIVE_COLUMNS.DISPLAY;
+  const rowCount = MODULE_GRADE_MAX - MODULE_GRADE_MIN + 1;
+
+  breakMergesInRange(cumulativeSheet, 2, MODULE_CUMULATIVE_COLUMNS.PLAN, rowCount + 1, displayColumn - MODULE_CUMULATIVE_COLUMNS.PLAN + 1);
+  cleanupStaleDisplayColumns(cumulativeSheet, displayColumn, rowCount);
 
   cumulativeSheet
     .getRange(2, MODULE_CUMULATIVE_COLUMNS.PLAN, 1, 3)
@@ -95,110 +88,77 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
 
   cumulativeSheet.getRange(3, MODULE_CUMULATIVE_COLUMNS.PLAN, valueRows.length, 3).setValues(valueRows);
 
-  const displayColumn = resolveCumulativeDisplayColumn(cumulativeSheet);
+  cumulativeSheet.getRange(2, displayColumn).setValue(MODULE_DISPLAY_HEADER);
   const displayRows = [];
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
     displayRows.push([buildModuleDisplayValue(gradeTotals[grade])]);
   }
   cumulativeSheet.getRange(3, displayColumn, displayRows.length, 1).setValues(displayRows);
-  enforceModuleCumulativeColumnVisibility(cumulativeSheet, displayColumn);
 
-  upsertModuleSettingsValues(null, {
-    CUMULATIVE_DISPLAY_COLUMN: displayColumn
-  });
-
-  Logger.log('[INFO] モジュール表示列を更新しました（列: ' + displayColumn + ', 基準日: ' + formatInputDate(baseDate) + '）');
-}
-
-/**
- * モジュール累計の表示列運用を整える（M〜Oは非表示、表示列は可視）
- * @param {GoogleAppsScript.Spreadsheet.Sheet} cumulativeSheet - 累計時数
- * @param {number} displayColumn - 表示列
- */
-function enforceModuleCumulativeColumnVisibility(cumulativeSheet, displayColumn) {
   try {
     cumulativeSheet.hideColumns(MODULE_CUMULATIVE_COLUMNS.PLAN, 3);
   } catch (error) {
     Logger.log('[WARNING] MOD内部列の非表示に失敗: ' + error.toString());
   }
-
-  const column = Number(displayColumn);
-  if (!Number.isInteger(column) || column < 1) {
-    return;
-  }
-
   try {
-    cumulativeSheet.showColumns(column, 1);
+    cumulativeSheet.showColumns(displayColumn, 1);
   } catch (error) {
     Logger.log('[WARNING] MOD表示列の表示に失敗: ' + error.toString());
   }
+
+  Logger.log('[INFO] モジュール表示列を更新しました（列: ' + displayColumn + ', 基準日: ' + formatInputDate(baseDate) + '）');
 }
 
 /**
- * 累計時数の表示列を動的に解決
- * @param {GoogleAppsScript.Spreadsheet.Sheet} cumulativeSheet - 累計時数
- * @param {Object=} settingsMap - 事前取得済み設定マップ
- * @return {number} 列番号（1-based）
+ * 指定範囲のセル結合を解除
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
+ * @param {number} startRow - 開始行
+ * @param {number} startCol - 開始列
+ * @param {number} numRows - 行数
+ * @param {number} numCols - 列数
  */
-function resolveCumulativeDisplayColumn(cumulativeSheet, settingsMap) {
-  const map = settingsMap || readModuleSettingsMap();
-  const displayRowCount = MODULE_GRADE_MAX - MODULE_GRADE_MIN + 1;
-  const preferredColumn = MODULE_CUMULATIVE_COLUMNS.DISPLAY_FALLBACK;
-
-  const preferredHeader = String(cumulativeSheet.getRange(2, preferredColumn).getValue() || '').trim();
-  if (preferredHeader === MODULE_DISPLAY_HEADER ||
-      (preferredHeader === '' &&
-        isReusableCumulativeDisplayColumn(cumulativeSheet, preferredColumn, displayRowCount))) {
-    cumulativeSheet.getRange(2, preferredColumn).setValue(MODULE_DISPLAY_HEADER);
-    return preferredColumn;
-  }
-
-  const configuredColumn = Number(map[MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN]);
-  if (Number.isInteger(configuredColumn) && configuredColumn >= 1) {
-    const configuredHeader = String(cumulativeSheet.getRange(2, configuredColumn).getValue() || '').trim();
-    if ((configuredHeader === '' || configuredHeader === MODULE_DISPLAY_HEADER) &&
-        isReusableCumulativeDisplayColumn(cumulativeSheet, configuredColumn, displayRowCount)) {
-      cumulativeSheet.getRange(2, configuredColumn).setValue(MODULE_DISPLAY_HEADER);
-      return configuredColumn;
+function breakMergesInRange(sheet, startRow, startCol, numRows, numCols) {
+  try {
+    const range = sheet.getRange(startRow, startCol, numRows, numCols);
+    const mergedRanges = range.getMergedRanges();
+    for (let i = 0; i < mergedRanges.length; i++) {
+      mergedRanges[i].breakApart();
     }
+  } catch (error) {
+    Logger.log('[WARNING] セル結合の解除に失敗: ' + error.toString());
+  }
+}
+
+/**
+ * 旧動的解決で作られた表示列の残骸をクリア（P列より右側）
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} cumulativeSheet - 累計時数
+ * @param {number} displayColumn - 現在の表示列
+ * @param {number} rowCount - データ行数
+ */
+function cleanupStaleDisplayColumns(cumulativeSheet, displayColumn, rowCount) {
+  const lastColumn = cumulativeSheet.getLastColumn();
+  if (lastColumn <= displayColumn) {
+    return;
   }
 
-  const fallbackStart = MODULE_CUMULATIVE_COLUMNS.DISPLAY_FALLBACK;
-  const lastColumn = Math.max(cumulativeSheet.getLastColumn(), fallbackStart);
-  let emptyColumn = null;
-
-  for (let col = fallbackStart; col <= lastColumn; col++) {
+  for (let col = displayColumn + 1; col <= lastColumn; col++) {
     const header = String(cumulativeSheet.getRange(2, col).getValue() || '').trim();
-    if (header === MODULE_DISPLAY_HEADER) {
-      return col;
-    }
-    if (!emptyColumn && header === '' &&
-        isReusableCumulativeDisplayColumn(cumulativeSheet, col, displayRowCount)) {
-      emptyColumn = col;
+    if (header === MODULE_DISPLAY_HEADER || header === '') {
+      let hasDisplayData = false;
+      const values = cumulativeSheet.getRange(3, col, rowCount, 1).getValues();
+      for (let r = 0; r < values.length; r++) {
+        const cellValue = String(values[r][0] || '').trim();
+        if (cellValue !== '' && cellValue.indexOf(MODULE_WEEKLY_LABEL) !== -1) {
+          hasDisplayData = true;
+          break;
+        }
+      }
+      if (hasDisplayData) {
+        cumulativeSheet.getRange(2, col, rowCount + 1, 1).clearContent();
+        Logger.log('[INFO] 旧MOD表示列をクリアしました（列: ' + col + '）');
+      }
     }
   }
-
-  const resolved = emptyColumn || (lastColumn + 1);
-  cumulativeSheet.getRange(2, resolved).setValue(MODULE_DISPLAY_HEADER);
-  return resolved;
-}
-
-/**
- * 累計表示列が再利用可能か判定
- * @param {GoogleAppsScript.Spreadsheet.Sheet} cumulativeSheet - 累計時数
- * @param {number} column - 対象列（1-based）
- * @param {number} rowCount - 確認行数
- * @return {boolean} 再利用可能なら true
- */
-function isReusableCumulativeDisplayColumn(cumulativeSheet, column, rowCount) {
-  if (rowCount <= 0) {
-    return true;
-  }
-
-  const values = cumulativeSheet.getRange(3, column, rowCount, 1).getValues();
-  return values.every(function(row) {
-    return !isNonEmptyCell(row[0]);
-  });
 }
 
 /**

@@ -41,7 +41,9 @@ function readAllCyclePlanRows(controlSheet, layout) {
 
 /**
  * モジュール管理用シートを初期化
- * @return {Object} シート参照
+ * 旧マルチシート構成から単一 module_control シートへ統合済みのため、
+ * 戻り値の全プロパティは同一の controlSheet を指します（後方互換）。
+ * @return {{controlSheet: GoogleAppsScript.Spreadsheet.Sheet, settingsSheet: GoogleAppsScript.Spreadsheet.Sheet, cyclePlanSheet: GoogleAppsScript.Spreadsheet.Sheet, dailyPlanSheet: GoogleAppsScript.Spreadsheet.Sheet, planSheet: GoogleAppsScript.Spreadsheet.Sheet, exceptionsSheet: GoogleAppsScript.Spreadsheet.Sheet, summarySheet: GoogleAppsScript.Spreadsheet.Sheet}}
  */
 function initializeModuleHoursSheetsIfNeeded() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -104,13 +106,28 @@ function ensureModuleControlSheetLayout(controlSheet) {
  * @return {Object} レイアウト情報
  */
 function getModuleControlLayout(controlSheet) {
-  let planMarkerRow = findMarkerRow(controlSheet, MODULE_CONTROL_MARKERS.PLAN, false);
+  // 1回のシート読み取りで両マーカーを同時検索（冗長な findMarkerRow 呼び出しを排除）
+  const maxRows = Math.max(controlSheet.getLastRow(), 200);
+  const values = controlSheet.getRange(1, 1, maxRows, 1).getDisplayValues();
+
+  let planMarkerRow = -1;
+  let exceptionsMarkerRow = -1;
+
+  for (let i = 0; i < values.length; i++) {
+    const cellValue = String(values[i][0] || '').trim();
+    if (cellValue === MODULE_CONTROL_MARKERS.PLAN && planMarkerRow < 0) {
+      planMarkerRow = i + 1;
+    }
+    if (cellValue === MODULE_CONTROL_MARKERS.EXCEPTIONS) {
+      exceptionsMarkerRow = i + 1;
+    }
+  }
+
   if (planMarkerRow < 1) {
     planMarkerRow = MODULE_CONTROL_DEFAULT_LAYOUT.PLAN_MARKER_ROW;
     controlSheet.getRange(planMarkerRow, 1).setValue(MODULE_CONTROL_MARKERS.PLAN);
   }
 
-  let exceptionsMarkerRow = findMarkerRow(controlSheet, MODULE_CONTROL_MARKERS.EXCEPTIONS, true);
   if (exceptionsMarkerRow < 1 || exceptionsMarkerRow <= planMarkerRow + 2) {
     exceptionsMarkerRow = Math.max(
       MODULE_CONTROL_DEFAULT_LAYOUT.EXCEPTIONS_MARKER_ROW,
@@ -527,8 +544,7 @@ function ensureModuleSettingKeys() {
     MODULE_SETTING_KEYS.PLAN_END_DATE,
     MODULE_SETTING_KEYS.LAST_GENERATED_AT,
     MODULE_SETTING_KEYS.LAST_DAILY_PLAN_COUNT,
-    MODULE_SETTING_KEYS.DATA_VERSION,
-    MODULE_SETTING_KEYS.CUMULATIVE_DISPLAY_COLUMN
+    MODULE_SETTING_KEYS.DATA_VERSION
   ];
 
   const map = readModuleSettingsMap();
@@ -543,20 +559,6 @@ function ensureModuleSettingKeys() {
   if (Object.keys(updates).length > 0) {
     upsertModuleSettingsValues(null, updates);
   }
-}
-
-/**
- * 旧互換: データ移行関数（初期化時に実行済み）
- */
-function migrateModuleDataIfNeeded() {
-  return;
-}
-
-/**
- * 旧互換: 例外シート移行関数（初期化時に実行済み）
- */
-function migrateModuleExceptionsSheetIfNeeded() {
-  return;
 }
 
 /**
