@@ -4,53 +4,6 @@
  */
 
 /**
- * 旧期間指定で計画再生成（後方互換）
- * @param {string|Date} startDate - 開始日
- * @param {string|Date} endDate - 終了日
- * @return {Object} 再生成結果
- */
-function rebuildModulePlanFromRange(startDate, endDate) {
-  const start = normalizeToDate(startDate);
-  const end = normalizeToDate(endDate);
-
-  if (!start || !end) {
-    throw new Error('開始日・終了日は yyyy-MM-dd 形式で入力してください。');
-  }
-  if (start > end) {
-    throw new Error('開始日は終了日以前の日付を指定してください。');
-  }
-
-  const fiscalYears = collectFiscalYearsInRange(start, end);
-  let recordCount = 0;
-
-  fiscalYears.forEach(function(fiscalYear) {
-    ensureDefaultAnnualTargetForFiscalYear(fiscalYear);
-    const buildResult = buildDailyPlanFromAnnualTarget(fiscalYear, end);
-    recordCount += buildResult.dailyPlanCount;
-  });
-
-  upsertModuleSettingsValues({
-    PLAN_START_DATE: start,
-    PLAN_END_DATE: end
-  });
-
-  syncModuleHoursWithCumulative(end, {
-    preservePlanningRange: {
-      startDate: start,
-      endDate: end
-    }
-  });
-
-  return {
-    startDate: start,
-    endDate: end,
-    fiscalYears: fiscalYears,
-    generatedAt: new Date(),
-    recordCount: recordCount
-  };
-}
-
-/**
  * 日次計画と例外を合算して学年別合計を生成
  * @param {Object} dailyTotalsByGrade - 日次計画合計
  * @param {Object} exceptionTotals - 例外合計
@@ -151,11 +104,16 @@ function toAnnualTargetFromRow(fiscalYear, row) {
 
 /**
  * 年間目標から日次計画を構築（保存はしない）
- * 年度全体の登校日に対してセッションを均等配分し、予備セッション数も算出する。
+ * 実施期間内の登校日に対してセッションを均等配分し、予備セッション数も算出する。
+ * options.startDate/endDate で実施期間を指定可能（省略時は年度全体）。
  * @param {number} fiscalYear - 対象年度
  * @param {Date|string} baseDate - 集計基準日
  * @param {?Object} options - 実行オプション
- * @return {Object} 構築結果（totalsByGrade, reserveByGrade 含む）
+ * @param {Sheet} [options.controlSheet] - module_control シート（省略時は自動取得）
+ * @param {number[]} [options.enabledWeekdays] - 有効曜日配列（省略時は設定値）
+ * @param {Date|string} [options.startDate] - 実施開始日（省略時は年度開始日）
+ * @param {Date|string} [options.endDate] - 実施終了日（省略時は年度終了日）
+ * @return {Object} 構築結果（totalsByGrade, reserveByGrade, dailyPlanCount 含む）
  */
 function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
   const normalizedFiscalYear = Number(fiscalYear);
@@ -165,7 +123,12 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
   const weekStart = getWeekStartMonday(cutoffDate);
   const controlSheet = options && options.controlSheet ? options.controlSheet : null;
   const annualTarget = loadAnnualTargetForFiscalYear(normalizedFiscalYear, controlSheet);
-  const schoolDayMap = buildSchoolDayMapByGradeForFiscalYear(normalizedFiscalYear);
+  const enabledWeekdays = options && Array.isArray(options.enabledWeekdays)
+    ? options.enabledWeekdays
+    : getEnabledWeekdays();
+  const planStartDate = options && options.startDate ? normalizeToDate(options.startDate) : null;
+  const planEndDate = options && options.endDate ? normalizeToDate(options.endDate) : null;
+  const schoolDayMap = buildSchoolDayMapByGradeForFiscalYear(normalizedFiscalYear, enabledWeekdays, planStartDate, planEndDate);
 
   const dailyEntries = [];
   const planRows = [];
@@ -256,8 +219,8 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
 
   return {
     fiscalYear: normalizedFiscalYear,
-    startDate: fiscalRange.startDate,
-    endDate: fiscalRange.endDate,
+    startDate: planStartDate || fiscalRange.startDate,
+    endDate: planEndDate || fiscalRange.endDate,
     generatedAt: generatedAt,
     dailyPlanCount: dailyRows.length,
     dailyRows: dailyRows,
@@ -270,17 +233,22 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
 /**
  * 年度・学年別の学校日マップを構築
  * @param {number} fiscalYear - 対象年度
+ * @param {Array<number>=} enabledWeekdays - 有効曜日配列（省略時はデフォルト）
+ * @param {Date=} startDate - 実施期間の開始日（省略時は年度開始日）
+ * @param {Date=} endDate - 実施期間の終了日（省略時は年度終了日）
  * @return {Object} 学年別日付配列
  */
-function buildSchoolDayMapByGradeForFiscalYear(fiscalYear) {
+function buildSchoolDayMapByGradeForFiscalYear(fiscalYear, enabledWeekdays, startDate, endDate) {
   const fiscalRange = getFiscalYearDateRange(fiscalYear);
+  const rangeStart = startDate && startDate >= fiscalRange.startDate ? startDate : fiscalRange.startDate;
+  const rangeEnd = endDate && endDate <= fiscalRange.endDate ? endDate : fiscalRange.endDate;
   const result = {};
 
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
     result[grade] = [];
   }
 
-  const rows = extractSchoolDayRows(fiscalRange.startDate, fiscalRange.endDate);
+  const rows = extractSchoolDayRows(rangeStart, rangeEnd, enabledWeekdays);
   const unique = {};
 
   rows.forEach(function(row) {
@@ -309,12 +277,18 @@ function buildSchoolDayMapByGradeForFiscalYear(fiscalYear) {
  * 年間行事予定表から学校日候補を抽出
  * @param {Date} startDate - 開始日
  * @param {Date} endDate - 終了日
+ * @param {Array<number>=} enabledWeekdays - 有効曜日配列（省略時はデフォルト月水金）
  * @return {Array<Object>} 日付・学年配列
  */
-function extractSchoolDayRows(startDate, endDate) {
+function extractSchoolDayRows(startDate, endDate, enabledWeekdays) {
   const sheet = getAnnualScheduleSheetOrThrow();
   const values = sheet.getDataRange().getValues();
   const rows = [];
+  const allowedDays = Array.isArray(enabledWeekdays) && enabledWeekdays.length > 0
+    ? enabledWeekdays
+    : MODULE_DEFAULT_WEEKDAYS_ENABLED;
+  const allowedSet = {};
+  allowedDays.forEach(function(d) { allowedSet[d] = true; });
 
   for (let i = 1; i < values.length; i++) {
     const row = values[i];
@@ -325,7 +299,7 @@ function extractSchoolDayRows(startDate, endDate) {
     }
 
     const day = date.getDay();
-    if (day === 0 || day === 6) {
+    if (!allowedSet[day]) {
       continue;
     }
 
@@ -370,7 +344,8 @@ function allocateSessionsToDateKeys(totalSessions, weekMap) {
   const remainder = totalSessions % weekKeys.length;
 
   weekKeys.forEach(function(weekKey, index) {
-    const weekSessions = basePerWeek + (index < remainder ? 1 : 0);
+    const extraCount = Math.floor((index + 1) * remainder / weekKeys.length) - Math.floor(index * remainder / weekKeys.length);
+    const weekSessions = basePerWeek + extraCount;
     const orderedDates = sortWeekDatesByPriority(weekMap[weekKey]);
 
     if (weekSessions <= 0 || orderedDates.length === 0) {

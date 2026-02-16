@@ -34,6 +34,8 @@ function runAllTests() {
     results.errors.push('致命的エラー: ' + error.toString());
   }
 
+  hideInternalSheetsAfterTest_();
+
   // 最終結果サマリー
   Logger.log('\n====================================');
   Logger.log('テスト結果サマリー');
@@ -105,7 +107,10 @@ function getFullTestPlan_() {
         { name: '2-3. 累計時数へのMOD統合確認', fn: testModuleCumulativeIntegration },
         { name: '2-4. 表示フォーマット関数確認', fn: testModuleDisplayFormatter },
         { name: '2-5. 45分換算関数確認', fn: testSessionsToUnits },
-        { name: '2-6. 表示列の固定列定数確認', fn: testModuleDisplayColumnIsFixed }
+        { name: '2-6. 表示列の固定列定数確認', fn: testModuleDisplayColumnIsFixed },
+        { name: '2-7. 実施曜日フィルタデフォルト', fn: testWeekdayFilterDefault },
+        { name: '2-8. 実施曜日パース', fn: testWeekdayFilterParsing },
+        { name: '2-9. 曜日シリアライズ', fn: testSerializeWeekdays }
       ]
     },
     {
@@ -441,6 +446,58 @@ function testModuleDisplayColumnIsFixed() {
   }
 
   return { success: true, message: 'MOD表示列の固定列定数と補助関数を確認' };
+}
+
+function testWeekdayFilterDefault() {
+  if (typeof getEnabledWeekdays !== 'function') {
+    return { success: false, message: 'getEnabledWeekdays関数が見つかりません' };
+  }
+
+  const result = getEnabledWeekdays({});
+  if (!Array.isArray(result) || result.length !== 3) {
+    return { success: false, message: 'デフォルト曜日が[1,3,5]ではありません: ' + JSON.stringify(result) };
+  }
+  if (result[0] !== 1 || result[1] !== 3 || result[2] !== 5) {
+    return { success: false, message: 'デフォルト曜日の値が不正: ' + JSON.stringify(result) };
+  }
+
+  return { success: true, message: 'デフォルト実施曜日（月水金）を確認' };
+}
+
+function testWeekdayFilterParsing() {
+  if (typeof getEnabledWeekdays !== 'function') {
+    return { success: false, message: 'getEnabledWeekdays関数が見つかりません' };
+  }
+
+  const result1 = getEnabledWeekdays({ WEEKDAYS_ENABLED: '1,2,4' });
+  if (result1.length !== 3 || result1[0] !== 1 || result1[1] !== 2 || result1[2] !== 4) {
+    return { success: false, message: '曜日パース結果が不正: ' + JSON.stringify(result1) };
+  }
+
+  const result2 = getEnabledWeekdays({ WEEKDAYS_ENABLED: 'invalid' });
+  if (result2.length !== 3 || result2[0] !== 1 || result2[1] !== 3 || result2[2] !== 5) {
+    return { success: false, message: '不正値のフォールバックが不正: ' + JSON.stringify(result2) };
+  }
+
+  return { success: true, message: '実施曜日パースロジックを確認' };
+}
+
+function testSerializeWeekdays() {
+  if (typeof serializeWeekdays !== 'function') {
+    return { success: false, message: 'serializeWeekdays関数が見つかりません' };
+  }
+
+  const result = serializeWeekdays([5, 1, 3]);
+  if (result !== '1,3,5') {
+    return { success: false, message: 'シリアライズ結果が不正: ' + result };
+  }
+
+  const result2 = serializeWeekdays([]);
+  if (result2 !== '1,3,5') {
+    return { success: false, message: '空配列のフォールバックが不正: ' + result2 };
+  }
+
+  return { success: true, message: '曜日シリアライズを確認' };
 }
 
 // ========================================
@@ -1048,11 +1105,13 @@ function testOnOpenWiresSettingsSheetHide() {
   }
 
   const source = String(onOpen);
-  if (source.indexOf('hideSheetForNormalUse_') === -1 || source.indexOf('SETTINGS_SHEET_NAME') === -1) {
-    return { success: false, message: 'onOpenの設定シート非表示配線が見つかりません' };
+  if (source.indexOf('hideInternalSheetsForNormalUse_') === -1) {
+    return { success: false, message: 'onOpenの内部シート非表示配線が見つかりません' };
   }
-  if (source.indexOf('年度更新作業') !== -1) {
-    return { success: false, message: 'onOpenに旧設定シート名参照が残っています' };
+
+  const helperSource = String(hideInternalSheetsForNormalUse_);
+  if (helperSource.indexOf('MODULE_SHEET_NAMES') === -1 || helperSource.indexOf('SETTINGS_SHEET_NAME') === -1) {
+    return { success: false, message: 'hideInternalSheetsForNormalUse_にmodule_control・設定シートが含まれていません' };
   }
 
   return { success: true, message: 'onOpenの設定シート非表示配線を確認' };
@@ -1503,15 +1562,17 @@ function testModuleHoursDecomposition() {
   const checkSymbols = {
     moduleHoursConstants: {
       'MODULE_DEFAULT_ANNUAL_KOMA': typeof MODULE_DEFAULT_ANNUAL_KOMA !== 'undefined',
-      'MODULE_CONTROL_MARKERS': typeof MODULE_CONTROL_MARKERS !== 'undefined'
+      'MODULE_CONTROL_MARKERS': typeof MODULE_CONTROL_MARKERS !== 'undefined',
+      'MODULE_DEFAULT_WEEKDAYS_ENABLED': typeof MODULE_DEFAULT_WEEKDAYS_ENABLED !== 'undefined',
+      'MODULE_WEEKDAY_LABELS': typeof MODULE_WEEKDAY_LABELS !== 'undefined'
     },
     moduleHoursDialog: {
       'showModulePlanningDialog': typeof showModulePlanningDialog === 'function',
       'getModulePlanningDialogState': typeof getModulePlanningDialogState === 'function',
-      'saveModuleAnnualTargetFromDialog': typeof saveModuleAnnualTargetFromDialog === 'function'
+      'saveModuleAnnualTargetFromDialog': typeof saveModuleAnnualTargetFromDialog === 'function',
+      'saveModuleSettingsFromDialog': typeof saveModuleSettingsFromDialog === 'function'
     },
     moduleHoursPlanning: {
-      'rebuildModulePlanFromRange': typeof rebuildModulePlanFromRange === 'function',
       'buildDailyPlanFromAnnualTarget': typeof buildDailyPlanFromAnnualTarget === 'function',
       'allocateSessionsToDateKeys': typeof allocateSessionsToDateKeys === 'function'
     },
@@ -1561,6 +1622,8 @@ function runQuickTest() {
   const results = { total: 0, passed: 0, failed: 0, skipped: 0, errors: [] };
   runTestGroups_(results, getQuickTestPlan_());
 
+  hideInternalSheetsAfterTest_();
+
   // 結果表示
   Logger.log('\n====================================');
   Logger.log('簡易テスト結果');
@@ -1578,5 +1641,16 @@ function runQuickTest() {
   } else {
     Logger.log('\n⚠️  一部失敗あり');
     SpreadsheetApp.getUi().alert('⚠️ 簡易テスト失敗あり', '成功率: ' + successRate + '%\n詳細はログを確認してください。', SpreadsheetApp.getUi().ButtonSet.OK);
+  }
+}
+
+/**
+ * テスト終了後に内部管理シートを非表示に復元
+ */
+function hideInternalSheetsAfterTest_() {
+  try {
+    hideInternalSheetsForNormalUse_(true);
+  } catch (error) {
+    Logger.log('[WARNING] テスト後の内部シート非表示化に失敗: ' + error.toString());
   }
 }

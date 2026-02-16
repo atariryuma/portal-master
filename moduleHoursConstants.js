@@ -21,6 +21,18 @@ const MODULE_WEEKDAY_PRIORITY = Object.freeze({
   4: 4  // 木
 });
 
+/** 実施曜日のデフォルト（月水金 = getDay() の 1,3,5） */
+const MODULE_DEFAULT_WEEKDAYS_ENABLED = Object.freeze([1, 3, 5]);
+
+/** 曜日ラベル（getDay()値 → 日本語） */
+const MODULE_WEEKDAY_LABELS = Object.freeze({
+  1: '月',
+  2: '火',
+  3: '水',
+  4: '木',
+  5: '金'
+});
+
 const MODULE_CONTROL_MARKERS = Object.freeze({
   PLAN: 'PLAN_TABLE',
   EXCEPTIONS: 'EXCEPTIONS_TABLE'

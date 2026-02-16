@@ -282,7 +282,42 @@
     </div>
 
     <section class="section">
-      <h3>1. 年間目標入力</h3>
+      <h3>1. 実施設定</h3>
+      <p class="section-note">モジュール学習の実施曜日と実施期間を設定します。</p>
+
+      <div class="toolbar" style="margin-bottom: 12px;">
+        <label>実施曜日</label>
+        <label style="font-size:13px; margin-left:8px;">
+          <input type="checkbox" class="weekday-cb" value="1"> 月
+        </label>
+        <label style="font-size:13px;">
+          <input type="checkbox" class="weekday-cb" value="2"> 火
+        </label>
+        <label style="font-size:13px;">
+          <input type="checkbox" class="weekday-cb" value="3"> 水
+        </label>
+        <label style="font-size:13px;">
+          <input type="checkbox" class="weekday-cb" value="4"> 木
+        </label>
+        <label style="font-size:13px;">
+          <input type="checkbox" class="weekday-cb" value="5"> 金
+        </label>
+      </div>
+
+      <div class="toolbar">
+        <label for="planStartDate">実施期間</label>
+        <input id="planStartDate" type="date" style="width:150px;">
+        <span style="font-size:13px; color:#475569;">～</span>
+        <input id="planEndDate" type="date" style="width:150px;">
+      </div>
+
+      <div class="action-row">
+        <button type="button" class="primary" id="saveSettingsButton" onclick="saveSettings()">実施設定を保存して再集計</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h3>2. 年間目標入力</h3>
       <p class="section-note">各学年の年間目標コマ数（1コマ＝45分）を入力してください。</p>
       <div class="toolbar">
         <label for="fiscalYearInput">対象年度</label>
@@ -312,7 +347,7 @@
     </section>
 
     <section class="section">
-      <h3>2. 実施差分入力</h3>
+      <h3>3. 実施差分入力</h3>
       <p class="section-note">実施に合わせて差分だけ入力します。差分値は15分単位で、+は追加・-は減算です（+3は+1コマ、-1は-15分）。</p>
 
       <div class="exception-form">
@@ -380,7 +415,7 @@
     }
 
     function setLoading(isLoading) {
-      const ids = ['savePlanButton', 'addExceptionButton', 'refreshButton', 'closeButton'];
+      const ids = ['saveSettingsButton', 'savePlanButton', 'addExceptionButton', 'refreshButton', 'closeButton'];
       ids.forEach(function(id) {
         const el = document.getElementById(id);
         if (el) {
@@ -528,14 +563,74 @@
       });
     }
 
+    function renderWeekdayCheckboxes(enabledWeekdays) {
+      const enabled = enabledWeekdays || [1, 3, 5];
+      const checkboxes = document.querySelectorAll('.weekday-cb');
+      checkboxes.forEach(function(cb) {
+        const day = parseInt(cb.value, 10);
+        cb.checked = enabled.indexOf(day) !== -1;
+      });
+    }
+
+    function renderPeriodInputs(state) {
+      document.getElementById('planStartDate').value = state.startDate || state.fiscalYearStartDate || '';
+      document.getElementById('planEndDate').value = state.endDate || state.fiscalYearEndDate || '';
+    }
+
+    function collectWeekdays() {
+      const checkboxes = document.querySelectorAll('.weekday-cb:checked');
+      const result = [];
+      checkboxes.forEach(function(cb) {
+        result.push(parseInt(cb.value, 10));
+      });
+      return result;
+    }
+
+    function saveSettings() {
+      const weekdays = collectWeekdays();
+      if (weekdays.length === 0) {
+        setStatus('実施曜日を1つ以上選択してください。');
+        return;
+      }
+
+      const startDate = document.getElementById('planStartDate').value;
+      const endDate = document.getElementById('planEndDate').value;
+      if (!startDate || !endDate) {
+        setStatus('実施期間の開始日と終了日を入力してください。');
+        return;
+      }
+
+      setLoading(true);
+      setStatus('実施設定を保存して再集計しています...');
+
+      google.script.run
+        .withSuccessHandler(function(message) {
+          setLoading(false);
+          setStatus(message || '実施設定を保存しました。');
+          loadDialogState(true);
+        })
+        .withFailureHandler(function(error) {
+          setLoading(false);
+          setStatus('実施設定の保存に失敗しました: ' + getErrorMessage(error));
+        })
+        .saveModuleSettingsFromDialog({
+          weekdays: weekdays,
+          startDate: startDate,
+          endDate: endDate,
+          baseDate: currentState.baseDate
+        });
+    }
+
     function applyState(state) {
       currentState = state || {};
       updateSummary(currentState);
+      renderWeekdayCheckboxes(currentState.enabledWeekdays || [1, 3, 5]);
+      renderPeriodInputs(currentState);
       renderAnnualTarget(currentState.annualTarget || {});
       renderReserveSummary(currentState.reserveByGrade || null);
       renderRecentExceptions(currentState.recentExceptions || []);
 
-      document.getElementById('exceptionDate').value = currentState.baseDate || '';
+      document.getElementById('exceptionDate').value = currentState.defaultExceptionDate || '';
       populateGradeOptions();
       updateDeltaHint();
     }

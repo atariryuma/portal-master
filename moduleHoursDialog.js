@@ -10,7 +10,7 @@ function showModulePlanningDialog() {
   try {
     const htmlOutput = HtmlService.createHtmlOutputFromFile('modulePlanningDialog')
       .setWidth(980)
-      .setHeight(720);
+      .setHeight(800);
     SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'モジュール学習管理');
   } catch (error) {
     showAlert('モジュール学習管理ダイアログの表示に失敗しました: ' + error.toString(), 'エラー');
@@ -46,19 +46,23 @@ function getModulePlanningDialogState() {
   dataElapsedMs = new Date().getTime() - dataStartedAt;
 
   const settingsMap = readModuleSettingsMap();
+  const enabledWeekdays = getEnabledWeekdays(settingsMap);
   const savedRange = getModulePlanningRangeFromSettings(baseDate, settingsMap);
-  const dailyPlanCount = getCachedDailyPlanCountForDialog(settingsMap);
   const annualTarget = buildDialogAnnualTargetForFiscalYear(fiscalYear, controlSheet, annualTargetRows);
   const recentExceptions = listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, 10, exceptionRows);
   const annualTargetRecordCount = countAnnualTargetRowsForFiscalYear(controlSheet, fiscalYear, annualTargetRows);
   const exceptionRecordCount = countExceptionRowsForFiscalYear(controlSheet, fiscalYear, exceptionRows);
   const cumulativeDisplayColumn = String(MODULE_CUMULATIVE_COLUMNS.DISPLAY);
 
-  // 予備セッション数を算出
+  // 予備セッション数・日次件数をリアルタイム算出（実施期間を反映）
   const buildResult = buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, {
-    controlSheet: controlSheet
+    controlSheet: controlSheet,
+    enabledWeekdays: enabledWeekdays,
+    startDate: savedRange.startDate,
+    endDate: savedRange.endDate
   });
   const reserveByGrade = buildResult.reserveByGrade;
+  const dailyPlanCount = buildResult.dailyPlanCount;
 
   const cumulativeStartedAt = new Date().getTime();
   try {
@@ -74,6 +78,7 @@ function getModulePlanningDialogState() {
 
   const state = {
     baseDate: formatInputDate(baseDate),
+    defaultExceptionDate: formatInputDate(getDefaultExceptionDate(enabledWeekdays)),
     fiscalYear: fiscalYear,
     fiscalYearStartDate: formatInputDate(fiscalRange.startDate),
     fiscalYearEndDate: formatInputDate(fiscalRange.endDate),
@@ -84,6 +89,8 @@ function getModulePlanningDialogState() {
     dailyPlanRecordCount: dailyPlanCount,
     exceptionRecordCount: exceptionRecordCount,
     cumulativeDisplayColumn: cumulativeDisplayColumn,
+    enabledWeekdays: enabledWeekdays,
+    weekdayLabels: MODULE_WEEKDAY_LABELS,
     annualTarget: annualTarget,
     reserveByGrade: reserveByGrade,
     recentExceptions: recentExceptions
@@ -101,16 +108,28 @@ function getModulePlanningDialogState() {
 }
 
 /**
- * ダイアログ用の日次件数キャッシュ値を取得
- * @param {Object} settingsMap - 設定マップ
- * @return {number} 件数
+ * 差分入力のデフォルト日付を取得（直近の実施曜日）
+ * @param {Array<number>} enabledWeekdays - 有効曜日配列（getDay()値）
+ * @return {Date} デフォルト日付
  */
-function getCachedDailyPlanCountForDialog(settingsMap) {
-  const value = Number(settingsMap[MODULE_SETTING_KEYS.LAST_DAILY_PLAN_COUNT]);
-  if (!Number.isFinite(value) || value < 0) {
-    return 0;
+function getDefaultExceptionDate(enabledWeekdays) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const day = today.getDay();
+
+  if (Array.isArray(enabledWeekdays) && enabledWeekdays.indexOf(day) !== -1) {
+    return today;
   }
-  return Math.round(value);
+
+  for (let offset = 1; offset <= 7; offset++) {
+    const candidate = new Date(today.getTime());
+    candidate.setDate(candidate.getDate() - offset);
+    if (Array.isArray(enabledWeekdays) && enabledWeekdays.indexOf(candidate.getDay()) !== -1) {
+      return candidate;
+    }
+  }
+
+  return today;
 }
 
 /**
@@ -238,6 +257,21 @@ function addModuleExceptionFromDialog(payload) {
     throw new Error('日付が不正です。');
   }
 
+  const dayOfWeek = exceptionDate.getDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    throw new Error(formatInputDate(exceptionDate) + ' は土日です。実施日（平日）を指定してください。');
+  }
+
+  const enabledWeekdays = getEnabledWeekdays();
+  if (enabledWeekdays.indexOf(dayOfWeek) === -1) {
+    const dayLabel = MODULE_WEEKDAY_LABELS[dayOfWeek] || '';
+    const enabledLabels = enabledWeekdays
+      .slice().sort(function(a, b) { return a - b; })
+      .map(function(d) { return MODULE_WEEKDAY_LABELS[d] || String(d); })
+      .join('・');
+    throw new Error(formatInputDate(exceptionDate) + '（' + dayLabel + '）は実施曜日ではありません。実施曜日: ' + enabledLabels);
+  }
+
   const grade = Number(payload && payload.grade);
   if (!Number.isInteger(grade) || grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
     throw new Error('学年は1〜6で入力してください。');
@@ -257,10 +291,11 @@ function addModuleExceptionFromDialog(payload) {
   const baseDate = normalizeToDate(payload && payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
   const result = syncModuleHoursWithCumulative(baseDate);
 
+  const minuteSign = deltaSessions > 0 ? '+' : '';
   return [
     '実施差分を保存して再集計しました。',
     '入力: ' + formatInputDate(exceptionDate) + ' / ' + grade + '年 / ' +
-      formatSignedSessionsAsMixedFraction(deltaSessions) + 'コマ（' + (deltaSessions * 15) + '分）',
+      formatSignedSessionsAsMixedFraction(deltaSessions) + 'コマ（' + minuteSign + (deltaSessions * 15) + '分）',
     '基準日: ' + formatInputDate(result.baseDate)
   ].join('\n');
 }
@@ -301,18 +336,63 @@ function normalizeAnnualTargetRowFromDialog(fiscalYear, target) {
 }
 
 /**
- * 旧期間入力APIの後方互換ラッパー
- * @param {string|Date} startDate - 開始日
- * @param {string|Date} endDate - 終了日
+ * ダイアログから実施設定（実施曜日・実施期間）を保存して再集計
+ * @param {Object} payload - { weekdays: [1,3,5], startDate: 'yyyy-MM-dd', endDate: 'yyyy-MM-dd', baseDate: ... }
  * @return {string} 完了メッセージ
  */
-function saveModulePlanningRange(startDate, endDate) {
-  const result = rebuildModulePlanFromRange(startDate, endDate);
+function saveModuleSettingsFromDialog(payload) {
+  if (!payload) {
+    throw new Error('設定データがありません。');
+  }
+
+  const weekdays = Array.isArray(payload.weekdays) ? payload.weekdays : [];
+  const validWeekdays = weekdays
+    .map(function(d) { return parseInt(d, 10); })
+    .filter(function(n) { return Number.isInteger(n) && n >= 1 && n <= 5; });
+
+  if (validWeekdays.length === 0) {
+    throw new Error('実施曜日を1つ以上選択してください。');
+  }
+
+  const startDate = normalizeToDate(payload.startDate);
+  const endDate = normalizeToDate(payload.endDate);
+  if (!startDate || !endDate) {
+    throw new Error('実施期間の開始日・終了日を正しく入力してください。');
+  }
+  if (startDate > endDate) {
+    throw new Error('開始日は終了日以前の日付を指定してください。');
+  }
+
+  const baseDate = normalizeToDate(payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
+  const fiscalYear = getFiscalYear(baseDate);
+  const fiscalRange = getFiscalYearDateRange(fiscalYear);
+  if (startDate < fiscalRange.startDate || endDate > fiscalRange.endDate) {
+    throw new Error('実施期間は年度範囲内（' + formatInputDate(fiscalRange.startDate) + ' ～ ' + formatInputDate(fiscalRange.endDate) + '）で指定してください。');
+  }
+
+  upsertModuleSettingsValues({
+    WEEKDAYS_ENABLED: validWeekdays,
+    PLAN_START_DATE: startDate,
+    PLAN_END_DATE: endDate
+  });
+
+  const result = syncModuleHoursWithCumulative(baseDate, {
+    preservePlanningRange: {
+      startDate: startDate,
+      endDate: endDate
+    }
+  });
+
+  const dayNames = validWeekdays
+    .sort(function(a, b) { return a - b; })
+    .map(function(d) { return MODULE_WEEKDAY_LABELS[d] || String(d); })
+    .join('・');
+
   return [
-    'モジュール学習計画を更新しました。',
-    '対象期間: ' + formatInputDate(result.startDate) + ' ～ ' + formatInputDate(result.endDate),
-    '対象年度: ' + result.fiscalYears.join(', '),
-    '生成件数: ' + result.recordCount + '件',
-    '※ 設定はモジュール学習管理画面で一元管理します。'
+    '実施設定を保存して再集計しました。',
+    '実施曜日: ' + dayNames,
+    '実施期間: ' + formatInputDate(startDate) + ' ～ ' + formatInputDate(endDate),
+    '基準日: ' + formatInputDate(result.baseDate)
   ].join('\n');
 }
+

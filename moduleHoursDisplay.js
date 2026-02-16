@@ -17,34 +17,37 @@ function syncModuleHoursWithCumulative(baseDate, options) {
 
   ensureDefaultAnnualTargetForFiscalYear(fiscalYear, controlSheet);
 
+  const settingsMap = readModuleSettingsMap();
+  const enabledWeekdays = getEnabledWeekdays(settingsMap);
+  const planningRange = preservePlanningRange
+    ? { startDate: normalizeToDate(preservePlanningRange.startDate), endDate: normalizeToDate(preservePlanningRange.endDate) }
+    : getModulePlanningRangeFromSettings(normalizedBaseDate, settingsMap);
+
   const buildResult = buildDailyPlanFromAnnualTarget(fiscalYear, normalizedBaseDate, {
-    controlSheet: controlSheet
+    controlSheet: controlSheet,
+    enabledWeekdays: enabledWeekdays,
+    startDate: planningRange.startDate,
+    endDate: planningRange.endDate
   });
   const exceptionTotals = loadExceptionTotals(fiscalYear, normalizedBaseDate, controlSheet);
   const gradeTotals = buildGradeTotalsFromDailyAndExceptions(buildResult.totalsByGrade, exceptionTotals);
 
   writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate, buildResult.reserveByGrade);
 
-  const settingsUpdates = {
+  upsertModuleSettingsValues({
     LAST_GENERATED_AT: new Date(),
-    LAST_DAILY_PLAN_COUNT: buildResult.dailyPlanCount
-  };
-  if (preservePlanningRange && preservePlanningRange.startDate && preservePlanningRange.endDate) {
-    settingsUpdates.PLAN_START_DATE = preservePlanningRange.startDate;
-    settingsUpdates.PLAN_END_DATE = preservePlanningRange.endDate;
-  } else {
-    settingsUpdates.PLAN_START_DATE = buildResult.startDate;
-    settingsUpdates.PLAN_END_DATE = buildResult.endDate;
-  }
-  upsertModuleSettingsValues(settingsUpdates);
+    LAST_DAILY_PLAN_COUNT: buildResult.dailyPlanCount,
+    PLAN_START_DATE: planningRange.startDate,
+    PLAN_END_DATE: planningRange.endDate
+  });
 
   Logger.log('[INFO] モジュール学習計画を累計時数へ統合しました（基準日: ' + formatInputDate(normalizedBaseDate) + '）');
 
   return {
     baseDate: normalizedBaseDate,
     fiscalYear: fiscalYear,
-    startDate: buildResult.startDate,
-    endDate: buildResult.endDate,
+    startDate: planningRange.startDate,
+    endDate: planningRange.endDate,
     dailyPlanCount: buildResult.dailyPlanCount
   };
 }

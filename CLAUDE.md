@@ -56,6 +56,8 @@ Originally a single 2,400-line file, decomposed into:
 
 All module data lives in a single `module_control` sheet (migrated from multi-sheet structure). Settings use `PropertiesService.getDocumentProperties()` with `MODULE_` prefix.
 
+**Weekday filter:** `extractSchoolDayRows()` filters school days by user-configured weekdays (`MODULE_WEEKDAYS_ENABLED` in PropertiesService, default `[1,3,5]` = Mon/Wed/Fri). `MODULE_WEEKDAY_PRIORITY` controls allocation order within a week (Mon→Wed→Fri→Tue→Thu). `getEnabledWeekdays()` reads the setting; `serializeWeekdays()` writes it.
+
 ### Data Flow Pattern
 
 `app_config` sheet (cell addresses in `CONFIG_CELLS` / `TRIGGER_CONFIG_CELLS`) → read by `getSettingsSheetOrThrow()` → used by all features that need folder IDs, calendar IDs, or trigger configuration.

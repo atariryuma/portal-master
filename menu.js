@@ -47,17 +47,7 @@ function onOpen() {
     .addToUi();
 
   // 内部管理シートは通常利用で見せない（軽量な非表示のみ。完全初期化はモジュール機能の初回使用時に遅延実行）
-  try {
-    hideSheetForNormalUse_(MODULE_SHEET_NAMES.CONTROL);
-  } catch (error) {
-    Logger.log('[WARNING] module_control シートの非表示化に失敗: ' + error.toString());
-  }
-
-  try {
-    hideSheetForNormalUse_(SETTINGS_SHEET_NAME);
-  } catch (error) {
-    Logger.log('[WARNING] 設定シートの非表示化に失敗: ' + error.toString());
-  }
+  hideInternalSheetsForNormalUse_();
 }
 
 /**
@@ -95,6 +85,30 @@ function hideSheetForNormalUse_(sheetName) {
 
   targetSheet.hideSheet();
   Logger.log('[INFO] ' + sheetName + 'シートを非表示にしました。');
+}
+
+/**
+ * 内部管理シートを非表示にする
+ * @param {boolean=} includeMaster - マスターも含める場合true（テスト後クリーンアップ用）
+ *   onOpenではfalse: マスターは初期セットアップ中にユーザーが編集するため隠さない。
+ *   マスターの非表示は年間行事インポート完了時（updateAnnualEvents）で行う。
+ */
+function hideInternalSheetsForNormalUse_(includeMaster) {
+  const sheetNames = [
+    MODULE_SHEET_NAMES.CONTROL,
+    SETTINGS_SHEET_NAME
+  ];
+  if (includeMaster) {
+    sheetNames.unshift(MASTER_SHEET.NAME);
+  }
+
+  sheetNames.forEach(function(name) {
+    try {
+      hideSheetForNormalUse_(name);
+    } catch (error) {
+      Logger.log('[WARNING] ' + name + 'シートの非表示化に失敗: ' + error.toString());
+    }
+  });
 }
 
 function showCreatorInfo() {

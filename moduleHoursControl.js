@@ -604,9 +604,6 @@ function hideModuleControlSheetIfPossible(ss, controlSheet) {
       if (!fallbackSheet) {
         return;
       }
-      if (fallbackSheet.isSheetHidden()) {
-        fallbackSheet.showSheet();
-      }
       ss.setActiveSheet(fallbackSheet);
     }
 
@@ -634,13 +631,6 @@ function findFallbackSheetForHiding(ss, excludedSheetId) {
     }
   }
 
-  for (let j = 0; j < sheets.length; j++) {
-    const hiddenSheet = sheets[j];
-    if (hiddenSheet.getSheetId() !== excludedSheetId) {
-      return hiddenSheet;
-    }
-  }
-
   return null;
 }
 
@@ -651,6 +641,7 @@ function ensureModuleSettingKeys() {
   const requiredKeys = [
     MODULE_SETTING_KEYS.PLAN_START_DATE,
     MODULE_SETTING_KEYS.PLAN_END_DATE,
+    MODULE_SETTING_KEYS.WEEKDAYS_ENABLED,
     MODULE_SETTING_KEYS.LAST_GENERATED_AT,
     MODULE_SETTING_KEYS.LAST_DAILY_PLAN_COUNT,
     MODULE_SETTING_KEYS.DATA_VERSION
@@ -722,6 +713,52 @@ function serializeModuleSettingValue(key, value) {
     return formatInputDate(value);
   }
 
+  if (key === MODULE_SETTING_KEYS.WEEKDAYS_ENABLED && Array.isArray(value)) {
+    return serializeWeekdays(value);
+  }
+
   return String(value);
+}
+
+/**
+ * 保存済みの実施曜日を取得（未設定時はデフォルト）
+ * @param {Object=} settingsMap - 事前取得済み設定マップ
+ * @return {Array<number>} 有効曜日配列（getDay()値）
+ */
+function getEnabledWeekdays(settingsMap) {
+  const map = settingsMap || readModuleSettingsMap();
+  const raw = map[MODULE_SETTING_KEYS.WEEKDAYS_ENABLED];
+
+  if (!raw || String(raw).trim() === '') {
+    return MODULE_DEFAULT_WEEKDAYS_ENABLED.slice();
+  }
+
+  const parsed = String(raw).split(',')
+    .map(function(s) { return parseInt(s.trim(), 10); })
+    .filter(function(n) { return Number.isInteger(n) && n >= 1 && n <= 5; });
+
+  if (parsed.length === 0) {
+    return MODULE_DEFAULT_WEEKDAYS_ENABLED.slice();
+  }
+
+  return parsed;
+}
+
+/**
+ * 実施曜日をシリアライズ
+ * @param {Array<number>} weekdays - 有効曜日配列
+ * @return {string} カンマ区切り文字列
+ */
+function serializeWeekdays(weekdays) {
+  if (!Array.isArray(weekdays) || weekdays.length === 0) {
+    return MODULE_DEFAULT_WEEKDAYS_ENABLED.join(',');
+  }
+  const valid = weekdays
+    .filter(function(n) { return Number.isInteger(n) && n >= 1 && n <= 5; })
+    .sort(function(a, b) { return a - b; });
+  if (valid.length === 0) {
+    return MODULE_DEFAULT_WEEKDAYS_ENABLED.join(',');
+  }
+  return valid.join(',');
 }
 
