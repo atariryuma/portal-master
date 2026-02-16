@@ -34,6 +34,9 @@ function syncModuleHoursWithCumulative(baseDate, options) {
 
   writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate, buildResult.reserveByGrade);
 
+  const annualTarget = loadAnnualTargetForFiscalYear(fiscalYear, controlSheet);
+  writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays, normalizedBaseDate);
+
   upsertModuleSettingsValues({
     LAST_GENERATED_AT: new Date(),
     LAST_DAILY_PLAN_COUNT: buildResult.dailyPlanCount,
@@ -48,7 +51,8 @@ function syncModuleHoursWithCumulative(baseDate, options) {
     fiscalYear: fiscalYear,
     startDate: planningRange.startDate,
     endDate: planningRange.endDate,
-    dailyPlanCount: buildResult.dailyPlanCount
+    dailyPlanCount: buildResult.dailyPlanCount,
+    reserveByGrade: buildResult.reserveByGrade
   };
 }
 
@@ -102,6 +106,184 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate, reserveByGrade) {
   }
 
   Logger.log('[INFO] モジュール表示列を更新しました（列: ' + displayColumn + ', 基準日: ' + formatInputDate(baseDate) + '）');
+}
+
+/**
+ * モジュール学習計画シートへ年間実施計画を出力
+ * @param {Object} buildResult - buildDailyPlanFromAnnualTarget の返却値
+ * @param {Object} annualTarget - 年間目標 { gradeKoma }
+ * @param {Array<number>} enabledWeekdays - 有効曜日配列
+ * @param {Date} baseDate - 基準日
+ */
+function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays, baseDate) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = getOrRenamePlanSummarySheet(ss);
+    if (!sheet) {
+      return;
+    }
+
+    const fiscalYear = buildResult.fiscalYear;
+    const startMonth = MODULE_FISCAL_YEAR_START_MONTH;
+
+    // 月別×学年別セッション集計
+    const monthlyByGrade = {};
+    for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+      monthlyByGrade[grade] = {};
+    }
+    buildResult.dailyRows.forEach(function(row) {
+      const date = normalizeToDate(row[0]);
+      const grade = Number(row[5]);
+      const sessions = toNumberOrZero(row[6]);
+      if (!date || grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
+        return;
+      }
+      const monthKey = formatMonthKey(date);
+      monthlyByGrade[grade][monthKey] = toNumberOrZero(monthlyByGrade[grade][monthKey]) + sessions;
+    });
+
+    // 年度月順（4月→3月）のキーリスト
+    const monthKeys = [];
+    for (let i = 0; i < 12; i++) {
+      const m = ((startMonth - 1 + i) % 12) + 1;
+      const y = m >= startMonth ? fiscalYear : fiscalYear + 1;
+      monthKeys.push(String(y) + '-' + String(m).padStart(2, '0'));
+    }
+    const monthLabels = monthKeys.map(function(key) {
+      return String(parseInt(key.split('-')[1], 10)) + '月';
+    });
+
+    // 曜日ラベル
+    const weekdayNames = enabledWeekdays
+      .slice().sort(function(a, b) { return a - b; })
+      .map(function(d) { return MODULE_WEEKDAY_LABELS[d] || String(d); })
+      .join('・');
+
+    // シートクリア・書式リセット
+    sheet.clear();
+    sheet.clearFormats();
+
+    // 行1: タイトル
+    const titleRange = sheet.getRange(1, 1, 1, 16);
+    titleRange.merge();
+    sheet.getRange(1, 1).setValue('モジュール学習 年間実施計画');
+    sheet.getRange(1, 1).setFontSize(14).setFontWeight('bold');
+
+    // 行3: 年度・実施期間
+    sheet.getRange(3, 1).setValue(
+      '年度: ' + fiscalYear + '年度　　実施期間: ' +
+      formatInputDate(buildResult.startDate) + ' ～ ' + formatInputDate(buildResult.endDate)
+    );
+
+    // 行4: 実施曜日・形式
+    sheet.getRange(4, 1).setValue(
+      '実施曜日: ' + weekdayNames + '　　1回15分（1コマ = 45分 = 3回）'
+    );
+
+    // 行6: ヘッダー
+    const headerRow = 6;
+    const headers = ['学年'];
+    monthLabels.forEach(function(label) { headers.push(label); });
+    headers.push('合計');
+    headers.push('年間目標');
+    headers.push('登校日数');
+    headers.push('予備/不足');
+
+    sheet.getRange(headerRow, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(headerRow, 1, 1, headers.length)
+      .setBackground('#f0f0f0')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center')
+      .setBorder(true, true, true, true, true, true);
+
+    // 行7-12: 学年データ
+    const dataStartRow = headerRow + 1;
+    const dataRows = [];
+    for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+      const row = [grade + '年'];
+      let totalSessions = 0;
+
+      monthKeys.forEach(function(monthKey) {
+        const sessions = toNumberOrZero(monthlyByGrade[grade][monthKey]);
+        totalSessions += sessions;
+        row.push(sessions > 0 ? sessionsToUnits(sessions) : '');
+      });
+
+      row.push(sessionsToUnits(totalSessions));
+      row.push(toNumberOrZero(annualTarget.gradeKoma[grade]));
+      row.push(toNumberOrZero(buildResult.schoolDaysByGrade[grade]));
+
+      const reserve = toNumberOrZero(buildResult.reserveByGrade[grade]);
+      if (reserve > 0) {
+        row.push(MODULE_RESERVE_LABEL + ' ' + formatSessionsAsMixedFraction(reserve) + 'コマ');
+      } else if (reserve < 0) {
+        row.push(MODULE_DEFICIT_LABEL + ' ' + formatSessionsAsMixedFraction(Math.abs(reserve)) + 'コマ');
+      } else {
+        row.push('-');
+      }
+
+      dataRows.push(row);
+    }
+
+    sheet.getRange(dataStartRow, 1, dataRows.length, headers.length).setValues(dataRows);
+
+    // データ行の書式
+    const dataRange = sheet.getRange(dataStartRow, 1, dataRows.length, headers.length);
+    dataRange.setBorder(true, true, true, true, true, true);
+    sheet.getRange(dataStartRow, 2, dataRows.length, 12).setHorizontalAlignment('center');
+    sheet.getRange(dataStartRow, 14, dataRows.length, 3).setHorizontalAlignment('center');
+
+    // 不足セルに赤背景
+    const reserveCol = headers.length;
+    for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+      const reserveVal = toNumberOrZero(buildResult.reserveByGrade[grade]);
+      const rowIndex = dataStartRow + grade - MODULE_GRADE_MIN;
+      if (reserveVal < 0) {
+        sheet.getRange(rowIndex, reserveCol).setBackground('#fef2f2').setFontColor('#991b1b').setFontWeight('bold');
+      }
+    }
+
+    // フッター行
+    const footerRow = dataStartRow + dataRows.length + 1;
+    sheet.getRange(footerRow, 1).setValue(
+      '更新日時: ' + formatDateTimeForDisplay(new Date()) + '　　※ 本シートは再集計時に自動更新されます'
+    );
+    sheet.getRange(footerRow, 1).setFontSize(9).setFontColor('#64748b');
+
+    // 列幅調整
+    sheet.setColumnWidth(1, 50);
+    for (let c = 2; c <= 13; c++) {
+      sheet.setColumnWidth(c, 45);
+    }
+    sheet.setColumnWidth(14, 55);
+    sheet.setColumnWidth(15, 65);
+    sheet.setColumnWidth(16, 65);
+
+    Logger.log('[INFO] モジュール学習計画シートを更新しました');
+  } catch (error) {
+    Logger.log('[WARNING] モジュール学習計画シートの更新に失敗: ' + error.toString());
+  }
+}
+
+/**
+ * モジュール学習計画シートを取得（旧名からリネーム対応）
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
+ * @return {GoogleAppsScript.Spreadsheet.Sheet|null} シート
+ */
+function getOrRenamePlanSummarySheet(ss) {
+  const sheet = ss.getSheetByName(MODULE_SHEET_NAMES.PLAN_SUMMARY);
+  if (sheet) {
+    return sheet;
+  }
+
+  const legacySheet = ss.getSheetByName(MODULE_SHEET_NAMES.PLAN_LEGACY_JP);
+  if (legacySheet) {
+    legacySheet.setName(MODULE_SHEET_NAMES.PLAN_SUMMARY);
+    Logger.log('[INFO] シート名を変更しました: ' + MODULE_SHEET_NAMES.PLAN_LEGACY_JP + ' → ' + MODULE_SHEET_NAMES.PLAN_SUMMARY);
+    return legacySheet;
+  }
+
+  return ss.insertSheet(MODULE_SHEET_NAMES.PLAN_SUMMARY);
 }
 
 /**

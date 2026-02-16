@@ -1564,7 +1564,8 @@ function testModuleHoursDecomposition() {
       'MODULE_DEFAULT_ANNUAL_KOMA': typeof MODULE_DEFAULT_ANNUAL_KOMA !== 'undefined',
       'MODULE_CONTROL_MARKERS': typeof MODULE_CONTROL_MARKERS !== 'undefined',
       'MODULE_DEFAULT_WEEKDAYS_ENABLED': typeof MODULE_DEFAULT_WEEKDAYS_ENABLED !== 'undefined',
-      'MODULE_WEEKDAY_LABELS': typeof MODULE_WEEKDAY_LABELS !== 'undefined'
+      'MODULE_WEEKDAY_LABELS': typeof MODULE_WEEKDAY_LABELS !== 'undefined',
+      'MODULE_DEFICIT_LABEL': typeof MODULE_DEFICIT_LABEL !== 'undefined'
     },
     moduleHoursDialog: {
       'showModulePlanningDialog': typeof showModulePlanningDialog === 'function',

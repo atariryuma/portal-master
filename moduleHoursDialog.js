@@ -239,11 +239,19 @@ function saveModuleAnnualTargetFromDialog(payload) {
   const baseDate = normalizeToDate(payload && payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
   const result = syncModuleHoursWithCumulative(baseDate);
 
-  return [
+  const lines = [
     '年間目標を保存して再集計しました。',
     '対象年度: ' + fiscalYear + '年度',
     '基準日: ' + formatInputDate(result.baseDate)
-  ].join('\n');
+  ];
+
+  const deficitWarning = buildDeficitWarningMessage(result.reserveByGrade);
+  if (deficitWarning) {
+    lines.push('');
+    lines.push(deficitWarning);
+  }
+
+  return lines.join('\n');
 }
 
 /**
@@ -388,11 +396,44 @@ function saveModuleSettingsFromDialog(payload) {
     .map(function(d) { return MODULE_WEEKDAY_LABELS[d] || String(d); })
     .join('・');
 
-  return [
+  const lines = [
     '実施設定を保存して再集計しました。',
     '実施曜日: ' + dayNames,
     '実施期間: ' + formatInputDate(startDate) + ' ～ ' + formatInputDate(endDate),
     '基準日: ' + formatInputDate(result.baseDate)
-  ].join('\n');
+  ];
+
+  const deficitWarning = buildDeficitWarningMessage(result.reserveByGrade);
+  if (deficitWarning) {
+    lines.push('');
+    lines.push(deficitWarning);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * 不足学年の警告メッセージを生成
+ * @param {Object} reserveByGrade - 学年別予備セッション数
+ * @return {string} 不足がなければ空文字列
+ */
+function buildDeficitWarningMessage(reserveByGrade) {
+  if (!reserveByGrade) {
+    return '';
+  }
+
+  const deficits = [];
+  for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+    const reserve = toNumberOrZero(reserveByGrade[grade]);
+    if (reserve < 0) {
+      deficits.push(grade + '年: ' + MODULE_DEFICIT_LABEL + ' ' + formatSessionsAsMixedFraction(Math.abs(reserve)) + 'コマ');
+    }
+  }
+
+  if (deficits.length === 0) {
+    return '';
+  }
+
+  return '【注意】登校日数に対して目標コマ数が不足しています。\n' + deficits.join('、');
 }
 

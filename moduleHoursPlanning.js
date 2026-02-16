@@ -152,8 +152,8 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
     const allocations = allocateSessionsToDateKeys(plannedSessions, weekMap);
     const allocatedDateKeys = Object.keys(allocations).sort();
 
-    // 予備 = 登校日数 - 計画セッション数（セッション単位）
-    reserveByGrade[grade] = Math.max(gradeDates.length - plannedSessions, 0);
+    // 予備/不足 = 登校日数 - 計画セッション数（正=予備、負=不足）
+    reserveByGrade[grade] = gradeDates.length - plannedSessions;
 
     allocatedDateKeys.forEach(function(dateKey) {
       const dateObj = normalizeToDate(dateKey);
@@ -217,6 +217,11 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
     ];
   });
 
+  const schoolDaysByGrade = {};
+  for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+    schoolDaysByGrade[grade] = schoolDayMap[grade].length;
+  }
+
   return {
     fiscalYear: normalizedFiscalYear,
     startDate: planStartDate || fiscalRange.startDate,
@@ -226,7 +231,8 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
     dailyRows: dailyRows,
     planRows: planRows,
     totalsByGrade: totalsByGrade,
-    reserveByGrade: reserveByGrade
+    reserveByGrade: reserveByGrade,
+    schoolDaysByGrade: schoolDaysByGrade
   };
 }
 

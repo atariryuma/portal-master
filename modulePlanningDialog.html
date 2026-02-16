@@ -150,8 +150,17 @@
       font-size: 12px;
       color: #166534;
     }
+    .reserve-summary.has-deficit {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
     .reserve-summary .reserve-item {
       white-space: nowrap;
+    }
+    .reserve-summary .deficit-item {
+      white-space: nowrap;
+      font-weight: bold;
     }
     .delta-quick {
       display: flex;
@@ -528,14 +537,24 @@
         return;
       }
 
+      let hasDeficit = false;
       const items = [];
       for (let grade = 1; grade <= 6; grade++) {
         const sessions = Number(reserveByGrade[grade]) || 0;
-        const display = formatMixedFractionFromSessions(sessions);
-        items.push('<span class="reserve-item">' + grade + '年: 予備 ' + escapeHtml(display) + 'コマ</span>');
+        if (sessions > 0) {
+          const display = formatMixedFractionFromSessions(sessions);
+          items.push('<span class="reserve-item">' + grade + '年: 予備 ' + escapeHtml(display) + 'コマ</span>');
+        } else if (sessions < 0) {
+          hasDeficit = true;
+          const display = formatMixedFractionFromSessions(Math.abs(sessions));
+          items.push('<span class="deficit-item">' + grade + '年: 不足 ' + escapeHtml(display) + 'コマ</span>');
+        } else {
+          items.push('<span class="reserve-item">' + grade + '年: 予備なし</span>');
+        }
       }
 
       container.innerHTML = items.join('');
+      container.className = hasDeficit ? 'reserve-summary has-deficit' : 'reserve-summary';
       container.style.display = 'flex';
     }
 
