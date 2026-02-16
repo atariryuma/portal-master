@@ -321,21 +321,21 @@
       const settings = {
         weeklyPdf: {
           enabled: document.getElementById('weeklyPdfEnabled').checked,
-          day: parseInt(document.getElementById('weeklyPdfDay').value),
-          hour: parseInt(document.getElementById('weeklyPdfHour').value)
+          day: parseInt(document.getElementById('weeklyPdfDay').value, 10),
+          hour: parseInt(document.getElementById('weeklyPdfHour').value, 10)
         },
         cumulativeHours: {
           enabled: document.getElementById('cumulativeHoursEnabled').checked,
-          day: parseInt(document.getElementById('cumulativeHoursDay').value),
-          hour: parseInt(document.getElementById('cumulativeHoursHour').value)
+          day: parseInt(document.getElementById('cumulativeHoursDay').value, 10),
+          hour: parseInt(document.getElementById('cumulativeHoursHour').value, 10)
         },
         calendarSync: {
           enabled: document.getElementById('calendarSyncEnabled').checked,
-          hour: parseInt(document.getElementById('calendarSyncHour').value)
+          hour: parseInt(document.getElementById('calendarSyncHour').value, 10)
         },
         dailyLink: {
           enabled: document.getElementById('dailyLinkEnabled').checked,
-          hour: parseInt(document.getElementById('dailyLinkHour').value)
+          hour: parseInt(document.getElementById('dailyLinkHour').value, 10)
         }
       };
 
@@ -360,8 +360,8 @@
         settings.dailyLink.hour
       ];
 
-      for (let hour of hours) {
-        if (hour < 0 || hour > 23 || isNaN(hour)) {
+      for (let i = 0; i < hours.length; i++) {
+        if (hours[i] < 0 || hours[i] > 23 || isNaN(hours[i])) {
           alert('⚠️ 時刻は0～23の範囲で指定してください。');
           return false;
         }

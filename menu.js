@@ -101,7 +101,7 @@ function showCreatorInfo() {
   const htmlOutput = HtmlService.createHtmlOutput(`
     <div style="font-family: 'Yu Gothic', Arial, sans-serif; padding: 10px;">
       <h3 style="color: #2c3e50; margin-top: 0;">製作者情報</h3>
-      <p><strong>製作者:</strong> 当たり竜馬 (Atari Ryuma)</p>
+      <p><strong>製作者:</strong> 中龍馬（Atari Ryuma）</p>
       <p><strong>連絡先:</strong> <a href="mailto:atarirym@open.ed.jp" style="color: #3498db;">atarirym@open.ed.jp</a></p>
       <hr style="border: none; border-top: 1px solid #ecf0f1; margin: 15px 0;">
       <p style="font-size: 0.9em; color: #7f8c8d;">

@@ -119,11 +119,11 @@
       const year = today.getMonth() < 3 ? today.getFullYear() - 1 : today.getFullYear();
       const defaultStartDate = new Date(year, 3, 1); // 4月1日
 
-      // 日本時間でのタイムゾーンオフセットを考慮して設定
-      defaultStartDate.setHours(defaultStartDate.getHours() + 9);  // JSTはUTC+9時間
-
-      const formattedDate = defaultStartDate.toISOString().split('T')[0];
-      document.getElementById('startDate').value = formattedDate;
+      // ローカル日付コンポーネントから直接フォーマット（タイムゾーン非依存）
+      const yyyy = String(defaultStartDate.getFullYear());
+      const mm = String(defaultStartDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(defaultStartDate.getDate()).padStart(2, '0');
+      document.getElementById('startDate').value = yyyy + '-' + mm + '-' + dd;
     }
 
     function submitForm() {

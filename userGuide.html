@@ -878,8 +878,8 @@
 
     <script>
         // スムーズスクロール
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
+        document.querySelectorAll('a[href^="#"]').forEach(function(anchor) {
+            anchor.addEventListener('click', function(e) {
                 e.preventDefault();
                 document.querySelector(this.getAttribute('href')).scrollIntoView({
                     behavior: 'smooth'
@@ -893,7 +893,7 @@
             const navLinks = document.querySelectorAll('.nav a');
             
             let current = '';
-            sections.forEach(section => {
+            sections.forEach(function(section) {
                 const sectionTop = section.offsetTop;
                 const sectionHeight = section.clientHeight;
                 if (scrollY >= sectionTop - 200) {
@@ -901,7 +901,7 @@
                 }
             });
 
-            navLinks.forEach(link => {
+            navLinks.forEach(function(link) {
                 link.classList.remove('active');
                 if (link.getAttribute('href') === '#' + current) {
                     link.classList.add('active');
