@@ -10,30 +10,20 @@
  * @return {Object} 集計結果
  */
 function syncModuleHoursWithCumulative(baseDate, options) {
-  return syncModuleHoursWithCumulativeInternal(baseDate, options || null);
-}
-
-/**
- * モジュール学習計画を集計し、累計時数シートへ統合出力（内部）
- * @param {Date|string} baseDate - 集計基準日
- * @param {?Object} options - 実行オプション
- * @return {Object} 集計結果
- */
-function syncModuleHoursWithCumulativeInternal(baseDate, options) {
-  const sheets = initializeModuleHoursSheetsIfNeeded();
+  const controlSheet = initializeModuleHoursSheetsIfNeeded();
   const normalizedBaseDate = normalizeToDate(baseDate) || normalizeToDate(new Date());
   const fiscalYear = getFiscalYear(normalizedBaseDate);
   const preservePlanningRange = options && options.preservePlanningRange ? options.preservePlanningRange : null;
 
-  ensureDefaultCyclePlanForFiscalYear(fiscalYear, sheets.controlSheet);
+  ensureDefaultAnnualTargetForFiscalYear(fiscalYear, controlSheet);
 
-  const buildResult = buildDailyPlanFromCyclePlanInternal(fiscalYear, normalizedBaseDate, false, {
-    controlSheet: sheets.controlSheet
+  const buildResult = buildDailyPlanFromAnnualTarget(fiscalYear, normalizedBaseDate, {
+    controlSheet: controlSheet
   });
-  const exceptionTotals = loadExceptionTotals(fiscalYear, normalizedBaseDate, sheets.controlSheet);
+  const exceptionTotals = loadExceptionTotals(fiscalYear, normalizedBaseDate, controlSheet);
   const gradeTotals = buildGradeTotalsFromDailyAndExceptions(buildResult.totalsByGrade, exceptionTotals);
 
-  writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate);
+  writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate, buildResult.reserveByGrade);
 
   const settingsUpdates = {
     LAST_GENERATED_AT: new Date(),
@@ -46,7 +36,7 @@ function syncModuleHoursWithCumulativeInternal(baseDate, options) {
     settingsUpdates.PLAN_START_DATE = buildResult.startDate;
     settingsUpdates.PLAN_END_DATE = buildResult.endDate;
   }
-  upsertModuleSettingsValues(null, settingsUpdates);
+  upsertModuleSettingsValues(settingsUpdates);
 
   Logger.log('[INFO] モジュール学習計画を累計時数へ統合しました（基準日: ' + formatInputDate(normalizedBaseDate) + '）');
 
@@ -63,8 +53,9 @@ function syncModuleHoursWithCumulativeInternal(baseDate, options) {
  * 累計時数シートへモジュール累計を出力
  * @param {Object} gradeTotals - 学年別合計
  * @param {Date} baseDate - 基準日
+ * @param {Object=} reserveByGrade - 学年別予備セッション数
  */
-function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
+function writeModuleToCumulativeSheet(gradeTotals, baseDate, reserveByGrade) {
   const cumulativeSheet = getSheetByNameOrThrow(CUMULATIVE_SHEET.NAME);
   const displayColumn = MODULE_CUMULATIVE_COLUMNS.DISPLAY;
   const rowCount = MODULE_GRADE_MAX - MODULE_GRADE_MIN + 1;
@@ -91,7 +82,8 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
   cumulativeSheet.getRange(2, displayColumn).setValue(MODULE_DISPLAY_HEADER);
   const displayRows = [];
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-    displayRows.push([buildModuleDisplayValue(gradeTotals[grade])]);
+    const reserveSessions = reserveByGrade ? toNumberOrZero(reserveByGrade[grade]) : 0;
+    displayRows.push([buildModuleDisplayValue(gradeTotals[grade], reserveSessions)]);
   }
   cumulativeSheet.getRange(3, displayColumn, displayRows.length, 1).setValues(displayRows);
 
@@ -164,11 +156,19 @@ function cleanupStaleDisplayColumns(cumulativeSheet, displayColumn, rowCount) {
 /**
  * 表示列セル文字列を組み立て
  * @param {Object} total - 学年別合計
+ * @param {number=} reserveSessions - 予備セッション数
  * @return {string} 表示文字列
  */
-function buildModuleDisplayValue(total) {
-  return formatSessionsAsMixedFraction(total.actualSessions) +
+function buildModuleDisplayValue(total, reserveSessions) {
+  let display = formatSessionsAsMixedFraction(total.actualSessions) +
     '（' + MODULE_WEEKLY_LABEL + ' ' + formatSignedSessionsAsMixedFraction(total.thisWeekSessions) + '）';
+
+  const reserve = toNumberOrZero(reserveSessions);
+  if (reserve > 0) {
+    display += MODULE_RESERVE_LABEL + ' ' + formatSessionsAsMixedFraction(reserve) + 'コマ';
+  }
+
+  return display;
 }
 
 /**
@@ -235,7 +235,8 @@ function createGradeTotalsTemplate() {
       deltaSessions: 0,
       actualSessions: 0,
       diffSessions: 0,
-      thisWeekSessions: 0
+      thisWeekSessions: 0,
+      reserveSessions: 0
     };
   }
 
@@ -282,12 +283,11 @@ function collectFiscalYearsInRange(startDate, endDate) {
 
 /**
  * 保存済み期間を取得（未設定時は当該年度）
- * @param {*} settingsSheet - 旧互換引数（未使用）
  * @param {Date} fallbackDate - 基準日
  * @param {Object=} settingsMap - 事前取得済み設定マップ
  * @return {Object} 期間
  */
-function getModulePlanningRangeFromSettings(settingsSheet, fallbackDate, settingsMap) {
+function getModulePlanningRangeFromSettings(fallbackDate, settingsMap) {
   const map = settingsMap || readModuleSettingsMap();
   const start = normalizeToDate(map[MODULE_SETTING_KEYS.PLAN_START_DATE]);
   const end = normalizeToDate(map[MODULE_SETTING_KEYS.PLAN_END_DATE]);
@@ -297,7 +297,7 @@ function getModulePlanningRangeFromSettings(settingsSheet, fallbackDate, setting
   }
 
   const defaultRange = getDefaultModulePlanningRange(fallbackDate);
-  upsertModuleSettingsValues(null, {
+  upsertModuleSettingsValues({
     PLAN_START_DATE: defaultRange.startDate,
     PLAN_END_DATE: defaultRange.endDate
   });

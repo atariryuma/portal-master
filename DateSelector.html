@@ -2,70 +2,69 @@
 <html>
 <head>
   <base target="_top">
+  <meta charset="utf-8">
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Yu Gothic', Arial, sans-serif;
       margin: 0;
       padding: 20px;
-      background-color: #f4f4f9;
+      background-color: #f8f9fa;
       color: #333;
-    }
-    h1 {
-      font-size: 1.5em;
-      text-align: center;
-      color: #4a4a4a;
-      margin-bottom: 20px;
     }
     form {
       max-width: 380px;
       margin: 0 auto;
       padding: 20px;
       background-color: #fff;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       border-radius: 8px;
     }
     label {
       font-weight: bold;
       display: block;
-      margin: 10px 0 5px;
-      color: #555;
+      margin: 10px 0 4px;
+      color: #3c4043;
+      font-size: 14px;
     }
     input[type="date"],
     input[type="number"] {
-      width: calc(100% - 10px); /* 入力フィールドの右側に少しスペースを追加 */
-      padding: 10px;
-      margin-bottom: 15px;
-      border: 1px solid #ddd;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      margin-bottom: 12px;
+      border: 1px solid #d9d9d9;
       border-radius: 4px;
-      font-size: 1em;
-      background-color: #fafafa;
-      transition: border-color 0.2s;
+      font-size: 14px;
     }
     input[type="date"]:focus,
     input[type="number"]:focus {
-      border-color: #888;
+      border-color: #1a73e8;
       outline: none;
     }
     input[type="button"] {
       width: 100%;
-      padding: 10px;
-      background-color: #4a90e2;
-      color: white;
+      padding: 11px;
+      background-color: #1a73e8;
+      color: #fff;
       border: none;
       border-radius: 4px;
-      font-size: 1em;
+      font-size: 15px;
       font-weight: bold;
       cursor: pointer;
       transition: background-color 0.2s;
     }
     input[type="button"]:hover {
-      background-color: #357abd;
+      background-color: #1557b0;
+    }
+    input[type="button"]:disabled {
+      opacity: 0.6;
+      cursor: default;
     }
     .section-title {
       font-weight: bold;
       margin-top: 20px;
-      color: #333;
-      font-size: 1.2em;
+      color: #202124;
+      font-size: 16px;
       text-align: center;
     }
     .submit-status {
@@ -75,8 +74,8 @@
       gap: 8px;
       min-height: 20px;
       margin-top: 12px;
-      color: #2f4f7f;
-      font-size: 0.95em;
+      color: #1a73e8;
+      font-size: 14px;
       visibility: hidden;
     }
     .submit-status.is-visible {
@@ -86,7 +85,7 @@
       width: 16px;
       height: 16px;
       border: 2px solid #c8d8ef;
-      border-top: 2px solid #357abd;
+      border-top: 2px solid #1a73e8;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
@@ -97,10 +96,10 @@
   </style>
   <script>
     function setSubmitting(isSubmitting, message) {
-      var submitButton = document.getElementById('submitButton');
-      var status = document.getElementById('submitStatus');
-      var msg = document.getElementById('submitMessage');
-      var form = document.getElementById('aggregateForm');
+      const submitButton = document.getElementById('submitButton');
+      const status = document.getElementById('submitStatus');
+      const msg = document.getElementById('submitMessage');
+      const form = document.getElementById('aggregateForm');
       submitButton.disabled = isSubmitting;
       if (form) {
         form.setAttribute('aria-busy', isSubmitting ? 'true' : 'false');
@@ -116,25 +115,25 @@
     }
 
     function setDefaultStartDate() {
-      var today = new Date();
-      var year = today.getMonth() < 3 ? today.getFullYear() - 1 : today.getFullYear();
-      var defaultStartDate = new Date(year, 3, 1); // 4月1日
+      const today = new Date();
+      const year = today.getMonth() < 3 ? today.getFullYear() - 1 : today.getFullYear();
+      const defaultStartDate = new Date(year, 3, 1); // 4月1日
 
       // 日本時間でのタイムゾーンオフセットを考慮して設定
       defaultStartDate.setHours(defaultStartDate.getHours() + 9);  // JSTはUTC+9時間
 
-      var formattedDate = defaultStartDate.toISOString().split('T')[0];
+      const formattedDate = defaultStartDate.toISOString().split('T')[0];
       document.getElementById('startDate').value = formattedDate;
     }
 
     function submitForm() {
-      var form = document.getElementById('aggregateForm');
+      const form = document.getElementById('aggregateForm');
       if (form && typeof form.reportValidity === 'function' && !form.reportValidity()) {
         return;
       }
 
-      var startDate = document.getElementById('startDate').value;
-      var endDate = document.getElementById('endDate').value;
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
       if (!startDate || !endDate) {
         window.alert('開始日と終了日を入力してください。');
         return;
@@ -142,7 +141,7 @@
 
       setSubmitting(true, '集計中です。完了までお待ちください...');
 
-      var gradeHours = {
+      const gradeHours = {
         1: document.getElementById('grade1').value,
         2: document.getElementById('grade2').value,
         3: document.getElementById('grade3').value,
@@ -157,15 +156,15 @@
         })
         .withFailureHandler(function(error) {
           setSubmitting(false);
-          var message = (error && error.message) ? error.message : String(error || '不明なエラー');
+          const message = (error && error.message) ? error.message : String(error || '不明なエラー');
           window.alert('集計に失敗しました: ' + message);
         })
         .processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours);
     }
 
     function adjustDialogSize() {
-      google.script.host.setHeight(document.body.scrollHeight + 20); // 余白分を追加
-      google.script.host.setWidth(document.body.scrollWidth + 20);  // 余白分を追加
+      google.script.host.setHeight(document.body.scrollHeight + 20);
+      google.script.host.setWidth(document.body.scrollWidth + 20);
     }
 
     window.onload = function() {

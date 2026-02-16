@@ -99,10 +99,6 @@ function preparePdfUrl(spreadsheetId, sheetId) {
 function createFileName(sheet) {
   const range1 = sheet.getRange(WEEKLY_REPORT.NAME_RANGE).getValues()[0].join('');
   const dateRange = sheet.getRange(WEEKLY_REPORT.DATE_RANGE).getValues()[0];
-  const formattedDateRange = formatDateRangeForPdf_(dateRange);
+  const formattedDateRange = formatDateToJapanese(dateRange[0]) + '～' + formatDateToJapanese(dateRange[dateRange.length - 1]);
   return range1 + '（' + formattedDateRange + '）';
-}
-
-function formatDateRangeForPdf_(dateRange) {
-  return formatDateToJapanese(dateRange[0]) + '～' + formatDateToJapanese(dateRange[dateRange.length - 1]);
 }

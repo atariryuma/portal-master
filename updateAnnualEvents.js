@@ -22,7 +22,7 @@ function updateAnnualEvents() {
     }
 
     const masterData = masterSheet.getRange('A' + MASTER_SHEET.DATA_START_ROW + ':' + MASTER_SHEET.DATA_RANGE_END + masterLastRow).getValues();
-    const dateMap = createDateMapForEvents(eventSheet);
+    const dateMap = createDateMap(eventSheet, ANNUAL_SCHEDULE.DATE_COLUMN);
 
     const confirmation = ui.alert('確認', '年間行事予定表への更新処理を開始します。続行しますか？', ui.ButtonSet.OK_CANCEL);
     if (confirmation !== ui.Button.OK) {
@@ -84,8 +84,4 @@ function updateAnnualEvents() {
   } catch (error) {
     showAlert(error.message || error.toString(), 'エラー');
   }
-}
-
-function createDateMapForEvents(sheet) {
-  return createDateMap(sheet, ANNUAL_SCHEDULE.DATE_COLUMN);
 }

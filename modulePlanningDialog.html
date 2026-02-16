@@ -122,9 +122,6 @@
       width: 58px;
       text-align: right;
     }
-    .plan-table select {
-      width: 68px;
-    }
     .plan-table .note-input {
       width: 120px;
       text-align: left;
@@ -140,6 +137,21 @@
     }
     .small-btn:hover {
       background: #f1f5f9;
+    }
+    .reserve-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 8px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #166534;
+    }
+    .reserve-summary .reserve-item {
+      white-space: nowrap;
     }
     .delta-quick {
       display: flex;
@@ -242,7 +254,7 @@
   <div class="container">
     <h2>モジュール学習管理</h2>
     <p class="lead">
-      内部シートを直接編集せず、この画面で「クール計画」と「実施差分」を管理できます。<br>
+      内部シートを直接編集せず、この画面で「年間目標」と「実施差分」を管理できます。<br>
       保存時に再集計まで自動実行し、累計時数シートへ反映します。
     </p>
 
@@ -254,10 +266,6 @@
       <div class="summary-item">
         <span>年度範囲</span>
         <strong id="fiscalRange">-</strong>
-      </div>
-      <div class="summary-item">
-        <span>クール計画件数</span>
-        <strong id="cyclePlanCount">0件</strong>
       </div>
       <div class="summary-item">
         <span>日次計画件数（再集計結果）</span>
@@ -274,19 +282,18 @@
     </div>
 
     <section class="section">
-      <h3>1. クール計画入力</h3>
-      <p class="section-note">1行が1クールです。コマ数は1コマ（45分）単位で入力してください。</p>
+      <h3>1. 年間目標入力</h3>
+      <p class="section-note">各学年の年間目標コマ数（1コマ＝45分）を入力してください。</p>
       <div class="toolbar">
         <label for="fiscalYearInput">対象年度</label>
         <input id="fiscalYearInput" type="number" readonly>
-        <button type="button" class="small-btn" id="addPlanRowButton" onclick="addPlanRow()">行を追加</button>
+        <label for="bulkKomaInput">全学年一括</label>
+        <input id="bulkKomaInput" type="number" min="0" step="1" value="28" style="width:68px">
+        <button type="button" class="small-btn" onclick="setAllGradeKoma()">一括設定</button>
       </div>
-      <table class="plan-table" aria-label="クール計画">
+      <table class="plan-table" aria-label="年間目標">
         <thead>
           <tr>
-            <th>順</th>
-            <th>開始月</th>
-            <th>終了月</th>
             <th>1年</th>
             <th>2年</th>
             <th>3年</th>
@@ -298,8 +305,9 @@
         </thead>
         <tbody id="planBody"></tbody>
       </table>
+      <div id="reserveSummary" class="reserve-summary" style="display:none;"></div>
       <div class="action-row">
-        <button type="button" class="primary" id="savePlanButton" onclick="savePlan()">計画を保存して再集計</button>
+        <button type="button" class="primary" id="savePlanButton" onclick="savePlan()">年間目標を保存して再集計</button>
       </div>
     </section>
 
@@ -365,23 +373,16 @@
   </div>
 
   <script>
-    var currentState = {};
-
-    var DEFAULT_PLAN_ROWS = [
-      { cycleOrder: 1, startMonth: 6, endMonth: 7, g1Koma: 7, g2Koma: 7, g3Koma: 7, g4Koma: 7, g5Koma: 7, g6Koma: 7, note: '' },
-      { cycleOrder: 2, startMonth: 9, endMonth: 10, g1Koma: 7, g2Koma: 7, g3Koma: 7, g4Koma: 7, g5Koma: 7, g6Koma: 7, note: '' },
-      { cycleOrder: 3, startMonth: 11, endMonth: 12, g1Koma: 7, g2Koma: 7, g3Koma: 7, g4Koma: 7, g5Koma: 7, g6Koma: 7, note: '' },
-      { cycleOrder: 4, startMonth: 1, endMonth: 2, g1Koma: 7, g2Koma: 7, g3Koma: 7, g4Koma: 7, g5Koma: 7, g6Koma: 7, note: '' }
-    ];
+    let currentState = {};
 
     function setStatus(text) {
       document.getElementById('status').textContent = text || '';
     }
 
     function setLoading(isLoading) {
-      var ids = ['addPlanRowButton', 'savePlanButton', 'addExceptionButton', 'refreshButton', 'closeButton'];
+      const ids = ['savePlanButton', 'addExceptionButton', 'refreshButton', 'closeButton'];
       ids.forEach(function(id) {
-        var el = document.getElementById(id);
+        const el = document.getElementById(id);
         if (el) {
           el.disabled = isLoading;
         }
@@ -394,10 +395,9 @@
     }
 
     function updateSummary(state) {
-      var range = (state.fiscalYearStartDate || '-') + ' ～ ' + (state.fiscalYearEndDate || '-');
+      const range = (state.fiscalYearStartDate || '-') + ' ～ ' + (state.fiscalYearEndDate || '-');
       document.getElementById('fiscalYear').textContent = (state.fiscalYear || '-') + '年度';
       document.getElementById('fiscalRange').textContent = range;
-      document.getElementById('cyclePlanCount').textContent = (state.cyclePlanRecordCount || 0) + '件';
       document.getElementById('dailyPlanCount').textContent = (state.dailyPlanRecordCount || 0) + '件';
       document.getElementById('exceptionCount').textContent = (state.exceptionRecordCount || 0) + '件';
       document.getElementById('lastGeneratedAt').textContent = state.lastGeneratedAt || '未生成';
@@ -413,125 +413,110 @@
         .replace(/'/g, '&#39;');
     }
 
-    function buildMonthOptions(selectedMonth) {
-      var html = '';
-      for (var month = 1; month <= 12; month++) {
-        var selected = Number(selectedMonth) === month ? ' selected' : '';
-        html += '<option value="' + month + '"' + selected + '>' + month + '月</option>';
-      }
-      return html;
-    }
-
-    function normalizePlanRows(rows) {
-      if (!Array.isArray(rows) || rows.length === 0) {
-        return DEFAULT_PLAN_ROWS.map(function(item) {
-          return Object.assign({}, item);
-        });
-      }
-      return rows.slice().sort(function(a, b) {
-        return Number(a.cycleOrder || 0) - Number(b.cycleOrder || 0);
-      });
-    }
-
-    function appendPlanRow(row) {
-      var tbody = document.getElementById('planBody');
-      var tr = document.createElement('tr');
+    function renderAnnualTarget(target) {
+      const tbody = document.getElementById('planBody');
+      tbody.innerHTML = '';
+      const t = target || {};
+      const tr = document.createElement('tr');
       tr.innerHTML = [
-        '<td><input type="number" class="cycle-order" min="1" step="1" value="' + escapeHtml(row.cycleOrder) + '"></td>',
-        '<td><select class="start-month">' + buildMonthOptions(row.startMonth) + '</select></td>',
-        '<td><select class="end-month">' + buildMonthOptions(row.endMonth) + '</select></td>',
-        '<td><input type="number" class="grade-koma" data-grade="1" min="0" step="1" value="' + escapeHtml(row.g1Koma) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="2" min="0" step="1" value="' + escapeHtml(row.g2Koma) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="3" min="0" step="1" value="' + escapeHtml(row.g3Koma) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="4" min="0" step="1" value="' + escapeHtml(row.g4Koma) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="5" min="0" step="1" value="' + escapeHtml(row.g5Koma) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="6" min="0" step="1" value="' + escapeHtml(row.g6Koma) + '"></td>',
-        '<td><input type="text" class="note-input" value="' + escapeHtml(row.note) + '"></td>'
+        '<td><input type="number" class="grade-koma" data-grade="1" min="0" step="1" value="' + escapeHtml(t.g1Koma || 28) + '"></td>',
+        '<td><input type="number" class="grade-koma" data-grade="2" min="0" step="1" value="' + escapeHtml(t.g2Koma || 28) + '"></td>',
+        '<td><input type="number" class="grade-koma" data-grade="3" min="0" step="1" value="' + escapeHtml(t.g3Koma || 28) + '"></td>',
+        '<td><input type="number" class="grade-koma" data-grade="4" min="0" step="1" value="' + escapeHtml(t.g4Koma || 28) + '"></td>',
+        '<td><input type="number" class="grade-koma" data-grade="5" min="0" step="1" value="' + escapeHtml(t.g5Koma || 28) + '"></td>',
+        '<td><input type="number" class="grade-koma" data-grade="6" min="0" step="1" value="' + escapeHtml(t.g6Koma || 28) + '"></td>',
+        '<td><input type="text" class="note-input" value="' + escapeHtml(t.note || '') + '"></td>'
       ].join('');
       tbody.appendChild(tr);
     }
 
-    function renderPlanRows(rows) {
-      var tbody = document.getElementById('planBody');
-      tbody.innerHTML = '';
-      normalizePlanRows(rows).forEach(function(row) {
-        appendPlanRow(row);
+    function setAllGradeKoma() {
+      const value = Number(document.getElementById('bulkKomaInput').value);
+      if (!Number.isFinite(value) || value < 0) {
+        setStatus('全学年一括の値を0以上の数値で入力してください。');
+        return;
+      }
+      const inputs = document.querySelectorAll('#planBody .grade-koma');
+      inputs.forEach(function(input) {
+        input.value = String(Math.round(value));
       });
     }
 
-    function addPlanRow() {
-      var rows = document.querySelectorAll('#planBody tr');
-      var maxOrder = 0;
-      rows.forEach(function(row) {
-        var value = Number(row.querySelector('.cycle-order').value);
-        if (value > maxOrder) {
-          maxOrder = value;
-        }
-      });
-
-      appendPlanRow({
-        cycleOrder: maxOrder + 1,
-        startMonth: 4,
-        endMonth: 5,
-        g1Koma: 7,
-        g2Koma: 7,
-        g3Koma: 7,
-        g4Koma: 7,
-        g5Koma: 7,
-        g6Koma: 7,
-        note: ''
-      });
-    }
-
-    function collectPlanRows() {
-      var rows = [];
-      var trs = document.querySelectorAll('#planBody tr');
-
-      trs.forEach(function(tr) {
-        var cycleOrderRaw = tr.querySelector('.cycle-order').value;
-        var startMonthRaw = tr.querySelector('.start-month').value;
-        var endMonthRaw = tr.querySelector('.end-month').value;
-
-        var values = {
-          cycleOrder: Number(cycleOrderRaw),
-          startMonth: Number(startMonthRaw),
-          endMonth: Number(endMonthRaw),
-          g1Koma: Number(tr.querySelector('.grade-koma[data-grade="1"]').value),
-          g2Koma: Number(tr.querySelector('.grade-koma[data-grade="2"]').value),
-          g3Koma: Number(tr.querySelector('.grade-koma[data-grade="3"]').value),
-          g4Koma: Number(tr.querySelector('.grade-koma[data-grade="4"]').value),
-          g5Koma: Number(tr.querySelector('.grade-koma[data-grade="5"]').value),
-          g6Koma: Number(tr.querySelector('.grade-koma[data-grade="6"]').value),
-          note: tr.querySelector('.note-input').value || ''
-        };
-
-        if (!Number.isFinite(values.cycleOrder) || values.cycleOrder <= 0) {
-          throw new Error('クール順を正しく入力してください。');
-        }
-
-        rows.push(values);
-      });
-
-      if (rows.length === 0) {
-        throw new Error('計画行がありません。');
+    function collectAnnualTarget() {
+      const tr = document.querySelector('#planBody tr');
+      if (!tr) {
+        throw new Error('年間目標の入力行がありません。');
       }
 
-      return rows;
+      const target = {
+        g1Koma: Number(tr.querySelector('.grade-koma[data-grade="1"]').value),
+        g2Koma: Number(tr.querySelector('.grade-koma[data-grade="2"]').value),
+        g3Koma: Number(tr.querySelector('.grade-koma[data-grade="3"]').value),
+        g4Koma: Number(tr.querySelector('.grade-koma[data-grade="4"]').value),
+        g5Koma: Number(tr.querySelector('.grade-koma[data-grade="5"]').value),
+        g6Koma: Number(tr.querySelector('.grade-koma[data-grade="6"]').value),
+        note: tr.querySelector('.note-input').value || ''
+      };
+
+      for (let grade = 1; grade <= 6; grade++) {
+        const key = 'g' + grade + 'Koma';
+        if (!Number.isFinite(target[key]) || target[key] < 0) {
+          throw new Error(grade + '年のコマ数を0以上の数値で入力してください。');
+        }
+      }
+
+      return target;
+    }
+
+    function formatMixedFractionFromSessions(sessions) {
+      const rounded = Math.round(Number(sessions) || 0);
+      if (rounded === 0) {
+        return '0';
+      }
+      const sign = rounded < 0 ? '-' : '';
+      const absValue = Math.abs(rounded);
+      const whole = Math.floor(absValue / 3);
+      const remainder = absValue % 3;
+      if (remainder === 0) {
+        return sign + String(whole);
+      }
+      if (whole === 0) {
+        return sign + String(remainder) + '/3';
+      }
+      return sign + String(whole) + ' ' + String(remainder) + '/3';
+    }
+
+    function renderReserveSummary(reserveByGrade) {
+      const container = document.getElementById('reserveSummary');
+      if (!reserveByGrade) {
+        container.style.display = 'none';
+        return;
+      }
+
+      const items = [];
+      for (let grade = 1; grade <= 6; grade++) {
+        const sessions = Number(reserveByGrade[grade]) || 0;
+        const display = formatMixedFractionFromSessions(sessions);
+        items.push('<span class="reserve-item">' + grade + '年: 予備 ' + escapeHtml(display) + 'コマ</span>');
+      }
+
+      container.innerHTML = items.join('');
+      container.style.display = 'flex';
     }
 
     function renderRecentExceptions(rows) {
-      var tbody = document.getElementById('recentExceptionBody');
+      const tbody = document.getElementById('recentExceptionBody');
       tbody.innerHTML = '';
 
       if (!Array.isArray(rows) || rows.length === 0) {
-        var emptyRow = document.createElement('tr');
+        const emptyRow = document.createElement('tr');
         emptyRow.innerHTML = '<td colspan="5">実施差分はまだありません。</td>';
         tbody.appendChild(emptyRow);
         return;
       }
 
       rows.forEach(function(row) {
-        var tr = document.createElement('tr');
+        const tr = document.createElement('tr');
         tr.innerHTML = [
           '<td>' + escapeHtml(row.date) + '</td>',
           '<td>' + escapeHtml(row.grade) + '年</td>',
@@ -546,7 +531,8 @@
     function applyState(state) {
       currentState = state || {};
       updateSummary(currentState);
-      renderPlanRows(currentState.cyclePlans || []);
+      renderAnnualTarget(currentState.annualTarget || {});
+      renderReserveSummary(currentState.reserveByGrade || null);
       renderRecentExceptions(currentState.recentExceptions || []);
 
       document.getElementById('exceptionDate').value = currentState.baseDate || '';
@@ -573,12 +559,12 @@
     }
 
     function populateGradeOptions() {
-      var select = document.getElementById('exceptionGrade');
+      const select = document.getElementById('exceptionGrade');
       if (select.options.length > 0) {
         return;
       }
-      for (var grade = 1; grade <= 6; grade++) {
-        var option = document.createElement('option');
+      for (let grade = 1; grade <= 6; grade++) {
+        const option = document.createElement('option');
         option.value = String(grade);
         option.textContent = grade + '年';
         select.appendChild(option);
@@ -586,33 +572,33 @@
     }
 
     function savePlan() {
-      var fiscalYear = Number(document.getElementById('fiscalYearInput').value);
-      var planRows;
+      const fiscalYear = Number(document.getElementById('fiscalYearInput').value);
+      let target;
 
       try {
-        planRows = collectPlanRows();
+        target = collectAnnualTarget();
       } catch (error) {
         setStatus(getErrorMessage(error));
         return;
       }
 
       setLoading(true);
-      setStatus('計画を保存して再集計しています...');
+      setStatus('年間目標を保存して再集計しています...');
 
       google.script.run
         .withSuccessHandler(function(message) {
           setLoading(false);
-          setStatus(message || '計画を保存しました。');
+          setStatus(message || '年間目標を保存しました。');
           loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
-          setStatus('計画保存に失敗しました: ' + getErrorMessage(error));
+          setStatus('年間目標の保存に失敗しました: ' + getErrorMessage(error));
         })
-        .saveModuleCyclePlanFromDialog({
+        .saveModuleAnnualTargetFromDialog({
           fiscalYear: fiscalYear,
           baseDate: currentState.baseDate,
-          plans: planRows
+          target: target
         });
     }
 
@@ -621,34 +607,16 @@
       updateDeltaHint();
     }
 
-    function formatMixedFractionFromSessions(sessions) {
-      var rounded = Math.round(Number(sessions) || 0);
-      if (rounded === 0) {
-        return '0';
-      }
-      var sign = rounded < 0 ? '-' : '';
-      var absValue = Math.abs(rounded);
-      var whole = Math.floor(absValue / 3);
-      var remainder = absValue % 3;
-      if (remainder === 0) {
-        return sign + String(whole);
-      }
-      if (whole === 0) {
-        return sign + String(remainder) + '/3';
-      }
-      return sign + String(whole) + ' ' + String(remainder) + '/3';
-    }
-
     function updateDeltaHint() {
-      var sessions = Math.round(Number(document.getElementById('deltaSessionsInput').value) || 0);
-      var prefix = sessions > 0 ? '+' : '';
-      var minutes = sessions * 15;
-      var minutePrefix = minutes > 0 ? '+' : '';
+      const sessions = Math.round(Number(document.getElementById('deltaSessionsInput').value) || 0);
+      const prefix = sessions > 0 ? '+' : '';
+      const minutes = sessions * 15;
+      const minutePrefix = minutes > 0 ? '+' : '';
       document.getElementById('deltaHint').textContent = '現在の差分: ' + prefix + formatMixedFractionFromSessions(sessions) + 'コマ（' + minutePrefix + String(minutes) + '分）';
     }
 
     function addException() {
-      var payload = {
+      const payload = {
         date: document.getElementById('exceptionDate').value,
         grade: Number(document.getElementById('exceptionGrade').value),
         deltaSessions: Number(document.getElementById('deltaSessionsInput').value),

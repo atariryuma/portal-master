@@ -41,7 +41,7 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
   }
   const data = srcSheet.getDataRange().getValues();
 
-  const monthKeys = buildMonthKeysForAggregate(startDateObj, endDateObj);
+  const monthKeys = listMonthKeysInRange(startDateObj, endDateObj);
   let moduleCalculationError = '';
 
   let modulePlanMap = null;
@@ -225,14 +225,6 @@ function buildGradeOutputRows_(monthKeys, results, modulePlanMap, preservedModVa
   });
 
   return { batchData: batchData, modValues: modValues };
-}
-
-/**
- * 集計対象期間の月キー一覧（yyyy-MM）を作成
- * listMonthKeysInRange (moduleHoursPlanning.js) へ委譲
- */
-function buildMonthKeysForAggregate(startDate, endDate) {
-  return listMonthKeysInRange(startDate, endDate);
 }
 
 /**

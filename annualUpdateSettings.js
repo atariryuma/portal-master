@@ -22,7 +22,7 @@ function showAnnualUpdateSettingsDialog() {
  */
 function getAnnualUpdateSettings() {
   try {
-    const sheet = getAnnualUpdateSettingsSheet_();
+    const sheet = getSettingsSheetOrThrow();
     // バッチ読み取り: C5:C16を一括取得
     const values = sheet.getRange('C5:C16').getValues();
     return {
@@ -49,7 +49,7 @@ function saveAnnualUpdateSettings(settings) {
     const normalized = normalizeAnnualUpdateSettings_(settings);
     validateAnnualUpdateSettings_(normalized);
 
-    const sheet = getAnnualUpdateSettingsSheet_();
+    const sheet = getSettingsSheetOrThrow();
     // C5, C7, C11は非連続のため個別書き込み
     sheet.getRange('C5').setValue(normalized.copyFileName);
     sheet.getRange('C7').setValue(normalized.copyDestinationFolderId);
@@ -67,10 +67,6 @@ function saveAnnualUpdateSettings(settings) {
     Logger.log('[ERROR] 年度更新設定の保存に失敗: ' + error.toString());
     throw error;
   }
-}
-
-function getAnnualUpdateSettingsSheet_() {
-  return getSettingsSheetOrThrow();
 }
 
 function normalizeAnnualUpdateSettings_(settings) {

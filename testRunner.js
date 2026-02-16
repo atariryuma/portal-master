@@ -105,9 +105,7 @@ function getFullTestPlan_() {
         { name: '2-3. 累計時数へのMOD統合確認', fn: testModuleCumulativeIntegration },
         { name: '2-4. 表示フォーマット関数確認', fn: testModuleDisplayFormatter },
         { name: '2-5. 45分換算関数確認', fn: testSessionsToUnits },
-        { name: '2-6. 表示列の固定列定数確認', fn: testModuleDisplayColumnIsFixed },
-        { name: '2-7. 旧スキーマ行の置換除外', fn: testReplaceRowsDropsLegacyFiscalRows },
-        { name: '2-8. 他年度旧スキーマ行の保持', fn: testReplaceRowsKeepsOtherLegacyFiscalRows }
+        { name: '2-6. 表示列の固定列定数確認', fn: testModuleDisplayColumnIsFixed }
       ]
     },
     {
@@ -120,8 +118,8 @@ function getFullTestPlan_() {
         { name: '3-5. 集計期間バリデーション（不正日付）', fn: testValidateAggregateDateRangeRejectsInvalidDate },
         { name: '3-6. 集計期間バリデーション（日付順）', fn: testValidateAggregateDateRangeRejectsReverseRange },
         { name: '3-7. 集計期間バリデーション（正常系）', fn: testValidateAggregateDateRangeAcceptsValidRange },
-        { name: '3-8. 月キー生成（年度跨ぎ）', fn: testBuildMonthKeysForAggregateAcrossFiscalYear },
-        { name: '3-9. 月キー生成（単月）', fn: testBuildMonthKeysForAggregateSingleMonth },
+        { name: '3-8. 月キー生成（年度跨ぎ）', fn: testListMonthKeysInRangeAcrossFiscalYear },
+        { name: '3-9. 月キー生成（単月）', fn: testListMonthKeysInRangeSingleMonth },
         { name: '3-10. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
         { name: '3-11. MOD実績取得関数', fn: testGetModuleActualUnitsForMonth }
       ]
@@ -443,108 +441,6 @@ function testModuleDisplayColumnIsFixed() {
   }
 
   return { success: true, message: 'MOD表示列の固定列定数と補助関数を確認' };
-}
-
-function testReplaceRowsDropsLegacyFiscalRows() {
-  if (typeof replaceRowsForFiscalYear !== 'function') {
-    return { success: false, message: 'replaceRowsForFiscalYear関数が見つかりません' };
-  }
-
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const tempSheet = ss.insertSheet('tmp_mod_replace_' + Date.now());
-
-  try {
-    tempSheet.getRange(1, 1, 1, 2).setValues([['fiscal_year', 'value']]);
-    tempSheet.getRange(2, 1, 3, 2).setValues([
-      ['2025-06', 'legacy'],
-      [2024, 'keep'],
-      [2025, 'old']
-    ]);
-
-    replaceRowsForFiscalYear(tempSheet, [[2025, 'new']], 2025, 0, 2);
-
-    const afterLastRow = tempSheet.getLastRow();
-    const values = afterLastRow > 1 ? tempSheet.getRange(2, 1, afterLastRow - 1, 2).getValues() : [];
-    const legacyExists = values.some(function(row) {
-      return String(row[0]) === '2025-06';
-    });
-    const oldTargetExists = values.some(function(row) {
-      return Number(row[0]) === 2025 && row[1] === 'old';
-    });
-    const keepExists = values.some(function(row) {
-      return Number(row[0]) === 2024 && row[1] === 'keep';
-    });
-    const newExists = values.some(function(row) {
-      return Number(row[0]) === 2025 && row[1] === 'new';
-    });
-
-    if (legacyExists || oldTargetExists || !keepExists || !newExists) {
-      return { success: false, message: '置換結果が不正です: ' + JSON.stringify(values) };
-    }
-
-    return { success: true, message: '旧スキーマ行を除外して年度置換できることを確認' };
-  } catch (error) {
-    return { success: false, message: error.toString() };
-  } finally {
-    ss.deleteSheet(tempSheet);
-  }
-}
-
-function testReplaceRowsKeepsOtherLegacyFiscalRows() {
-  if (typeof replaceRowsForFiscalYear !== 'function') {
-    return { success: false, message: 'replaceRowsForFiscalYear関数が見つかりません' };
-  }
-
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const tempSheet = ss.insertSheet('tmp_mod_replace_keep_' + Date.now());
-
-  try {
-    tempSheet.getRange(1, 1, 1, 2).setValues([['fiscal_year', 'value']]);
-    tempSheet.getRange(2, 1, 3, 2).setValues([
-      ['2024-12', 'legacy_keep'],
-      ['unknown', 'opaque_keep'],
-      [2025, 'old_target']
-    ]);
-
-    replaceRowsForFiscalYear(tempSheet, [[2025, 'new_target']], 2025, 0, 2);
-
-    const afterLastRow = tempSheet.getLastRow();
-    const values = afterLastRow > 1 ? tempSheet.getRange(2, 1, afterLastRow - 1, 2).getValues() : [];
-    const isLegacyMonthValue = function(value, year, month) {
-      if (value instanceof Date) {
-        return value.getFullYear() === year && (value.getMonth() + 1) === month;
-      }
-      const text = String(value === null || value === undefined ? '' : value).trim();
-      if (!text) {
-        return false;
-      }
-      return text.indexOf(year + '-' + String(month).padStart(2, '0')) === 0 ||
-        text.indexOf(year + '/' + month) === 0 ||
-        text.indexOf(year + '/' + String(month).padStart(2, '0')) === 0;
-    };
-    const legacyKeepExists = values.some(function(row) {
-      return isLegacyMonthValue(row[0], 2024, 12) && row[1] === 'legacy_keep';
-    });
-    const opaqueKeepExists = values.some(function(row) {
-      return String(row[0]) === 'unknown' && row[1] === 'opaque_keep';
-    });
-    const oldTargetExists = values.some(function(row) {
-      return Number(row[0]) === 2025 && row[1] === 'old_target';
-    });
-    const newTargetExists = values.some(function(row) {
-      return Number(row[0]) === 2025 && row[1] === 'new_target';
-    });
-
-    if (!legacyKeepExists || !opaqueKeepExists || oldTargetExists || !newTargetExists) {
-      return { success: false, message: '保持/置換結果が不正です: ' + JSON.stringify(values) };
-    }
-
-    return { success: true, message: '対象年度のみ置換し、他年度旧スキーマ行を保持' };
-  } catch (error) {
-    return { success: false, message: error.toString() };
-  } finally {
-    ss.deleteSheet(tempSheet);
-  }
 }
 
 // ========================================
@@ -920,12 +816,12 @@ function testValidateAggregateDateRangeAcceptsValidRange() {
   return { success: true, message: '正常な期間を受理' };
 }
 
-function testBuildMonthKeysForAggregateAcrossFiscalYear() {
-  if (typeof buildMonthKeysForAggregate !== 'function') {
-    return { success: false, message: 'buildMonthKeysForAggregate関数が見つかりません' };
+function testListMonthKeysInRangeAcrossFiscalYear() {
+  if (typeof listMonthKeysInRange !== 'function') {
+    return { success: false, message: 'listMonthKeysInRange関数が見つかりません' };
   }
 
-  const keys = buildMonthKeysForAggregate(new Date(2025, 3, 1), new Date(2026, 2, 31));
+  const keys = listMonthKeysInRange(new Date(2025, 3, 1), new Date(2026, 2, 31));
   if (!Array.isArray(keys) || keys.length !== 12) {
     return { success: false, message: '月キー数が不正です: ' + JSON.stringify(keys) };
   }
@@ -936,12 +832,12 @@ function testBuildMonthKeysForAggregateAcrossFiscalYear() {
   return { success: true, message: '年度跨ぎの月キー生成を確認' };
 }
 
-function testBuildMonthKeysForAggregateSingleMonth() {
-  if (typeof buildMonthKeysForAggregate !== 'function') {
-    return { success: false, message: 'buildMonthKeysForAggregate関数が見つかりません' };
+function testListMonthKeysInRangeSingleMonth() {
+  if (typeof listMonthKeysInRange !== 'function') {
+    return { success: false, message: 'listMonthKeysInRange関数が見つかりません' };
   }
 
-  const keys = buildMonthKeysForAggregate(new Date(2025, 8, 1), new Date(2025, 8, 30));
+  const keys = listMonthKeysInRange(new Date(2025, 8, 1), new Date(2025, 8, 30));
   if (!Array.isArray(keys) || keys.length !== 1 || keys[0] !== '2025-09') {
     return { success: false, message: '単月キー生成が不正です: ' + JSON.stringify(keys) };
   }
@@ -1573,9 +1469,17 @@ function testAssignDutyBatchReads() {
 }
 
 function testNoDuplicateDateFormatter() {
-  const source = String(typeof formatDateRangeForPdf_ === 'function' ? formatDateRangeForPdf_ : function(){});
-  if (source.indexOf('formatDateToJapanese') !== -1) {
-    return { success: true, message: 'PDF日付フォーマットがformatDateToJapaneseを再利用' };
+  // formatDateRangeForPdf_ は createFileName にインライン化済み
+  if (typeof formatDateRangeForPdf_ === 'function') {
+    return { success: false, message: '廃止済みのformatDateRangeForPdf_関数が残っています' };
+  }
+
+  // createFileName が formatDateToJapanese を再利用していることを確認
+  if (typeof createFileName === 'function') {
+    const source = String(createFileName);
+    if (source.indexOf('formatDateToJapanese') === -1) {
+      return { success: false, message: 'createFileNameがformatDateToJapaneseを使用していません' };
+    }
   }
 
   // formatDateRange がまだ存在する場合は重複
@@ -1583,7 +1487,7 @@ function testNoDuplicateDateFormatter() {
     return { success: false, message: '旧formatDateRange関数が残っています' };
   }
 
-  return { success: true, message: '重複日付フォーマッターなし' };
+  return { success: true, message: '重複日付フォーマッターなし（createFileNameにインライン化済み）' };
 }
 
 function testModuleHoursDecomposition() {
@@ -1598,17 +1502,17 @@ function testModuleHoursDecomposition() {
   // 各ファイルからの代表的な関数/定数が存在するか確認
   const checkSymbols = {
     moduleHoursConstants: {
-      'MODULE_DEFAULT_CYCLES': typeof MODULE_DEFAULT_CYCLES !== 'undefined',
+      'MODULE_DEFAULT_ANNUAL_KOMA': typeof MODULE_DEFAULT_ANNUAL_KOMA !== 'undefined',
       'MODULE_CONTROL_MARKERS': typeof MODULE_CONTROL_MARKERS !== 'undefined'
     },
     moduleHoursDialog: {
       'showModulePlanningDialog': typeof showModulePlanningDialog === 'function',
       'getModulePlanningDialogState': typeof getModulePlanningDialogState === 'function',
-      'saveModuleCyclePlanFromDialog': typeof saveModuleCyclePlanFromDialog === 'function'
+      'saveModuleAnnualTargetFromDialog': typeof saveModuleAnnualTargetFromDialog === 'function'
     },
     moduleHoursPlanning: {
       'rebuildModulePlanFromRange': typeof rebuildModulePlanFromRange === 'function',
-      'buildDailyPlanFromCyclePlan': typeof buildDailyPlanFromCyclePlan === 'function',
+      'buildDailyPlanFromAnnualTarget': typeof buildDailyPlanFromAnnualTarget === 'function',
       'allocateSessionsToDateKeys': typeof allocateSessionsToDateKeys === 'function'
     },
     moduleHoursControl: {

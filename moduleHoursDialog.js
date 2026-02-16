@@ -18,18 +18,6 @@ function showModulePlanningDialog() {
 }
 
 /**
- * ダイアログ用の旧互換初期値（期間）
- * @return {Object} 開始日・終了日
- */
-function getModulePlanningDefaults() {
-  const state = getModulePlanningDialogState();
-  return {
-    startDate: state.startDate,
-    endDate: state.endDate
-  };
-}
-
-/**
  * ダイアログ表示用の状態を返却
  * @return {Object} ダイアログ状態
  */
@@ -40,33 +28,37 @@ function getModulePlanningDialogState() {
   let cumulativeElapsedMs = 0;
 
   const initStartedAt = new Date().getTime();
-  const sheets = initializeModuleHoursSheetsIfNeeded();
+  const controlSheet = initializeModuleHoursSheetsIfNeeded();
   initElapsedMs = new Date().getTime() - initStartedAt;
-
-  const controlSheet = sheets.controlSheet;
   const baseDate = normalizeToDate(getCurrentOrNextSaturday());
   const fiscalYear = getFiscalYear(baseDate);
   const fiscalRange = getFiscalYearDateRange(fiscalYear);
 
   const dataStartedAt = new Date().getTime();
   let layout = getModuleControlLayout(controlSheet);
-  let cyclePlanRows = readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear, null, layout);
-  const createdDefaults = ensureDefaultCyclePlanForFiscalYear(fiscalYear, controlSheet, cyclePlanRows);
+  let annualTargetRows = readAnnualTargetRowsByFiscalYear(controlSheet, fiscalYear, null, layout);
+  const createdDefaults = ensureDefaultAnnualTargetForFiscalYear(fiscalYear, controlSheet, annualTargetRows);
   if (createdDefaults) {
     layout = getModuleControlLayout(controlSheet);
-    cyclePlanRows = readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear, null, layout);
+    annualTargetRows = readAnnualTargetRowsByFiscalYear(controlSheet, fiscalYear, null, layout);
   }
   const exceptionRows = readExceptionRows(controlSheet, layout);
   dataElapsedMs = new Date().getTime() - dataStartedAt;
 
   const settingsMap = readModuleSettingsMap();
-  const savedRange = getModulePlanningRangeFromSettings(null, baseDate, settingsMap);
+  const savedRange = getModulePlanningRangeFromSettings(baseDate, settingsMap);
   const dailyPlanCount = getCachedDailyPlanCountForDialog(settingsMap);
-  const cyclePlans = buildDialogCyclePlansForFiscalYear(fiscalYear, controlSheet, cyclePlanRows);
+  const annualTarget = buildDialogAnnualTargetForFiscalYear(fiscalYear, controlSheet, annualTargetRows);
   const recentExceptions = listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, 10, exceptionRows);
-  const cyclePlanRecordCount = countCyclePlanRowsForFiscalYear(controlSheet, fiscalYear, cyclePlanRows);
+  const annualTargetRecordCount = countAnnualTargetRowsForFiscalYear(controlSheet, fiscalYear, annualTargetRows);
   const exceptionRecordCount = countExceptionRowsForFiscalYear(controlSheet, fiscalYear, exceptionRows);
   const cumulativeDisplayColumn = String(MODULE_CUMULATIVE_COLUMNS.DISPLAY);
+
+  // 予備セッション数を算出
+  const buildResult = buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, {
+    controlSheet: controlSheet
+  });
+  const reserveByGrade = buildResult.reserveByGrade;
 
   const cumulativeStartedAt = new Date().getTime();
   try {
@@ -88,11 +80,12 @@ function getModulePlanningDialogState() {
     startDate: formatInputDate(savedRange.startDate),
     endDate: formatInputDate(savedRange.endDate),
     lastGeneratedAt: formatDateTimeForDisplay(settingsMap[MODULE_SETTING_KEYS.LAST_GENERATED_AT]),
-    cyclePlanRecordCount: cyclePlanRecordCount,
+    annualTargetRecordCount: annualTargetRecordCount,
     dailyPlanRecordCount: dailyPlanCount,
     exceptionRecordCount: exceptionRecordCount,
     cumulativeDisplayColumn: cumulativeDisplayColumn,
-    cyclePlans: cyclePlans,
+    annualTarget: annualTarget,
+    reserveByGrade: reserveByGrade,
     recentExceptions: recentExceptions
   };
 
@@ -121,30 +114,25 @@ function getCachedDailyPlanCountForDialog(settingsMap) {
 }
 
 /**
- * ダイアログ表示用のクール計画を取得
+ * ダイアログ表示用の年間目標を取得
  * @param {number} fiscalYear - 対象年度
  * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
- * @param {Array<Array<*>>=} cyclePlanRows - 事前取得済み計画行（対象年度）
- * @return {Array<Object>} 計画配列
+ * @param {Array<Array<*>>=} annualTargetRows - 事前取得済み年間目標行（対象年度）
+ * @return {Object} 年間目標（g1Koma〜g6Koma, note）
  */
-function buildDialogCyclePlansForFiscalYear(fiscalYear, controlSheet, cyclePlanRows) {
-  const plans = Array.isArray(cyclePlanRows)
-    ? toCyclePlansFromRows(fiscalYear, cyclePlanRows)
-    : loadCyclePlanForFiscalYear(fiscalYear, controlSheet);
-  return plans.map(function(plan) {
-    return {
-      cycleOrder: plan.cycleOrder,
-      startMonth: plan.startMonth,
-      endMonth: plan.endMonth,
-      g1Koma: plan.gradeKoma[1],
-      g2Koma: plan.gradeKoma[2],
-      g3Koma: plan.gradeKoma[3],
-      g4Koma: plan.gradeKoma[4],
-      g5Koma: plan.gradeKoma[5],
-      g6Koma: plan.gradeKoma[6],
-      note: plan.note || ''
-    };
-  });
+function buildDialogAnnualTargetForFiscalYear(fiscalYear, controlSheet, annualTargetRows) {
+  const target = Array.isArray(annualTargetRows) && annualTargetRows.length > 0
+    ? toAnnualTargetFromRow(fiscalYear, annualTargetRows[0])
+    : loadAnnualTargetForFiscalYear(fiscalYear, controlSheet);
+  return {
+    g1Koma: target.gradeKoma[1],
+    g2Koma: target.gradeKoma[2],
+    g3Koma: target.gradeKoma[3],
+    g4Koma: target.gradeKoma[4],
+    g5Koma: target.gradeKoma[5],
+    g6Koma: target.gradeKoma[6],
+    note: target.note || ''
+  };
 }
 
 /**
@@ -213,32 +201,28 @@ function refreshModulePlanning() {
 }
 
 /**
- * ダイアログから受け取ったクール計画を保存して再集計
+ * ダイアログから受け取った年間目標を保存して再集計
  * @param {Object} payload - 入力データ
  * @return {string} 完了メッセージ
  */
-function saveModuleCyclePlanFromDialog(payload) {
+function saveModuleAnnualTargetFromDialog(payload) {
   const fiscalYear = Number(payload && payload.fiscalYear);
   if (!Number.isInteger(fiscalYear) || fiscalYear < 2000 || fiscalYear > 2100) {
     throw new Error('対象年度が不正です。');
   }
 
-  const plans = payload && Array.isArray(payload.plans) ? payload.plans : [];
-  const rows = normalizeCyclePlanRowsFromDialog(fiscalYear, plans);
-  if (rows.length === 0) {
-    throw new Error('保存対象のクール計画がありません。');
-  }
+  const target = payload && payload.target ? payload.target : null;
+  const row = normalizeAnnualTargetRowFromDialog(fiscalYear, target);
 
-  const sheets = initializeModuleHoursSheetsIfNeeded();
-  replaceCyclePlanRowsForFiscalYearInControl(sheets.controlSheet, fiscalYear, rows);
+  const controlSheet = initializeModuleHoursSheetsIfNeeded();
+  replaceAnnualTargetRowsForFiscalYearInControl(controlSheet, fiscalYear, [row]);
 
   const baseDate = normalizeToDate(payload && payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
   const result = syncModuleHoursWithCumulative(baseDate);
 
   return [
-    '計画を保存して再集計しました。',
+    '年間目標を保存して再集計しました。',
     '対象年度: ' + fiscalYear + '年度',
-    'クール計画件数: ' + rows.length + '件',
     '基準日: ' + formatInputDate(result.baseDate)
   ].join('\n');
 }
@@ -267,8 +251,8 @@ function addModuleExceptionFromDialog(payload) {
   const reason = String(payload && payload.reason ? payload.reason : '').trim();
   const note = String(payload && payload.note ? payload.note : '').trim();
 
-  const sheets = initializeModuleHoursSheetsIfNeeded();
-  appendExceptionRows(sheets.controlSheet, [[exceptionDate, grade, deltaSessions, reason, note]]);
+  const controlSheet = initializeModuleHoursSheetsIfNeeded();
+  appendExceptionRows(controlSheet, [[exceptionDate, grade, deltaSessions, reason, note]]);
 
   const baseDate = normalizeToDate(payload && payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
   const result = syncModuleHoursWithCumulative(baseDate);
@@ -282,72 +266,38 @@ function addModuleExceptionFromDialog(payload) {
 }
 
 /**
- * ダイアログ入力値をクール計画行へ正規化
+ * ダイアログ入力値を年間目標行へ正規化
  * @param {number} fiscalYear - 対象年度
- * @param {Array<Object>} plans - 入力計画
- * @return {Array<Array<*>>} シート行
+ * @param {Object} target - 入力目標 { g1Koma, ..., g6Koma, note }
+ * @return {Array<*>} シート行（MODULE_CONTROL_PLAN_HEADERS形式）
  */
-function normalizeCyclePlanRowsFromDialog(fiscalYear, plans) {
-  const rows = [];
-  const seenOrder = {};
+function normalizeAnnualTargetRowFromDialog(fiscalYear, target) {
+  if (!target) {
+    throw new Error('年間目標のデータがありません。');
+  }
 
-  plans.forEach(function(plan, index) {
-    const cycleOrder = Number(plan && plan.cycleOrder);
-    const startMonth = Number(plan && plan.startMonth);
-    const endMonth = Number(plan && plan.endMonth);
-
-    if (!Number.isInteger(cycleOrder) || cycleOrder <= 0) {
-      throw new Error('クール順が不正です（行 ' + (index + 1) + '）。');
+  const gradeValues = [];
+  for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+    const key = 'g' + grade + 'Koma';
+    const rawValue = toNumberOrZero(target[key]);
+    if (rawValue < 0) {
+      throw new Error(grade + '年のコマ数は0以上で入力してください。');
     }
-    if (seenOrder[cycleOrder]) {
-      throw new Error('クール順が重複しています: ' + cycleOrder);
-    }
-    if (!isValidModuleMonth(startMonth) || !isValidModuleMonth(endMonth)) {
-      throw new Error('開始月または終了月が不正です（クール ' + cycleOrder + '）。');
-    }
+    gradeValues.push(Math.round(rawValue));
+  }
 
-    const gradeValues = [];
-    for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-      const key = 'g' + grade + 'Koma';
-      const rawValue = toNumberOrZero(plan && plan[key]);
-      if (rawValue < 0) {
-        throw new Error(grade + '年のコマ数は0以上で入力してください（クール ' + cycleOrder + '）。');
-      }
-      gradeValues.push(Math.round(rawValue * 1000) / 1000);
-    }
+  const note = String(target.note ? target.note : '').trim();
 
-    const note = String(plan && plan.note ? plan.note : '').trim();
-
-    rows.push([
-      Number(fiscalYear),
-      cycleOrder,
-      startMonth,
-      endMonth,
-      gradeValues[0],
-      gradeValues[1],
-      gradeValues[2],
-      gradeValues[3],
-      gradeValues[4],
-      gradeValues[5],
-      note
-    ]);
-    seenOrder[cycleOrder] = true;
-  });
-
-  rows.sort(function(a, b) {
-    return Number(a[1]) - Number(b[1]);
-  });
-
-  return rows;
-}
-
-/**
- * 月値の妥当性を判定
- * @param {number} month - 月
- * @return {boolean} 妥当なら true
- */
-function isValidModuleMonth(month) {
-  return Number.isInteger(month) && month >= 1 && month <= 12;
+  return [
+    Number(fiscalYear),
+    gradeValues[0],
+    gradeValues[1],
+    gradeValues[2],
+    gradeValues[3],
+    gradeValues[4],
+    gradeValues[5],
+    note
+  ];
 }
 
 /**

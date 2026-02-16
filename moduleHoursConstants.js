@@ -3,16 +3,12 @@
  * @description モジュール学習管理機能で使用する定数群を定義します。
  */
 
-const MODULE_DEFAULT_CYCLES = Object.freeze([
-  Object.freeze({ order: 1, startMonth: 6, endMonth: 7, label: '6-7' }),
-  Object.freeze({ order: 2, startMonth: 9, endMonth: 10, label: '9-10' }),
-  Object.freeze({ order: 3, startMonth: 11, endMonth: 12, label: '11-12' }),
-  Object.freeze({ order: 4, startMonth: 1, endMonth: 2, label: '1-2' })
-]);
+/** 年間デフォルト目標コマ数（旧: 4クール × 7コマ = 28） */
+const MODULE_DEFAULT_ANNUAL_KOMA = 28;
 
-const MODULE_DEFAULT_KOMA_PER_CYCLE = 7;
 const MODULE_DISPLAY_HEADER = 'MOD実施累計(表示)';
 const MODULE_WEEKLY_LABEL = '今週';
+const MODULE_RESERVE_LABEL = '予備';
 const MODULE_GRADE_MIN = 1;
 const MODULE_GRADE_MAX = 6;
 const MODULE_SETTINGS_PREFIX = 'MODULE_';
@@ -36,19 +32,20 @@ const MODULE_CONTROL_DEFAULT_LAYOUT = Object.freeze({
   EXCEPTIONS_MARKER_ROW: 40
 });
 
+/** 年間目標テーブルのヘッダー（V3: クール制廃止、年間制へ移行） */
 const MODULE_CONTROL_PLAN_HEADERS = Object.freeze([
   'fiscal_year',
-  'cycle_order',
-  'start_month',
-  'end_month',
-  'g1_koma',
-  'g2_koma',
-  'g3_koma',
-  'g4_koma',
-  'g5_koma',
-  'g6_koma',
+  'g1_annual_koma',
+  'g2_annual_koma',
+  'g3_annual_koma',
+  'g4_annual_koma',
+  'g5_annual_koma',
+  'g6_annual_koma',
   'note'
 ]);
+
+/** V2→V3 マイグレーション用: 旧クール計画の列数 */
+const MODULE_LEGACY_CYCLE_PLAN_COLUMN_COUNT = 11;
 
 const MODULE_CONTROL_EXCEPTION_HEADERS = Object.freeze([
   'date',
@@ -57,3 +54,4 @@ const MODULE_CONTROL_EXCEPTION_HEADERS = Object.freeze([
   'reason',
   'note'
 ]);
+

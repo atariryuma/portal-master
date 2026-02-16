@@ -4,27 +4,27 @@
  */
 
 /**
- * module_control から指定年度の計画行を抽出
+ * module_control から指定年度の年間目標行を抽出
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 対象年度
- * @param {Array<Array<*>>=} allCycleRows - 事前取得済みの計画行全件
+ * @param {Array<Array<*>>=} allRows - 事前取得済みの計画行全件
  * @param {Object=} layout - 事前取得済みレイアウト
  * @return {Array<Array<*>>} 行データ
  */
-function readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear, allCycleRows, layout) {
-  const rows = Array.isArray(allCycleRows) ? allCycleRows : readAllCyclePlanRows(controlSheet, layout);
+function readAnnualTargetRowsByFiscalYear(controlSheet, fiscalYear, allRows, layout) {
+  const rows = Array.isArray(allRows) ? allRows : readAllAnnualTargetRows(controlSheet, layout);
   return rows.filter(function(row) {
     return Number(row[0]) === Number(fiscalYear);
   });
 }
 
 /**
- * 計画行を全件取得
+ * 年間目標行を全件取得
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {Object=} layout - 事前取得済みレイアウト
  * @return {Array<Array<*>>} 行データ
  */
-function readAllCyclePlanRows(controlSheet, layout) {
+function readAllAnnualTargetRows(controlSheet, layout) {
   const sectionLayout = layout || getModuleControlLayout(controlSheet);
   const rowCount = sectionLayout.exceptionsMarkerRow - sectionLayout.planDataStartRow;
   if (rowCount <= 0) {
@@ -41,30 +41,20 @@ function readAllCyclePlanRows(controlSheet, layout) {
 
 /**
  * モジュール管理用シートを初期化
- * 旧マルチシート構成から単一 module_control シートへ統合済みのため、
- * 戻り値の全プロパティは同一の controlSheet を指します（後方互換）。
- * @return {{controlSheet: GoogleAppsScript.Spreadsheet.Sheet, settingsSheet: GoogleAppsScript.Spreadsheet.Sheet, cyclePlanSheet: GoogleAppsScript.Spreadsheet.Sheet, dailyPlanSheet: GoogleAppsScript.Spreadsheet.Sheet, planSheet: GoogleAppsScript.Spreadsheet.Sheet, exceptionsSheet: GoogleAppsScript.Spreadsheet.Sheet, summarySheet: GoogleAppsScript.Spreadsheet.Sheet}}
+ * 旧マルチシート構成から単一 module_control シートへ統合済み。
+ * @return {GoogleAppsScript.Spreadsheet.Sheet} controlSheet
  */
 function initializeModuleHoursSheetsIfNeeded() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const controlSheet = getOrCreateSheetByName(ss, MODULE_SHEET_NAMES.CONTROL);
 
-  ensureModuleControlSheetLayout(controlSheet);
   ensureModuleSettingKeys();
   migrateLegacyModuleSheetsToControlIfNeeded(ss, controlSheet);
   ensureModuleControlSheetLayout(controlSheet);
   hideLegacyModuleSheets(ss);
   hideModuleControlSheetIfPossible(ss, controlSheet);
 
-  return {
-    controlSheet: controlSheet,
-    settingsSheet: controlSheet,
-    cyclePlanSheet: controlSheet,
-    dailyPlanSheet: controlSheet,
-    planSheet: controlSheet,
-    exceptionsSheet: controlSheet,
-    summarySheet: controlSheet
-  };
+  return controlSheet;
 }
 
 /**
@@ -106,7 +96,6 @@ function ensureModuleControlSheetLayout(controlSheet) {
  * @return {Object} レイアウト情報
  */
 function getModuleControlLayout(controlSheet) {
-  // 1回のシート読み取りで両マーカーを同時検索（冗長な findMarkerRow 呼び出しを排除）
   const maxRows = Math.max(controlSheet.getLastRow(), 200);
   const values = controlSheet.getRange(1, 1, maxRows, 1).getDisplayValues();
 
@@ -172,11 +161,11 @@ function findMarkerRow(sheet, marker, useLast) {
 }
 
 /**
- * 計画行を例外セクション直前へ追加
+ * 年間目標行を例外セクション直前へ追加
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {Array<Array<*>>} rows - 追加行
  */
-function appendCyclePlanRows(controlSheet, rows) {
+function appendAnnualTargetRows(controlSheet, rows) {
   if (!rows || rows.length === 0) {
     return;
   }
@@ -189,22 +178,19 @@ function appendCyclePlanRows(controlSheet, rows) {
 }
 
 /**
- * 指定年度の計画行を置換
+ * 指定年度の年間目標行を置換
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 対象年度
  * @param {Array<Array<*>>} replacementRows - 置換行
  */
-function replaceCyclePlanRowsForFiscalYearInControl(controlSheet, fiscalYear, replacementRows) {
+function replaceAnnualTargetRowsForFiscalYearInControl(controlSheet, fiscalYear, replacementRows) {
   const targetFiscalYear = Number(fiscalYear);
-  const keptRows = readAllCyclePlanRows(controlSheet).filter(function(row) {
+  const keptRows = readAllAnnualTargetRows(controlSheet).filter(function(row) {
     return Number(row[0]) !== targetFiscalYear;
   });
 
   const mergedRows = keptRows.concat(replacementRows).sort(function(a, b) {
-    if (Number(a[0]) !== Number(b[0])) {
-      return Number(a[0]) - Number(b[0]);
-    }
-    return Number(a[1]) - Number(b[1]);
+    return Number(a[0]) - Number(b[0]);
   });
 
   let layout = getModuleControlLayout(controlSheet);
@@ -309,17 +295,17 @@ function readExceptionRows(controlSheet, layout) {
 }
 
 /**
- * 年度別の計画行数をカウント
+ * 年度別の年間目標行数をカウント
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 年度
- * @param {Array<Array<*>>=} cyclePlanRows - 事前取得済みの対象年度行
+ * @param {Array<Array<*>>=} annualTargetRows - 事前取得済みの対象年度行
  * @return {number} 行数
  */
-function countCyclePlanRowsForFiscalYear(controlSheet, fiscalYear, cyclePlanRows) {
-  if (Array.isArray(cyclePlanRows)) {
-    return cyclePlanRows.length;
+function countAnnualTargetRowsForFiscalYear(controlSheet, fiscalYear, annualTargetRows) {
+  if (Array.isArray(annualTargetRows)) {
+    return annualTargetRows.length;
   }
-  return readCyclePlanRowsByFiscalYear(controlSheet, fiscalYear).length;
+  return readAnnualTargetRowsByFiscalYear(controlSheet, fiscalYear).length;
 }
 
 /**
@@ -338,38 +324,45 @@ function countExceptionRowsForFiscalYear(controlSheet, fiscalYear, exceptionRows
 }
 
 /**
- * 旧モジュールシートから module_control へ移行
+ * 旧モジュールシートおよび旧データ形式から最新版へ移行
+ * V1（マルチシート）→ V2（module_control クール制）→ V3（module_control 年間制）
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  */
 function migrateLegacyModuleSheetsToControlIfNeeded(ss, controlSheet) {
   const settings = readModuleSettingsMap();
-  if (String(settings[MODULE_SETTING_KEYS.DATA_VERSION] || '').trim() === MODULE_DATA_VERSION) {
+  const currentVersion = String(settings[MODULE_SETTING_KEYS.DATA_VERSION] || '').trim();
+
+  if (currentVersion === MODULE_DATA_VERSION) {
     return;
   }
 
-  if (readAllCyclePlanRows(controlSheet).length === 0) {
-    const legacyCycleSheet = ss.getSheetByName(MODULE_SHEET_NAMES.CYCLE_PLAN);
-    if (legacyCycleSheet && legacyCycleSheet.getLastRow() > 1) {
-      const colCount = Math.min(legacyCycleSheet.getLastColumn(), MODULE_CONTROL_PLAN_HEADERS.length);
-      const values = legacyCycleSheet.getRange(2, 1, legacyCycleSheet.getLastRow() - 1, colCount).getValues();
+  // ── V1 マイグレーション: 旧マルチシート → module_control ──
+  migrateLegacyMultiSheetsToControl(ss, controlSheet);
 
-      const rows = values.map(function(row) {
-        const padded = new Array(MODULE_CONTROL_PLAN_HEADERS.length).fill('');
-        for (let i = 0; i < colCount; i++) {
-          padded[i] = row[i];
-        }
-        return padded;
-      }).filter(function(row) {
-        return row.some(function(value) {
-          return isNonEmptyCell(value);
-        });
-      });
-
-      appendCyclePlanRows(controlSheet, rows);
-    }
+  // ── V2→V3 マイグレーション: クール計画 → 年間目標 ──
+  if (currentVersion === 'CONTROL_V2' || currentVersion === '') {
+    migrateCyclePlanToAnnualTarget(controlSheet);
   }
 
+  // ── 旧設定シートからプロパティへ移行 ──
+  const legacySettingsSheet = ss.getSheetByName(MODULE_SHEET_NAMES.SETTINGS);
+  if (legacySettingsSheet) {
+    migrateLegacySettingsFromSheet(legacySettingsSheet);
+  }
+
+  upsertModuleSettingsValues({
+    DATA_VERSION: MODULE_DATA_VERSION
+  });
+}
+
+/**
+ * V1: 旧マルチシートからの例外データ移行
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ */
+function migrateLegacyMultiSheetsToControl(ss, controlSheet) {
+  // 例外データの移行（例外テーブルは V2/V3 で構造変更なし）
   if (readExceptionRows(controlSheet).length === 0) {
     const legacyExceptionSheet = ss.getSheetByName(MODULE_SHEET_NAMES.EXCEPTIONS);
     if (legacyExceptionSheet && legacyExceptionSheet.getLastRow() > 1) {
@@ -382,11 +375,9 @@ function migrateLegacyModuleSheetsToControlIfNeeded(ss, controlSheet) {
         for (let i = 0; i < colCount; i++) {
           padded[i] = row[i];
         }
-
         if (headerCol3 === 'delta_units') {
           padded[2] = toNumberOrZero(padded[2]) * 3;
         }
-
         return padded;
       }).filter(function(row) {
         return row.some(function(value) {
@@ -398,14 +389,132 @@ function migrateLegacyModuleSheetsToControlIfNeeded(ss, controlSheet) {
     }
   }
 
-  const legacySettingsSheet = ss.getSheetByName(MODULE_SHEET_NAMES.SETTINGS);
-  if (legacySettingsSheet) {
-    migrateLegacySettingsFromSheet(legacySettingsSheet);
+  // 旧クール計画シートの移行（V3形式の年間目標として合算）
+  const layout = getModuleControlLayout(controlSheet);
+  const existingPlanRows = layout.exceptionsMarkerRow - layout.planDataStartRow;
+  if (existingPlanRows <= 0 || readAllAnnualTargetRows(controlSheet, layout).length === 0) {
+    const legacyCycleSheet = ss.getSheetByName(MODULE_SHEET_NAMES.CYCLE_PLAN);
+    if (legacyCycleSheet && legacyCycleSheet.getLastRow() > 1) {
+      const colCount = Math.min(legacyCycleSheet.getLastColumn(), MODULE_LEGACY_CYCLE_PLAN_COLUMN_COUNT);
+      const values = legacyCycleSheet.getRange(2, 1, legacyCycleSheet.getLastRow() - 1, colCount).getValues();
+      const annualRows = convertCycleRowsToAnnualTarget(values, colCount);
+      if (annualRows.length > 0) {
+        appendAnnualTargetRows(controlSheet, annualRows);
+      }
+    }
+  }
+}
+
+/**
+ * V2→V3: クール計画行を年間目標行に変換
+ * 旧11列のクール計画を読み取り、年度×学年でコマ数を合算して8列の年間目標に変換
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ */
+function migrateCyclePlanToAnnualTarget(controlSheet) {
+  const layout = getModuleControlLayout(controlSheet);
+  const dataRowCount = layout.exceptionsMarkerRow - layout.planDataStartRow;
+  if (dataRowCount <= 0) {
+    return;
   }
 
-  upsertModuleSettingsValues(null, {
-    DATA_VERSION: MODULE_DATA_VERSION
+  // 旧データを最大列数で読み取り（11列 or 8列のどちらか）
+  const readCols = Math.min(
+    Math.max(controlSheet.getLastColumn(), MODULE_CONTROL_PLAN_HEADERS.length),
+    MODULE_LEGACY_CYCLE_PLAN_COLUMN_COUNT
+  );
+  const values = controlSheet.getRange(layout.planDataStartRow, 1, dataRowCount, readCols).getValues();
+
+  // クール計画かどうかを判定: 2列目がクール順（整数）かつ 3-4列目が月（1-12）なら旧形式
+  const isCyclePlan = values.some(function(row) {
+    if (!row.some(function(v) { return isNonEmptyCell(v); })) {
+      return false;
+    }
+    const cycleOrder = Number(row[1]);
+    const startMonth = Number(row[2]);
+    const endMonth = Number(row[3]);
+    return Number.isInteger(cycleOrder) && cycleOrder >= 1 && cycleOrder <= 10 &&
+      Number.isInteger(startMonth) && startMonth >= 1 && startMonth <= 12 &&
+      Number.isInteger(endMonth) && endMonth >= 1 && endMonth <= 12;
   });
+
+  if (!isCyclePlan) {
+    return;
+  }
+
+  Logger.log('[INFO] V2→V3 マイグレーション: クール計画を年間目標へ変換します');
+
+  const annualRows = convertCycleRowsToAnnualTarget(values, readCols);
+
+  // 旧データをクリア
+  controlSheet.getRange(layout.planDataStartRow, 1, dataRowCount, readCols).clearContent();
+
+  // 新データを書き込み
+  if (annualRows.length > 0) {
+    controlSheet.getRange(layout.planDataStartRow, 1, annualRows.length, MODULE_CONTROL_PLAN_HEADERS.length)
+      .setValues(annualRows);
+  }
+
+  Logger.log('[INFO] V2→V3 マイグレーション完了: ' + annualRows.length + '年度分の年間目標を作成');
+}
+
+/**
+ * クール計画行を年間目標行に変換（共通ロジック）
+ * @param {Array<Array<*>>} values - 旧クール計画の行データ
+ * @param {number} colCount - 読み取り列数
+ * @return {Array<Array<*>>} 年間目標行（MODULE_CONTROL_PLAN_HEADERS形式）
+ */
+function convertCycleRowsToAnnualTarget(values, colCount) {
+  // 年度×学年でコマ数を合算
+  const byFiscalYear = {};
+
+  values.forEach(function(row) {
+    if (!row.some(function(v) { return isNonEmptyCell(v); })) {
+      return;
+    }
+    const fy = Number(row[0]);
+    if (!Number.isInteger(fy) || fy < 2000 || fy > 2100) {
+      return;
+    }
+    if (!Object.prototype.hasOwnProperty.call(byFiscalYear, fy)) {
+      byFiscalYear[fy] = { gradeKoma: {}, notes: [] };
+      for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+        byFiscalYear[fy].gradeKoma[g] = 0;
+      }
+    }
+    // 旧形式: [fiscal_year, cycle_order, start_month, end_month, g1..g6_koma, note]
+    // g1_koma は index 4, g6_koma は index 9
+    for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+      const komaIndex = 3 + g; // g1=4, g2=5, ..., g6=9
+      if (komaIndex < colCount) {
+        byFiscalYear[fy].gradeKoma[g] += toNumberOrZero(row[komaIndex]);
+      }
+    }
+    if (colCount > 10 && isNonEmptyCell(row[10])) {
+      byFiscalYear[fy].notes.push(String(row[10]));
+    }
+  });
+
+  // 新形式の行を構築
+  const newRows = [];
+  Object.keys(byFiscalYear).sort().forEach(function(fyKey) {
+    const fy = Number(fyKey);
+    const entry = byFiscalYear[fy];
+    const noteText = entry.notes.length > 0
+      ? 'migrated: ' + entry.notes.join('; ')
+      : 'migrated from cycles';
+    newRows.push([
+      fy,
+      Math.round(entry.gradeKoma[1]),
+      Math.round(entry.gradeKoma[2]),
+      Math.round(entry.gradeKoma[3]),
+      Math.round(entry.gradeKoma[4]),
+      Math.round(entry.gradeKoma[5]),
+      Math.round(entry.gradeKoma[6]),
+      noteText
+    ]);
+  });
+
+  return newRows;
 }
 
 /**
@@ -438,7 +547,7 @@ function migrateLegacySettingsFromSheet(settingsSheet) {
   });
 
   if (Object.keys(updates).length > 0) {
-    upsertModuleSettingsValues(null, updates);
+    upsertModuleSettingsValues(updates);
   }
 }
 
@@ -557,7 +666,7 @@ function ensureModuleSettingKeys() {
   });
 
   if (Object.keys(updates).length > 0) {
-    upsertModuleSettingsValues(null, updates);
+    upsertModuleSettingsValues(updates);
   }
 }
 
@@ -582,10 +691,9 @@ function readModuleSettingsMap() {
 
 /**
  * module settings を更新または追加（プロパティ）
- * @param {*} settingsSheet - 旧互換引数（未使用）
  * @param {Object} updates - 追加/更新値
  */
-function upsertModuleSettingsValues(settingsSheet, updates) {
+function upsertModuleSettingsValues(updates) {
   const docProps = PropertiesService.getDocumentProperties();
   const serialized = {};
 
@@ -617,68 +725,3 @@ function serializeModuleSettingValue(key, value) {
   return String(value);
 }
 
-/**
- * fiscal_year キーで対象年度行を置換（汎用ユーティリティ）
- * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
- * @param {Array<Array<*>>} rows - 書き込み行
- * @param {number} fiscalYear - 対象年度
- * @param {number} fiscalYearColumnIndex - fiscal_year列index(0-based)
- * @param {number} columnCount - 列数
- */
-function replaceRowsForFiscalYear(sheet, rows, fiscalYear, fiscalYearColumnIndex, columnCount) {
-  const lastRow = sheet.getLastRow();
-  const existing = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, columnCount).getValues() : [];
-  const targetFiscalYear = Number(fiscalYear);
-
-  const kept = existing.filter(function(row) {
-    const rawFiscalYear = row[fiscalYearColumnIndex];
-    const rowFiscalYear = Number(rawFiscalYear);
-
-    if (Number.isFinite(rowFiscalYear)) {
-      return rowFiscalYear !== targetFiscalYear;
-    }
-
-    const text = String(rawFiscalYear === null || rawFiscalYear === undefined ? '' : rawFiscalYear).trim();
-    const legacyMatch = text.match(/^(\d{4})(?:[-\/].*)?$/);
-    if (legacyMatch) {
-      return Number(legacyMatch[1]) !== targetFiscalYear;
-    }
-
-    return true;
-  });
-
-  const merged = kept.concat(rows);
-
-  if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, columnCount).clearContent();
-  }
-
-  if (merged.length > 0) {
-    sheet.getRange(2, 1, merged.length, columnCount).setValues(merged);
-  }
-}
-
-/**
- * 指定年度の行数をカウント（汎用）
- * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
- * @param {number} fiscalYear - 年度
- * @param {number} fiscalYearColumnIndex - fiscal_year列index(0-based)
- * @return {number} 行数
- */
-function countRowsByFiscalYear(sheet, fiscalYear, fiscalYearColumnIndex) {
-  const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) {
-    return 0;
-  }
-
-  const values = sheet.getRange(2, 1, lastRow - 1, fiscalYearColumnIndex + 1).getValues();
-  let count = 0;
-
-  values.forEach(function(row) {
-    if (Number(row[fiscalYearColumnIndex]) === Number(fiscalYear)) {
-      count++;
-    }
-  });
-
-  return count;
-}
