@@ -105,8 +105,40 @@ HTML dialogs (`*.html`) call server-side functions via `google.script.run`. Each
 
 Operations depend on these sheet names: `マスター`, `app_config`, `時数様式`, `年間行事予定表`, `累計時数`, `日直表`, `module_control`.
 
+## Domain Knowledge (Business Rules)
+
+### Fiscal Year (年度)
+
+Japanese school fiscal year runs April 1 – March 31. Dates in January–March belong to the **previous** fiscal year (e.g., 2026-01-15 → FY2025). `getFiscalYear()` in `moduleHoursDisplay.js` implements this.
+
+### Cumulative Hours (累計時数)
+
+- `○` in a schedule cell = 1 regular class hour
+- Category abbreviations (e.g., `儀式`, `文化`) = 1 special activity hour, counted per category
+- `補習` (supplementary lessons) is **excluded** from cumulative totals because it falls outside the standard class hours defined by MEXT (文部科学省)
+
+### Module Learning (モジュール学習)
+
+- 1 session = 15 minutes (smallest unit of module learning)
+- 1 コマ = 45 minutes = 3 sessions (standard class hour equivalent)
+- Sessions are allocated to school days using **weekday priority**: Mon → Wed → Fri → Tue → Thu. This creates an alternating-day pattern for optimal short-duration learning distribution.
+- Default plan: 4 cycles/year × 7 コマ/cycle = 28 コマ (21 hours)
+
+### Annual Update (年度更新)
+
+The `copyAndClear` function copies the current file as a backup, then clears the **current** file (not the copy). This preserves the original file's URL so bookmarks and shared links remain valid.
+
+### Dialog Pattern
+
+HTML dialogs use `createTemplateFromFile().evaluate()` to support shared CSS includes via `<?!= include_('dialogStyles') ?>`. The `include_()` helper is defined in `common.js`. All 4 dialogs (triggerSettings, annualUpdateSettings, DateSelector, modulePlanning) use this pattern.
+
+### Module Learning Settings
+
+Weekday priority for module learning allocation is stored in `PropertiesService` as `MODULE_WEEKDAY_PRIORITY` (JSON array of day numbers, e.g. `[1,3,5,2,4]`). The `weekdayPriority()` function in `moduleHoursPlanning.js` loads from settings with a per-execution cache (`activeWeekdayPriorityMap_`). Call `resetWeekdayPriorityCache_()` after saving new priority values.
+
 ## Testing Conventions
 
 - Behavior checks (input/output/side effects) over symbol existence checks
 - At least 1 normal-path + 1 error-path test per feature
+- Tests must be **non-destructive** — use temporary sheets with `finally` cleanup, or read-only verification of existing data. Never write to production sheets in tests.
 - Test groups: Environment → Module Integration → Data Processing → Settings → Common Functions → Operational Workflows → Code Quality

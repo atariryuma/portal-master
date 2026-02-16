@@ -44,7 +44,7 @@ function importAnnualEvents() {
     }
     const sundayDate = normalizeToDate(updateSheet.getRange(ANNUAL_UPDATE_CONFIG_CELLS.BASE_SUNDAY).getValue());
     if (!sundayDate) {
-      showAlert('年度更新設定（C11）に有効な日付が設定されていません。', 'エラー');
+      showAlert('年度更新設定（C11）に有効な日付が設定されていません。\nシステム管理 → 年度更新設定 で基準日（日曜日）を設定してください。', 'エラー');
       return;
     }
 
@@ -69,7 +69,7 @@ function importAnnualEvents() {
     const targetDisplayString = Utilities.formatDate(targetDate, Session.getScriptTimeZone(), "yyyy/MM/dd");
 
     const sourceValues = sourceSheet.getRange(1, 1, sourceSheet.getLastRow(), 1).getValues();
-    const sourceStartRow = findDateRow(sourceValues, targetDisplayString, targetDate.getFullYear());
+    const sourceStartRow = findDateRow_(sourceValues, targetDisplayString, targetDate.getFullYear());
     if (!sourceStartRow) {
       showAlert('コピー元シートのA列全体に対象の日付 (' + targetDisplayString + ') が見つかりませんでした。', 'エラー');
       return;
@@ -81,7 +81,7 @@ function importAnnualEvents() {
       return;
     }
     const masterValues = masterSheet.getRange(1, 1, masterSheet.getLastRow(), 1).getValues();
-    const destStartRow = findDateRow(masterValues, targetDisplayString, targetDate.getFullYear());
+    const destStartRow = findDateRow_(masterValues, targetDisplayString, targetDate.getFullYear());
     if (!destStartRow) {
       showAlert('マスターのA列に対象の日付 (' + targetDisplayString + ') が見つかりませんでした。', 'エラー');
       return;
@@ -123,7 +123,7 @@ function importAnnualEvents() {
 /**
  * セルの値を "yyyy/MM/dd" 形式の文字列に変換
  */
-function convertCellValue(cellValue, year) {
+function convertCellValue_(cellValue, year) {
   if (cellValue === null || cellValue === undefined || cellValue === '') {
     return '';
   }
@@ -142,9 +142,9 @@ function convertCellValue(cellValue, year) {
   return cellValue.toString();
 }
 
-function findDateRow(values, targetDisplayString, year) {
+function findDateRow_(values, targetDisplayString, year) {
   for (let i = 0; i < values.length; i++) {
-    const cellString = convertCellValue(values[i][0], year);
+    const cellString = convertCellValue_(values[i][0], year);
     if (cellString === targetDisplayString) {
       return i + 1;
     }

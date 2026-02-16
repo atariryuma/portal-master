@@ -23,7 +23,7 @@ const MANAGED_TRIGGER_FUNCTIONS = Object.freeze(['saveToPDF', 'calculateCumulati
  */
 function showTriggerSettingsDialog() {
   try {
-    const htmlOutput = HtmlService.createHtmlOutputFromFile('triggerSettingsDialog')
+    const htmlOutput = HtmlService.createTemplateFromFile('triggerSettingsDialog').evaluate()
       .setWidth(650)
       .setHeight(750);
     SpreadsheetApp.getUi().showModalDialog(htmlOutput, '自動トリガー設定');
@@ -176,19 +176,6 @@ function saveTriggerSettingsToSheet(sheet, settings) {
 // ========================================
 
 /**
- * プロジェクトの全トリガーを削除
- */
-function deleteAllProjectTriggers() {
-  const triggers = getManagedProjectTriggers();
-
-  triggers.forEach(function(trigger) {
-    ScriptApp.deleteTrigger(trigger);
-  });
-
-  Logger.log('[INFO] 管理対象トリガーを' + triggers.length + '個削除しました。');
-}
-
-/**
  * 設定に基づいて新しいトリガーを作成
  * @param {Object} settings - 設定値オブジェクト
  */
@@ -203,7 +190,7 @@ function createTriggersFromSettings(settings) {
       .atHour(settings.weeklyPdf.hour)
       .create();
     createdTriggers.push(trigger);
-    Logger.log(`[INFO] 週報PDF保存トリガーを作成: ${getDayName(settings.weeklyPdf.day)}曜日 ${settings.weeklyPdf.hour}時`);
+    Logger.log('[INFO] 週報PDF保存トリガーを作成: ' + getDayName(settings.weeklyPdf.day) + '曜日 ' + settings.weeklyPdf.hour + '時');
   }
 
   // 2. 累計時数計算（週次）
@@ -214,7 +201,7 @@ function createTriggersFromSettings(settings) {
       .atHour(settings.cumulativeHours.hour)
       .create();
     createdTriggers.push(trigger);
-    Logger.log(`[INFO] 累計時数計算トリガーを作成: ${getDayName(settings.cumulativeHours.day)}曜日 ${settings.cumulativeHours.hour}時`);
+    Logger.log('[INFO] 累計時数計算トリガーを作成: ' + getDayName(settings.cumulativeHours.day) + '曜日 ' + settings.cumulativeHours.hour + '時');
   }
 
   // 3. カレンダー同期（毎日）
@@ -225,7 +212,7 @@ function createTriggersFromSettings(settings) {
       .atHour(settings.calendarSync.hour)
       .create();
     createdTriggers.push(trigger);
-    Logger.log(`[INFO] カレンダー同期トリガーを作成: 毎日 ${settings.calendarSync.hour}時`);
+    Logger.log('[INFO] カレンダー同期トリガーを作成: 毎日 ' + settings.calendarSync.hour + '時');
   }
 
   // 4. 今日の日付へ移動（毎日）
@@ -236,10 +223,10 @@ function createTriggersFromSettings(settings) {
       .atHour(settings.dailyLink.hour)
       .create();
     createdTriggers.push(trigger);
-    Logger.log(`[INFO] 今日の日付へ移動トリガーを作成: 毎日 ${settings.dailyLink.hour}時`);
+    Logger.log('[INFO] 今日の日付へ移動トリガーを作成: 毎日 ' + settings.dailyLink.hour + '時');
   }
 
-  Logger.log(`[INFO] 合計${createdTriggers.length}個のトリガーを作成しました。`);
+  Logger.log('[INFO] 合計' + createdTriggers.length + '個のトリガーを作成しました。');
   return createdTriggers;
 }
 
@@ -294,6 +281,19 @@ function getManagedProjectTriggers() {
     const handler = trigger.getHandlerFunction();
     return MANAGED_TRIGGER_FUNCTIONS.indexOf(handler) !== -1;
   });
+}
+
+/**
+ * 管理対象の全プロジェクトトリガーを削除
+ */
+function deleteAllProjectTriggers() {
+  const triggers = getManagedProjectTriggers();
+
+  triggers.forEach(function(trigger) {
+    ScriptApp.deleteTrigger(trigger);
+  });
+
+  Logger.log('[INFO] 管理対象トリガーを' + triggers.length + '個削除しました。');
 }
 
 function getDefaultTriggerSettings() {

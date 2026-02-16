@@ -10,7 +10,7 @@
 function aggregateSchoolEventsByGrade() {
   try {
     const ui = SpreadsheetApp.getUi();
-    const htmlOutput = HtmlService.createHtmlOutputFromFile('DateSelector');
+    const htmlOutput = HtmlService.createTemplateFromFile('DateSelector').evaluate();
     ui.showModalDialog(htmlOutput, '集計範囲の指定');
   } catch (error) {
     showAlert('ダイアログの表示に失敗しました: ' + error.toString(), 'エラー');
@@ -81,26 +81,33 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
     }
     newSheet.showSheet();
 
-    grades.forEach(function(grade, idx) {
+    // データ計算フェーズ（API呼び出しなし）
+    const gradeWriteOps = grades.map(function(grade, idx) {
       const blockOffset = idx * JISUU_TEMPLATE.GRADE_BLOCK_HEIGHT;
-
-      const gradeCellRow = JISUU_TEMPLATE.GRADE_LABEL_ROW + blockOffset;
-      newSheet.getRange(gradeCellRow, 1).setValue('【' + grade + '年】');
-
-      const standardHourRow = JISUU_TEMPLATE.STANDARD_HOUR_ROW + blockOffset;
-      newSheet.getRange(standardHourRow, 3).setValue(gradeHours[grade]);
-
       const results = collectMonthlyResultsForGrade_(data, grade, startDateObj, endDateObj, monthKeys, categories);
-
-      const rowIndexBase = JISUU_TEMPLATE.DATA_START_ROW + blockOffset;
       const output = buildGradeOutputRows_(monthKeys, results, modulePlanMap, preservedModValuesByGrade, grade);
 
-      if (output.batchData.length > 0) {
-        newSheet.getRange(rowIndexBase, 1, output.batchData.length, 14).setValues(output.batchData);
+      return {
+        gradeLabelRow: JISUU_TEMPLATE.GRADE_LABEL_ROW + blockOffset,
+        gradeLabel: '【' + grade + '年】',
+        standardHourRow: JISUU_TEMPLATE.STANDARD_HOUR_ROW + blockOffset,
+        standardHour: gradeHours[grade],
+        dataStartRow: JISUU_TEMPLATE.DATA_START_ROW + blockOffset,
+        output: output
+      };
+    });
 
-        const modRange = newSheet.getRange(rowIndexBase, JISUU_TEMPLATE.MOD_COLUMN_INDEX, output.modValues.length, 1);
+    // 書き込みフェーズ（API呼び出しを集約）
+    gradeWriteOps.forEach(function(op) {
+      newSheet.getRange(op.gradeLabelRow, 1).setValue(op.gradeLabel);
+      newSheet.getRange(op.standardHourRow, 3).setValue(op.standardHour);
+
+      if (op.output.batchData.length > 0) {
+        newSheet.getRange(op.dataStartRow, 1, op.output.batchData.length, 14).setValues(op.output.batchData);
+
+        const modRange = newSheet.getRange(op.dataStartRow, JISUU_TEMPLATE.MOD_COLUMN_INDEX, op.output.modValues.length, 1);
         modRange.setNumberFormat(JISUU_TEMPLATE.MOD_FRACTION_FORMAT);
-        modRange.setValues(output.modValues);
+        modRange.setValues(op.output.modValues);
       }
     });
   });
@@ -127,27 +134,16 @@ function collectMonthlyResultsForGrade_(data, grade, startDateObj, endDateObj, m
   const results = {};
 
   monthKeys.forEach(function(monthKey) {
-    results[monthKey] = {
-      "授業時数": 0,
-      "儀式": 0,
-      "文化": 0,
-      "保健": 0,
-      "遠足": 0,
-      "勤労": 0,
-      "欠時数": 0,
-      "児童会": 0,
-      "クラブ": 0,
-      "委員会活動": 0,
-      "補習": 0,
-      "対象日数": 0
-    };
+    const entry = { "授業時数": 0 };
+    Object.keys(categories).forEach(function(category) {
+      entry[category] = 0;
+    });
+    entry["対象日数"] = 0;
+    results[monthKey] = entry;
   });
 
   // カテゴリ略称→カテゴリ名の逆引きマップを事前構築（O(n*m)→O(n)に最適化）
-  const abbreviationToCategory = {};
-  Object.keys(categories).forEach(function(category) {
-    abbreviationToCategory[categories[category]] = category;
-  });
+  const abbreviationToCategory = buildAbbreviationToCategoryMap(categories);
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];

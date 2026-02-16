@@ -67,6 +67,15 @@ function calculateCumulativeHours() {
   }
 }
 
+/**
+ * 年間行事予定表データから指定学年の累計時数を計算
+ *
+ * 集計ロジック:
+ * - 「○」セルは通常授業の1時間としてカウント
+ * - カテゴリ略称（「儀式」「文化」等）のセルは特別活動としてカウント
+ * - 逆引きマップを事前構築し、データループをO(n)で処理する
+ *   （マップなしだとO(n*m)の二重ループが必要）
+ */
 function calculateResultsForGrade(data, grade, endDate, categories) {
   const results = {};
   Object.keys(CUMULATIVE_COLUMN_MAP).forEach(function(key) {
@@ -74,10 +83,7 @@ function calculateResultsForGrade(data, grade, endDate, categories) {
   });
 
   // カテゴリ略称→カテゴリ名の逆引きマップを事前構築（ループ内検索を排除）
-  const abbreviationToCategory = {};
-  Object.keys(categories).forEach(function(category) {
-    abbreviationToCategory[categories[category]] = category;
-  });
+  const abbreviationToCategory = buildAbbreviationToCategoryMap(categories);
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];

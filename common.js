@@ -51,7 +51,6 @@ const ANNUAL_SCHEDULE = Object.freeze({
   DUTY_COLUMN: 18,              // R列: 日直
   DUTY_COLUMN_LETTER: 'R',     // R列文字表記
   ATTENDANCE_START_COLUMN: 21,  // U列: 校時データ開始
-  ATTENDANCE_ROWS: 6,
   ATTENDANCE_COLS: 6,
   LUNCH_COLUMN: 27,             // AA列: 給食
   CLEAR_EVENT_RANGE: 'D',       // 年度更新クリア: 校内行事開始列
@@ -89,7 +88,19 @@ const WEEKLY_REPORT = Object.freeze({
   MIN_HEIGHT: 6,
   MAX_HEIGHT: 14,
   NAME_RANGE: 'B1:D1',
-  DATE_RANGE: 'M1:P1'
+  DATE_RANGE: 'M1:P1',
+  PDF_OPTIONS: Object.freeze({
+    SIZE: 'A4',
+    PORTRAIT: 'true',
+    FIT_WIDTH: 'true',
+    TOP_MARGIN: '0.30',
+    RIGHT_MARGIN: '0.60',
+    BOTTOM_MARGIN: '0.50',
+    LEFT_MARGIN: '0.60',
+    SCALE: '2',
+    HORIZONTAL_ALIGNMENT: 'CENTER',
+    VERTICAL_ALIGNMENT: 'CENTER'
+  })
 });
 
 /**
@@ -112,7 +123,12 @@ const IMPORT_CONSTANTS = Object.freeze({
 });
 
 /**
- * 行事カテゴリーの定義
+ * 行事カテゴリーの定義（カテゴリ名 → 略称）
+ *
+ * 学習指導要領に基づく特別活動の分類。年間行事予定表のセルに略称が
+ * 記入されると、累計時数計算でカテゴリ別にカウントされる。
+ * 「補習」は正規授業外のため累計対象外（CUMULATIVE_EVENT_CATEGORIES参照）。
+ *
  * @const {Object}
  */
 const EVENT_CATEGORIES = Object.freeze({
@@ -130,6 +146,11 @@ const EVENT_CATEGORIES = Object.freeze({
 
 /**
  * 累計対象カテゴリ（EVENT_CATEGORIESから「補習」を除外）
+ *
+ * 「補習」を除外する理由:
+ * 補習は正規の授業時数に含まれない追加指導であり、文部科学省の標準授業時数の
+ * 集計対象外。累計時数シートに含めると正規授業時数が過大計上されるため除外する。
+ *
  * ※ トップレベルで他ファイルの定数を参照するとGASの読み込み順でエラーになるため、
  *   EVENT_CATEGORIESと同じファイルで定義する
  * @const {Array<string>}
@@ -137,6 +158,19 @@ const EVENT_CATEGORIES = Object.freeze({
 const CUMULATIVE_EVENT_CATEGORIES = Object.freeze(Object.keys(EVENT_CATEGORIES).filter(function(key) {
   return key !== '補習';
 }));
+
+/**
+ * カテゴリマップ（名前→略称）から逆引きマップ（略称→名前）を構築
+ * @param {Object} categories - カテゴリ名→略称のマップ
+ * @return {Object} 略称→カテゴリ名のマップ
+ */
+function buildAbbreviationToCategoryMap(categories) {
+  const map = {};
+  Object.keys(categories).forEach(function(category) {
+    map[categories[category]] = category;
+  });
+  return map;
+}
 
 /**
  * 設定シートのセル位置
@@ -216,7 +250,7 @@ const SCHEDULE_COLUMNS = Object.freeze({
  */
 const MODULE_SHEET_NAMES = Object.freeze({
   CONTROL: 'module_control',
-  PLAN_SUMMARY: 'モジュール学習計画',
+  SCHEDULE: 'モジュール計画',
   // 旧シート名（移行用に保持）
   SETTINGS: 'module_settings',
   CYCLE_PLAN: 'module_cycle_plan',
@@ -233,17 +267,17 @@ const MODULE_SHEET_NAMES = Object.freeze({
 const MODULE_SETTING_KEYS = Object.freeze({
   PLAN_START_DATE: 'PLAN_START_DATE',
   PLAN_END_DATE: 'PLAN_END_DATE',
-  WEEKDAYS_ENABLED: 'WEEKDAYS_ENABLED',
   LAST_GENERATED_AT: 'LAST_GENERATED_AT',
   LAST_DAILY_PLAN_COUNT: 'LAST_DAILY_PLAN_COUNT',
-  DATA_VERSION: 'DATA_VERSION'
+  DATA_VERSION: 'DATA_VERSION',
+  WEEKDAY_PRIORITY: 'WEEKDAY_PRIORITY'
 });
 
 /**
  * モジュール学習データバージョン
  * @const {string}
  */
-const MODULE_DATA_VERSION = 'CONTROL_V4';
+const MODULE_DATA_VERSION = 'CONTROL_V2';
 
 /**
  * モジュール学習の年度開始月（4月）
@@ -267,6 +301,41 @@ const MODULE_CUMULATIVE_COLUMNS = Object.freeze({
 // ========================================
 
 /**
+ * 値をDateオブジェクトに変換（内部ヘルパー）
+ * formatDateToJapanese と normalizeToDate の共通ロジック
+ * @param {Date|string|number|*} value - 入力値
+ * @return {Date|null} 変換後のDate（無効時null）
+ */
+function parseDateValue_(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  let date = null;
+  if (value instanceof Date) {
+    date = new Date(value.getTime());
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim();
+    const ymd = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (ymd) {
+      date = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+    } else {
+      // GAS V8ランタイムの Date.parse に依存するフォールバック。
+      // yyyy-MM-dd 以外の文字列形式は予期しない結果になる可能性がある。
+      date = new Date(trimmed);
+    }
+  } else {
+    date = new Date(value);
+  }
+
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
+
+/**
  * 日付を「M月d日」形式にフォーマット
  * @param {Date|string} date - フォーマットする日付
  * @return {string} M月d日形式の文字列
@@ -274,23 +343,8 @@ const MODULE_CUMULATIVE_COLUMNS = Object.freeze({
 function formatDateToJapanese(date) {
   if (!date) return '';
   try {
-    // normalizeToDate は moduleHoursDisplay.js で定義されているが、
-    // GAS読み込み順が非決定的なため、ここでは自己完結型で処理する
-    // ⚠ このパース処理は normalizeToDate() と同一ロジック。変更時は両方を同期すること
-    let dateObj;
-    if (date instanceof Date) {
-      dateObj = date;
-    } else if (typeof date === 'string') {
-      const ymd = date.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (ymd) {
-        dateObj = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
-      } else {
-        dateObj = new Date(date);
-      }
-    } else {
-      dateObj = new Date(date);
-    }
-    if (isNaN(dateObj.getTime())) return '';
+    const dateObj = parseDateValue_(date);
+    if (!dateObj) return '';
     return Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'M月d日');
   } catch (e) {
     Logger.log('[ERROR] 日付フォーマットエラー: ' + e.toString());
@@ -426,22 +480,22 @@ function getOrCreateCalendarId(calendarType) {
     if (existingCalendar) {
       return calendarId;
     }
-    Logger.log(`[WARNING] ${calendarName}IDが無効です。再検索します: ${calendarId}`);
+    Logger.log('[WARNING] ' + calendarName + 'IDが無効です。再検索します: ' + calendarId);
   }
 
   const sameNameCalendars = CalendarApp.getCalendarsByName(calendarName);
   if (sameNameCalendars && sameNameCalendars.length > 0) {
     calendarId = sameNameCalendars[0].getId();
     calendarIdCell.setValue(calendarId);
-    Logger.log(`[INFO] 既存の${calendarName}を再利用します。ID: ${calendarId}`);
+    Logger.log('[INFO] 既存の' + calendarName + 'を再利用します。ID: ' + calendarId);
     return calendarId;
   }
 
-  Logger.log(`[INFO] ${calendarName}が見つからないため、新規作成します。`);
+  Logger.log('[INFO] ' + calendarName + 'が見つからないため、新規作成します。');
   const newCalendar = CalendarApp.createCalendar(calendarName);
   calendarId = newCalendar.getId();
   calendarIdCell.setValue(calendarId);
-  Logger.log(`[INFO] 新規作成された${calendarName}ID: ${calendarId}`);
+  Logger.log('[INFO] 新規作成された' + calendarName + 'ID: ' + calendarId);
   
   return calendarId;
 }
@@ -463,6 +517,20 @@ function getSettingsSheetOrThrow() {
 }
 
 // ========================================
+// HTMLテンプレートヘルパー
+// ========================================
+
+/**
+ * HTMLテンプレート内でファイルをインクルードするヘルパー
+ * 使用例: <?!= include_('dialogStyles') ?>
+ * @param {string} filename - インクルードするHTMLファイル名（拡張子なし）
+ * @return {string} ファイルの内容
+ */
+function include_(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+// ========================================
 // エラーハンドリング関数
 // ========================================
 
@@ -477,7 +545,7 @@ function showAlert(message, title = '通知') {
     ui.alert(title, message, ui.ButtonSet.OK);
   } catch (e) {
     // UIが利用できない場合（トリガー実行時など）はログに出力
-    Logger.log(`[${title}] ${message}`);
+    Logger.log('[' + title + '] ' + message);
   }
 }
 

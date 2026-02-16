@@ -11,8 +11,8 @@ function saveToPDF() {
     WEEKLY_REPORT.SHEET_NAMES.forEach(function(sheetName) {
       const sheet = ss.getSheetByName(sheetName);
       if (sheet) {
-        adjustRowHeightsForSheet(sheet);
-        exportSheetToPDF(sheet);
+        adjustRowHeightsForSheet_(sheet);
+        exportSheetToPDF_(sheet);
       } else {
         Logger.log('[WARNING] シート ' + sheetName + ' が見つかりません。');
       }
@@ -22,7 +22,7 @@ function saveToPDF() {
   }
 }
 
-function adjustRowHeightsForSheet(sheet) {
+function adjustRowHeightsForSheet_(sheet) {
   const triggerCell = sheet.getRange(WEEKLY_REPORT.TRIGGER_CELL).getValue();
 
   // トリガーセルの値に応じて前半・後半の行高さを切り替え
@@ -35,13 +35,13 @@ function adjustRowHeightsForSheet(sheet) {
   Logger.log('[INFO] シート【' + sheet.getName() + '】: 行高さを調整しました（前半=' + firstHeight + 'px, 後半=' + secondHeight + 'px）');
 }
 
-function exportSheetToPDF(sheet) {
+function exportSheetToPDF_(sheet) {
   try {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     const sheetId = sheet.getSheetId();
-    const fileName = createFileName(sheet);
+    const fileName = createFileName_(sheet);
 
-    const url = preparePdfUrl(spreadsheet.getId(), sheetId);
+    const url = preparePdfUrl_(spreadsheet.getId(), sheetId);
 
     const options = {
       headers: {
@@ -67,36 +67,37 @@ function exportSheetToPDF(sheet) {
     oldFiles.forEach(function(file) {
       file.setTrashed(true);
     });
-    Logger.log(`[INFO] ファイル「${fileName}.pdf」をフォルダ「${folder.getName()}」に保存しました。`);
+    Logger.log('[INFO] ファイル「' + fileName + '.pdf」をフォルダ「' + folder.getName() + '」に保存しました。');
   } catch (error) {
-    Logger.log(`[ERROR] PDF出力中にエラー（シート: ${sheet.getName()}）: ${error.toString()}`);
+    Logger.log('[ERROR] PDF出力中にエラー（シート: ' + sheet.getName() + '）: ' + error.toString());
     throw error;
   }
 }
 
-function preparePdfUrl(spreadsheetId, sheetId) {
+function preparePdfUrl_(spreadsheetId, sheetId) {
+  const opts = WEEKLY_REPORT.PDF_OPTIONS;
   let url = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export?format=pdf&id=' + spreadsheetId;
   url += '&gid=' + sheetId
-    + '&size=A4'
-    + '&portrait=true'
-    + '&fitw=true'
-    + '&top_margin=0.30'
-    + '&right_margin=0.60'
-    + '&bottom_margin=0.50'
-    + '&left_margin=0.60'
+    + '&size=' + opts.SIZE
+    + '&portrait=' + opts.PORTRAIT
+    + '&fitw=' + opts.FIT_WIDTH
+    + '&top_margin=' + opts.TOP_MARGIN
+    + '&right_margin=' + opts.RIGHT_MARGIN
+    + '&bottom_margin=' + opts.BOTTOM_MARGIN
+    + '&left_margin=' + opts.LEFT_MARGIN
     + '&sheetnames=false'
     + '&printtitle=false'
     + '&pagenum=UNDEFINED'
-    + '&scale=2'
-    + '&horizontal_alignment=CENTER'
-    + '&vertical_alignment=CENTER'
+    + '&scale=' + opts.SCALE
+    + '&horizontal_alignment=' + opts.HORIZONTAL_ALIGNMENT
+    + '&vertical_alignment=' + opts.VERTICAL_ALIGNMENT
     + '&gridlines=false'
     + '&fzr=false'
     + '&fzc=false';
   return url;
 }
 
-function createFileName(sheet) {
+function createFileName_(sheet) {
   const range1 = sheet.getRange(WEEKLY_REPORT.NAME_RANGE).getValues()[0].join('');
   const dateRange = sheet.getRange(WEEKLY_REPORT.DATE_RANGE).getValues()[0];
   const formattedDateRange = formatDateToJapanese(dateRange[0]) + '～' + formatDateToJapanese(dateRange[dateRange.length - 1]);

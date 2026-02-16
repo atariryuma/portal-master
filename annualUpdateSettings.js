@@ -7,7 +7,7 @@
  */
 function showAnnualUpdateSettingsDialog() {
   try {
-    const htmlOutput = HtmlService.createHtmlOutputFromFile('annualUpdateSettingsDialog')
+    const htmlOutput = HtmlService.createTemplateFromFile('annualUpdateSettingsDialog').evaluate()
       .setWidth(700)
       .setHeight(760);
     SpreadsheetApp.getUi().showModalDialog(htmlOutput, '年度更新設定');

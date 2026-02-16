@@ -1,0 +1,168 @@
+<style>
+  /* ========================================
+   * Portal Master - 共通ダイアログスタイル
+   * triggerSettingsDialog, annualUpdateSettingsDialog,
+   * DateSelector, modulePlanningDialog で共有するベーススタイル。
+   * 各ダイアログ固有のスタイルはインクルード後に上書き可能。
+   * ======================================== */
+
+  :root {
+    --pm-primary: #1a73e8;
+    --pm-primary-hover: #1557b0;
+    --pm-secondary: #5f6368;
+    --pm-bg: #f8f9fa;
+    --pm-surface: #ffffff;
+    --pm-border: #e0e0e0;
+    --pm-text: #202124;
+    --pm-text-secondary: #5f6368;
+    --pm-text-label: #3c4043;
+    --pm-success: #4caf50;
+    --pm-warning: #f29900;
+    --pm-error: #d93025;
+    --pm-radius: 8px;
+    --pm-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --pm-font: 'Yu Gothic', Arial, sans-serif;
+  }
+
+  body {
+    font-family: var(--pm-font);
+    margin: 0;
+    padding: 20px;
+    background-color: var(--pm-bg);
+    color: var(--pm-text);
+  }
+
+  .container {
+    background: var(--pm-surface);
+    border-radius: var(--pm-radius);
+    box-shadow: var(--pm-shadow);
+    padding: 20px;
+    max-width: 640px;
+  }
+
+  h2 {
+    color: var(--pm-primary);
+    text-align: center;
+    margin: 0 0 18px;
+  }
+
+  .info-box {
+    background: #e8f0fe;
+    border-left: 4px solid var(--pm-primary);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 14px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .warning-box {
+    background: #fff3cd;
+    border-left: 4px solid var(--pm-warning);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 14px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .section {
+    background: #f7f7f7;
+    border: 1px solid var(--pm-border);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  .section h3 {
+    margin: 0 0 10px;
+    font-size: 16px;
+    color: var(--pm-text);
+  }
+
+  .form-group {
+    margin-bottom: 10px;
+  }
+
+  .form-group:last-child {
+    margin-bottom: 0;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 15px;
+    margin-top: 10px;
+  }
+
+  .form-row .form-group {
+    flex: 1;
+  }
+
+  label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 4px;
+    color: var(--pm-text-label);
+    font-size: 14px;
+  }
+
+  input[type="text"],
+  input[type="date"],
+  input[type="number"],
+  select {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+
+  .hint {
+    margin-top: 4px;
+    color: var(--pm-text-secondary);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .button-group {
+    text-align: center;
+    margin-top: 20px;
+    border-top: 2px solid var(--pm-border);
+    padding-top: 16px;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 4px;
+    padding: 11px 24px;
+    margin: 0 8px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: bold;
+  }
+
+  .btn-primary {
+    background: var(--pm-primary);
+    color: #fff;
+  }
+
+  .btn-secondary {
+    background: var(--pm-secondary);
+    color: #fff;
+  }
+
+  .btn:hover {
+    opacity: 0.9;
+  }
+
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+</style>

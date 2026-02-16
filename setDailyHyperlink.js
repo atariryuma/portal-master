@@ -29,11 +29,12 @@ function setDailyHyperlink() {
     }
 
     if (targetRow !== null) {
-      const hyperlink = `#gid=${sheet.getSheetId()}&range=${dateCol}${targetRow}`;
-      const linkFormula = `=HYPERLINK("${hyperlink}", "今日へ")`;
+      const gid = String(sheet.getSheetId());
+      const cellRef = dateCol + targetRow;
+      const linkFormula = '=HYPERLINK("#gid=' + gid + '&range=' + cellRef + '", "今日へ")';
       sheet.getRange(dateCol + '1').setFormula(linkFormula);
     } else {
-      sheet.getRange(dateCol + '1').setValue("今日の日付は見つかりませんでした。");
+      sheet.getRange(dateCol + '1').setValue("今日（" + formattedToday + "）は年間行事予定表に見つかりませんでした。");
     }
   } catch (error) {
     Logger.log('[ERROR] 日付リンク設定中にエラー: ' + error.toString());
