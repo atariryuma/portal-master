@@ -118,7 +118,7 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate, reserveByGrade) {
 function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays, baseDate) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = getOrRenamePlanSummarySheet(ss);
+    const sheet = getOrCreatePlanSummarySheet(ss);
     if (!sheet) {
       return;
     }
@@ -186,7 +186,6 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     monthLabels.forEach(function(label) { headers.push(label); });
     headers.push('合計');
     headers.push('年間目標');
-    headers.push('登校日数');
     headers.push('予備/不足');
 
     sheet.getRange(headerRow, 1, 1, headers.length).setValues([headers]);
@@ -206,12 +205,11 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
       monthKeys.forEach(function(monthKey) {
         const sessions = toNumberOrZero(monthlyByGrade[grade][monthKey]);
         totalSessions += sessions;
-        row.push(sessions > 0 ? sessionsToUnits(sessions) : '');
+        row.push(sessions > 0 ? formatSessionsAsMixedFraction(sessions) : '');
       });
 
-      row.push(sessionsToUnits(totalSessions));
+      row.push(formatSessionsAsMixedFraction(totalSessions));
       row.push(toNumberOrZero(annualTarget.gradeKoma[grade]));
-      row.push(toNumberOrZero(buildResult.schoolDaysByGrade[grade]));
 
       const reserve = toNumberOrZero(buildResult.reserveByGrade[grade]);
       if (reserve > 0) {
@@ -256,8 +254,8 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
       sheet.setColumnWidth(c, 45);
     }
     sheet.setColumnWidth(14, 55);
-    sheet.setColumnWidth(15, 65);
-    sheet.setColumnWidth(16, 65);
+    sheet.setColumnWidth(15, 55);
+    sheet.setColumnWidth(16, 75);
 
     Logger.log('[INFO] モジュール学習計画シートを更新しました');
   } catch (error) {
@@ -266,23 +264,15 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
 }
 
 /**
- * モジュール学習計画シートを取得（旧名からリネーム対応）
+ * モジュール学習計画シートを取得または作成
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
- * @return {GoogleAppsScript.Spreadsheet.Sheet|null} シート
+ * @return {GoogleAppsScript.Spreadsheet.Sheet} シート
  */
-function getOrRenamePlanSummarySheet(ss) {
+function getOrCreatePlanSummarySheet(ss) {
   const sheet = ss.getSheetByName(MODULE_SHEET_NAMES.PLAN_SUMMARY);
   if (sheet) {
     return sheet;
   }
-
-  const legacySheet = ss.getSheetByName(MODULE_SHEET_NAMES.PLAN_LEGACY_JP);
-  if (legacySheet) {
-    legacySheet.setName(MODULE_SHEET_NAMES.PLAN_SUMMARY);
-    Logger.log('[INFO] シート名を変更しました: ' + MODULE_SHEET_NAMES.PLAN_LEGACY_JP + ' → ' + MODULE_SHEET_NAMES.PLAN_SUMMARY);
-    return legacySheet;
-  }
-
   return ss.insertSheet(MODULE_SHEET_NAMES.PLAN_SUMMARY);
 }
 

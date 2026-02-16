@@ -217,11 +217,6 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
     ];
   });
 
-  const schoolDaysByGrade = {};
-  for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-    schoolDaysByGrade[grade] = schoolDayMap[grade].length;
-  }
-
   return {
     fiscalYear: normalizedFiscalYear,
     startDate: planStartDate || fiscalRange.startDate,
@@ -231,8 +226,7 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
     dailyRows: dailyRows,
     planRows: planRows,
     totalsByGrade: totalsByGrade,
-    reserveByGrade: reserveByGrade,
-    schoolDaysByGrade: schoolDaysByGrade
+    reserveByGrade: reserveByGrade
   };
 }
 

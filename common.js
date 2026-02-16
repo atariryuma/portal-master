@@ -222,7 +222,6 @@ const MODULE_SHEET_NAMES = Object.freeze({
   CYCLE_PLAN: 'module_cycle_plan',
   DAILY_PLAN: 'module_daily_plan',
   PLAN: 'module_plan',
-  PLAN_LEGACY_JP: 'モジュール計画',
   EXCEPTIONS: 'module_exceptions',
   SUMMARY: 'module_summary'
 });
