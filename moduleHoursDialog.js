@@ -133,24 +133,24 @@ function getDefaultExceptionDate(enabledWeekdays) {
 }
 
 /**
- * ダイアログ表示用の年間目標を取得
+ * ダイアログ表示用の年間目標を取得（V4形式）
  * @param {number} fiscalYear - 対象年度
  * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
  * @param {Array<Array<*>>=} annualTargetRows - 事前取得済み年間目標行（対象年度）
- * @return {Object} 年間目標（g1Koma〜g6Koma, note）
+ * @return {Object} 年間目標（grades, note）
  */
 function buildDialogAnnualTargetForFiscalYear(fiscalYear, controlSheet, annualTargetRows) {
   const target = Array.isArray(annualTargetRows) && annualTargetRows.length > 0
-    ? toAnnualTargetFromRow(fiscalYear, annualTargetRows[0])
+    ? buildAnnualTargetFromRows(fiscalYear, annualTargetRows)
     : loadAnnualTargetForFiscalYear(fiscalYear, controlSheet);
+
+  const note = Array.isArray(annualTargetRows) && annualTargetRows.length > 0
+    ? String(annualTargetRows[0][16] || '').trim()
+    : '';
+
   return {
-    g1Koma: target.gradeKoma[1],
-    g2Koma: target.gradeKoma[2],
-    g3Koma: target.gradeKoma[3],
-    g4Koma: target.gradeKoma[4],
-    g5Koma: target.gradeKoma[5],
-    g6Koma: target.gradeKoma[6],
-    note: target.note || ''
+    grades: target.grades,
+    note: note
   };
 }
 
@@ -231,10 +231,10 @@ function saveModuleAnnualTargetFromDialog(payload) {
   }
 
   const target = payload && payload.target ? payload.target : null;
-  const row = normalizeAnnualTargetRowFromDialog(fiscalYear, target);
+  const rows = normalizeAnnualTargetRowsFromDialog(fiscalYear, target);
 
   const controlSheet = initializeModuleHoursSheetsIfNeeded();
-  replaceAnnualTargetRowsForFiscalYearInControl(controlSheet, fiscalYear, [row]);
+  replaceAnnualTargetRowsForFiscalYearInControl(controlSheet, fiscalYear, rows);
 
   const baseDate = normalizeToDate(payload && payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
   const result = syncModuleHoursWithCumulative(baseDate);
@@ -309,38 +309,51 @@ function addModuleExceptionFromDialog(payload) {
 }
 
 /**
- * ダイアログ入力値を年間目標行へ正規化
+ * ダイアログ入力値をV4形式の年間目標行群へ正規化
  * @param {number} fiscalYear - 対象年度
- * @param {Object} target - 入力目標 { g1Koma, ..., g6Koma, note }
- * @return {Array<*>} シート行（MODULE_CONTROL_PLAN_HEADERS形式）
+ * @param {Object} target - 入力目標 { grades: {grade: {mode, annualKoma, monthlyKoma}}, note }
+ * @return {Array<Array<*>>} シート行群（MODULE_CONTROL_PLAN_HEADERS形式 × 学年数）
  */
-function normalizeAnnualTargetRowFromDialog(fiscalYear, target) {
-  if (!target) {
+function normalizeAnnualTargetRowsFromDialog(fiscalYear, target) {
+  if (!target || !target.grades) {
     throw new Error('年間目標のデータがありません。');
   }
 
-  const gradeValues = [];
+  const note = String(target.note || '').trim();
+  const rows = [];
+
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-    const key = 'g' + grade + 'Koma';
-    const rawValue = toNumberOrZero(target[key]);
-    if (rawValue < 0) {
-      throw new Error(grade + '年のコマ数は0以上で入力してください。');
+    const gradeData = target.grades[grade] || {};
+    const mode = gradeData.mode === MODULE_PLAN_MODE_MONTHLY
+      ? MODULE_PLAN_MODE_MONTHLY
+      : MODULE_PLAN_MODE_ANNUAL;
+
+    let annualKoma;
+    let monthlyKoma = null;
+
+    if (mode === MODULE_PLAN_MODE_MONTHLY) {
+      monthlyKoma = {};
+      let monthlyTotal = 0;
+      [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3].forEach(function(m) {
+        const val = Math.max(0, Math.round(toNumberOrZero(gradeData.monthlyKoma && gradeData.monthlyKoma[m])));
+        monthlyKoma[m] = val;
+        monthlyTotal += val;
+      });
+      if (monthlyTotal <= 0) {
+        throw new Error(grade + '年: 月別モードの合計コマ数が0です。');
+      }
+      annualKoma = monthlyTotal;
+    } else {
+      annualKoma = Math.round(toNumberOrZero(gradeData.annualKoma));
+      if (annualKoma < 0) {
+        throw new Error(grade + '年のコマ数は0以上で入力してください。');
+      }
     }
-    gradeValues.push(Math.round(rawValue));
+
+    rows.push(buildV4PlanRow(fiscalYear, grade, mode, annualKoma, monthlyKoma, note));
   }
 
-  const note = String(target.note ? target.note : '').trim();
-
-  return [
-    Number(fiscalYear),
-    gradeValues[0],
-    gradeValues[1],
-    gradeValues[2],
-    gradeValues[3],
-    gradeValues[4],
-    gradeValues[5],
-    note
-  ];
+  return rows;
 }
 
 /**
@@ -434,6 +447,6 @@ function buildDeficitWarningMessage(reserveByGrade) {
     return '';
   }
 
-  return '【注意】登校日数に対して目標コマ数が不足しています。\n' + deficits.join('、');
+  return '【注意】実施可能日数に対して目標コマ数が不足しています。\n' + deficits.join('、');
 }
 

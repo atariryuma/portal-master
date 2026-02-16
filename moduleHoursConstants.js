@@ -45,17 +45,23 @@ const MODULE_CONTROL_DEFAULT_LAYOUT = Object.freeze({
   EXCEPTIONS_MARKER_ROW: 40
 });
 
-/** 年間目標テーブルのヘッダー（V3: クール制廃止、年間制へ移行） */
+/** 計画モード定数 */
+const MODULE_PLAN_MODE_ANNUAL = 'annual';
+const MODULE_PLAN_MODE_MONTHLY = 'monthly';
+
+/** 年間目標テーブルのヘッダー（V4: 学年行・月別目標対応） */
 const MODULE_CONTROL_PLAN_HEADERS = Object.freeze([
   'fiscal_year',
-  'g1_annual_koma',
-  'g2_annual_koma',
-  'g3_annual_koma',
-  'g4_annual_koma',
-  'g5_annual_koma',
-  'g6_annual_koma',
+  'grade',
+  'plan_mode',
+  'm4', 'm5', 'm6', 'm7', 'm8', 'm9',
+  'm10', 'm11', 'm12', 'm1', 'm2', 'm3',
+  'annual_koma',
   'note'
 ]);
+
+/** V3→V4 マイグレーション用: 旧ヘッダー列数 */
+const MODULE_LEGACY_V3_PLAN_COLUMN_COUNT = 8;
 
 /** V2→V3 マイグレーション用: 旧クール計画の列数 */
 const MODULE_LEGACY_CYCLE_PLAN_COLUMN_COUNT = 11;

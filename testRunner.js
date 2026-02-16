@@ -110,7 +110,10 @@ function getFullTestPlan_() {
         { name: '2-6. 表示列の固定列定数確認', fn: testModuleDisplayColumnIsFixed },
         { name: '2-7. 実施曜日フィルタデフォルト', fn: testWeekdayFilterDefault },
         { name: '2-8. 実施曜日パース', fn: testWeekdayFilterParsing },
-        { name: '2-9. 曜日シリアライズ', fn: testSerializeWeekdays }
+        { name: '2-9. 曜日シリアライズ', fn: testSerializeWeekdays },
+        { name: '2-10. V4計画行構築（annualモード）', fn: testBuildV4PlanRowAnnual },
+        { name: '2-11. V4計画行構築（monthlyモード）', fn: testBuildV4PlanRowMonthly },
+        { name: '2-12. 月別配分アルゴリズム', fn: testAllocateSessionsByMonth }
       ]
     },
     {
@@ -1549,6 +1552,116 @@ function testNoDuplicateDateFormatter() {
   return { success: true, message: '重複日付フォーマッターなし（createFileNameにインライン化済み）' };
 }
 
+function testBuildV4PlanRowAnnual() {
+  if (typeof buildV4PlanRow !== 'function') {
+    return { success: false, message: 'buildV4PlanRow関数が見つかりません' };
+  }
+
+  const row = buildV4PlanRow(2025, 3, MODULE_PLAN_MODE_ANNUAL, 21, null, 'テスト');
+
+  if (!Array.isArray(row) || row.length !== MODULE_CONTROL_PLAN_HEADERS.length) {
+    return { success: false, message: '配列長が不正: ' + (row ? row.length : 'null') + ' (期待: ' + MODULE_CONTROL_PLAN_HEADERS.length + ')' };
+  }
+  if (row[0] !== 2025) {
+    return { success: false, message: 'fiscal_year不正: ' + row[0] };
+  }
+  if (row[1] !== 3) {
+    return { success: false, message: 'grade不正: ' + row[1] };
+  }
+  if (row[2] !== MODULE_PLAN_MODE_ANNUAL) {
+    return { success: false, message: 'plan_mode不正: ' + row[2] };
+  }
+  // annualモードでは月別列(3-14)は空
+  for (let i = 3; i <= 14; i++) {
+    if (row[i] !== '') {
+      return { success: false, message: '月別列[' + i + ']が空でない: ' + row[i] };
+    }
+  }
+  if (row[15] !== 21) {
+    return { success: false, message: 'annual_koma不正: ' + row[15] };
+  }
+  if (row[16] !== 'テスト') {
+    return { success: false, message: 'note不正: ' + row[16] };
+  }
+
+  return { success: true, message: 'annualモードのV4行構築が正常' };
+}
+
+function testBuildV4PlanRowMonthly() {
+  if (typeof buildV4PlanRow !== 'function') {
+    return { success: false, message: 'buildV4PlanRow関数が見つかりません' };
+  }
+
+  const monthlyKoma = { 4: 3, 5: 2, 6: 2, 7: 1, 8: 0, 9: 2, 10: 2, 11: 2, 12: 1, 1: 2, 2: 2, 3: 1 };
+  const expectedTotal = 20;
+  const row = buildV4PlanRow(2025, 1, MODULE_PLAN_MODE_MONTHLY, expectedTotal, monthlyKoma, '');
+
+  if (!Array.isArray(row) || row.length !== MODULE_CONTROL_PLAN_HEADERS.length) {
+    return { success: false, message: '配列長が不正: ' + (row ? row.length : 'null') };
+  }
+  if (row[2] !== MODULE_PLAN_MODE_MONTHLY) {
+    return { success: false, message: 'plan_mode不正: ' + row[2] };
+  }
+
+  // 月別列の検証: [4,5,6,7,8,9,10,11,12,1,2,3] → row[3..14]
+  const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+  for (let i = 0; i < months.length; i++) {
+    const expected = monthlyKoma[months[i]];
+    if (row[3 + i] !== expected) {
+      return { success: false, message: months[i] + '月の値不正: ' + row[3 + i] + ' (期待: ' + expected + ')' };
+    }
+  }
+  if (row[15] !== expectedTotal) {
+    return { success: false, message: 'annual_koma不正: ' + row[15] + ' (期待: ' + expectedTotal + ')' };
+  }
+
+  return { success: true, message: 'monthlyモードのV4行構築が正常（月別値・合計一致）' };
+}
+
+function testAllocateSessionsByMonth() {
+  if (typeof allocateSessionsByMonth !== 'function') {
+    return { success: false, message: 'allocateSessionsByMonth関数が見つかりません' };
+  }
+
+  // 4月に2コマ(6セッション)、5月に1コマ(3セッション)のテストケース
+  const monthlyKoma = { 4: 2, 5: 1, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0, 1: 0, 2: 0, 3: 0 };
+
+  // テスト用日付: 4月に3日、5月に3日（月・水・金）
+  const dates = [
+    new Date(2025, 3, 7),  new Date(2025, 3, 9),  new Date(2025, 3, 11),
+    new Date(2025, 4, 5),  new Date(2025, 4, 7),  new Date(2025, 4, 9)
+  ];
+
+  const result = allocateSessionsByMonth(monthlyKoma, dates);
+
+  if (typeof result !== 'object' || result === null) {
+    return { success: false, message: '返却値がオブジェクトでない' };
+  }
+
+  // 総セッション数を検証: 4月6 + 5月3 = 9
+  let totalSessions = 0;
+  Object.keys(result).forEach(function(key) {
+    totalSessions += result[key];
+  });
+  if (totalSessions !== 9) {
+    return { success: false, message: '総セッション数不正: ' + totalSessions + ' (期待: 9)' };
+  }
+
+  // 4月の日付のみに4月分が配分されているか確認
+  const aprilKeys = Object.keys(result).filter(function(key) {
+    return key.indexOf('2025-04') === 0;
+  });
+  let aprilSessions = 0;
+  aprilKeys.forEach(function(key) {
+    aprilSessions += result[key];
+  });
+  if (aprilSessions !== 6) {
+    return { success: false, message: '4月セッション数不正: ' + aprilSessions + ' (期待: 6)' };
+  }
+
+  return { success: true, message: '月別配分が正常（月の境界を越えず配分）' };
+}
+
 function testModuleHoursDecomposition() {
   const expectedFiles = [
     'moduleHoursConstants',
@@ -1565,22 +1678,29 @@ function testModuleHoursDecomposition() {
       'MODULE_CONTROL_MARKERS': typeof MODULE_CONTROL_MARKERS !== 'undefined',
       'MODULE_DEFAULT_WEEKDAYS_ENABLED': typeof MODULE_DEFAULT_WEEKDAYS_ENABLED !== 'undefined',
       'MODULE_WEEKDAY_LABELS': typeof MODULE_WEEKDAY_LABELS !== 'undefined',
-      'MODULE_DEFICIT_LABEL': typeof MODULE_DEFICIT_LABEL !== 'undefined'
+      'MODULE_DEFICIT_LABEL': typeof MODULE_DEFICIT_LABEL !== 'undefined',
+      'MODULE_PLAN_MODE_ANNUAL': typeof MODULE_PLAN_MODE_ANNUAL !== 'undefined',
+      'MODULE_PLAN_MODE_MONTHLY': typeof MODULE_PLAN_MODE_MONTHLY !== 'undefined',
+      'MODULE_LEGACY_V3_PLAN_COLUMN_COUNT': typeof MODULE_LEGACY_V3_PLAN_COLUMN_COUNT !== 'undefined'
     },
     moduleHoursDialog: {
       'showModulePlanningDialog': typeof showModulePlanningDialog === 'function',
       'getModulePlanningDialogState': typeof getModulePlanningDialogState === 'function',
       'saveModuleAnnualTargetFromDialog': typeof saveModuleAnnualTargetFromDialog === 'function',
-      'saveModuleSettingsFromDialog': typeof saveModuleSettingsFromDialog === 'function'
+      'saveModuleSettingsFromDialog': typeof saveModuleSettingsFromDialog === 'function',
+      'buildDialogAnnualTargetForFiscalYear': typeof buildDialogAnnualTargetForFiscalYear === 'function',
+      'normalizeAnnualTargetRowsFromDialog': typeof normalizeAnnualTargetRowsFromDialog === 'function'
     },
     moduleHoursPlanning: {
       'buildDailyPlanFromAnnualTarget': typeof buildDailyPlanFromAnnualTarget === 'function',
-      'allocateSessionsToDateKeys': typeof allocateSessionsToDateKeys === 'function'
+      'allocateSessionsToDateKeys': typeof allocateSessionsToDateKeys === 'function',
+      'allocateSessionsByMonth': typeof allocateSessionsByMonth === 'function'
     },
     moduleHoursControl: {
       'initializeModuleHoursSheetsIfNeeded': typeof initializeModuleHoursSheetsIfNeeded === 'function',
       'readExceptionRows': typeof readExceptionRows === 'function',
-      'readModuleSettingsMap': typeof readModuleSettingsMap === 'function'
+      'readModuleSettingsMap': typeof readModuleSettingsMap === 'function',
+      'buildV4PlanRow': typeof buildV4PlanRow === 'function'
     },
     moduleHoursDisplay: {
       'syncModuleHoursWithCumulative': typeof syncModuleHoursWithCumulative === 'function',

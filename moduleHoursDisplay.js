@@ -177,7 +177,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
 
     // 行4: 実施曜日・形式
     sheet.getRange(4, 1).setValue(
-      '実施曜日: ' + weekdayNames + '　　1回15分（1コマ = 45分 = 3回）'
+      '実施曜日: ' + weekdayNames + '　　1回15分（3回で1単位時間 = 45分）'
     );
 
     // 行6: ヘッダー
@@ -241,8 +241,83 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
       }
     }
 
+    // ── 日別実施計画セクション ──
+    const dailySectionStartRow = dataStartRow + dataRows.length + 2;
+    let lastContentRow = dataStartRow + dataRows.length;
+
+    const dailyByDate = {};
+    buildResult.dailyRows.forEach(function(row) {
+      const date = normalizeToDate(row[0]);
+      if (!date) {
+        return;
+      }
+      const dateKey = formatInputDate(date);
+      if (!dailyByDate[dateKey]) {
+        dailyByDate[dateKey] = { date: date, grades: {} };
+      }
+      dailyByDate[dateKey].grades[Number(row[5])] = toNumberOrZero(row[6]);
+    });
+
+    const sortedDateKeys = Object.keys(dailyByDate).sort();
+    if (sortedDateKeys.length > 0) {
+      sheet.getRange(dailySectionStartRow, 1).setValue('日別実施計画');
+      sheet.getRange(dailySectionStartRow, 1).setFontSize(12).setFontWeight('bold');
+
+      const dailyHeaderRow = dailySectionStartRow + 1;
+      const dailyHeaders = ['日付', '曜日'];
+      for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+        dailyHeaders.push(g + '年');
+      }
+      sheet.getRange(dailyHeaderRow, 1, 1, dailyHeaders.length).setValues([dailyHeaders]);
+      sheet.getRange(dailyHeaderRow, 1, 1, dailyHeaders.length)
+        .setBackground('#f0f0f0')
+        .setFontWeight('bold')
+        .setHorizontalAlignment('center')
+        .setBorder(true, true, true, true, true, true);
+
+      const dailyDataRows = [];
+      const monthBoundaryIndices = [];
+      let prevMonth = -1;
+      sortedDateKeys.forEach(function(dateKey) {
+        const entry = dailyByDate[dateKey];
+        const date = entry.date;
+        const month = date.getMonth() + 1;
+        if (prevMonth !== -1 && month !== prevMonth) {
+          monthBoundaryIndices.push(dailyDataRows.length);
+        }
+        prevMonth = month;
+
+        const dayOfWeek = date.getDay();
+        const weekdayLabel = MODULE_WEEKDAY_LABELS[dayOfWeek] || '';
+        const dailyRow = [String(month) + '/' + String(date.getDate()), weekdayLabel];
+        for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+          const sessions = entry.grades[g] || 0;
+          dailyRow.push(sessions > 0 ? sessions : '');
+        }
+        dailyDataRows.push(dailyRow);
+      });
+
+      if (dailyDataRows.length > 0) {
+        const dailyDataStartRow = dailyHeaderRow + 1;
+        sheet.getRange(dailyDataStartRow, 1, dailyDataRows.length, dailyHeaders.length).setValues(dailyDataRows);
+        sheet.getRange(dailyDataStartRow, 1, dailyDataRows.length, dailyHeaders.length)
+          .setBorder(true, true, true, true, true, true);
+        sheet.getRange(dailyDataStartRow, 2, dailyDataRows.length, dailyHeaders.length - 1)
+          .setHorizontalAlignment('center');
+
+        monthBoundaryIndices.forEach(function(rowIdx) {
+          if (rowIdx > 0) {
+            sheet.getRange(dailyDataStartRow + rowIdx - 1, 1, 1, dailyHeaders.length)
+              .setBorder(null, null, true, null, null, null, '#94a3b8', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+          }
+        });
+
+        lastContentRow = dailyDataStartRow + dailyDataRows.length - 1;
+      }
+    }
+
     // フッター行
-    const footerRow = dataStartRow + dataRows.length + 1;
+    const footerRow = lastContentRow + 2;
     sheet.getRange(footerRow, 1).setValue(
       '更新日時: ' + formatDateTimeForDisplay(new Date()) + '　　※ 本シートは再集計時に自動更新されます'
     );
@@ -308,8 +383,12 @@ function cleanupStaleDisplayColumns(cumulativeSheet, displayColumn, rowCount) {
     return;
   }
 
-  for (let col = displayColumn + 1; col <= lastColumn; col++) {
-    const header = String(cumulativeSheet.getRange(2, col).getValue() || '').trim();
+  const checkColCount = lastColumn - displayColumn;
+  const headers = cumulativeSheet.getRange(2, displayColumn + 1, 1, checkColCount).getValues()[0];
+
+  for (let i = 0; i < checkColCount; i++) {
+    const header = String(headers[i] || '').trim();
+    const col = displayColumn + 1 + i;
     if (header === MODULE_DISPLAY_HEADER || header === '') {
       let hasDisplayData = false;
       const values = cumulativeSheet.getRange(3, col, rowCount, 1).getValues();

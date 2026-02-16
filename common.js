@@ -243,7 +243,7 @@ const MODULE_SETTING_KEYS = Object.freeze({
  * モジュール学習データバージョン
  * @const {string}
  */
-const MODULE_DATA_VERSION = 'CONTROL_V3';
+const MODULE_DATA_VERSION = 'CONTROL_V4';
 
 /**
  * モジュール学習の年度開始月（4月）

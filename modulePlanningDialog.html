@@ -327,7 +327,7 @@
 
     <section class="section">
       <h3>2. 年間目標入力</h3>
-      <p class="section-note">各学年の年間目標コマ数（1コマ＝45分）を入力してください。</p>
+      <p class="section-note">各学年の年間目標コマ数（1コマ＝1単位時間＝45分）を入力してください。</p>
       <div class="toolbar">
         <label for="fiscalYearInput">対象年度</label>
         <input id="fiscalYearInput" type="number" readonly>
@@ -338,17 +338,29 @@
       <table class="plan-table" aria-label="年間目標">
         <thead>
           <tr>
-            <th>1年</th>
-            <th>2年</th>
-            <th>3年</th>
-            <th>4年</th>
-            <th>5年</th>
-            <th>6年</th>
-            <th>メモ</th>
+            <th>学年</th>
+            <th>モード</th>
+            <th>年間コマ</th>
+            <th>4月</th>
+            <th>5月</th>
+            <th>6月</th>
+            <th>7月</th>
+            <th>8月</th>
+            <th>9月</th>
+            <th>10月</th>
+            <th>11月</th>
+            <th>12月</th>
+            <th>1月</th>
+            <th>2月</th>
+            <th>3月</th>
           </tr>
         </thead>
         <tbody id="planBody"></tbody>
       </table>
+      <div style="margin-top:6px;">
+        <label style="font-size:11px; color:#475569;">メモ</label>
+        <input id="planNote" type="text" style="width:300px;" placeholder="備考">
+      </div>
       <div id="reserveSummary" class="reserve-summary" style="display:none;"></div>
       <div class="action-row">
         <button type="button" class="primary" id="savePlanButton" onclick="savePlan()">年間目標を保存して再集計</button>
@@ -461,17 +473,95 @@
       const tbody = document.getElementById('planBody');
       tbody.innerHTML = '';
       const t = target || {};
-      const tr = document.createElement('tr');
-      tr.innerHTML = [
-        '<td><input type="number" class="grade-koma" data-grade="1" min="0" step="1" value="' + escapeHtml(t.g1Koma || 28) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="2" min="0" step="1" value="' + escapeHtml(t.g2Koma || 28) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="3" min="0" step="1" value="' + escapeHtml(t.g3Koma || 28) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="4" min="0" step="1" value="' + escapeHtml(t.g4Koma || 28) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="5" min="0" step="1" value="' + escapeHtml(t.g5Koma || 28) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="6" min="0" step="1" value="' + escapeHtml(t.g6Koma || 28) + '"></td>',
-        '<td><input type="text" class="note-input" value="' + escapeHtml(t.note || '') + '"></td>'
-      ].join('');
-      tbody.appendChild(tr);
+      const grades = t.grades || {};
+      const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+
+      for (let grade = 1; grade <= 6; grade++) {
+        const g = grades[grade] || { mode: 'annual', annualKoma: 28, monthlyKoma: null };
+        const mode = g.mode || 'annual';
+        const annualKoma = typeof g.annualKoma === 'number' ? g.annualKoma : 28;
+        const monthlyKoma = g.monthlyKoma || {};
+        const isMonthly = mode === 'monthly';
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-grade', String(grade));
+
+        let html = '<td>' + grade + '年</td>';
+        html += '<td style="white-space:nowrap; font-size:10px;">';
+        html += '<label><input type="radio" name="mode_' + grade + '" value="annual"' +
+                (!isMonthly ? ' checked' : '') + ' onchange="toggleGradeMode(' + grade + ')"> 年間</label> ';
+        html += '<label><input type="radio" name="mode_' + grade + '" value="monthly"' +
+                (isMonthly ? ' checked' : '') + ' onchange="toggleGradeMode(' + grade + ')"> 月別</label>';
+        html += '</td>';
+        html += '<td>';
+        html += '<input type="number" class="annual-koma" data-grade="' + grade + '" min="0" step="1" value="' + escapeHtml(annualKoma) + '" style="width:50px;' + (isMonthly ? ' display:none;' : '') + '">';
+        html += '<span class="auto-koma" data-grade="' + grade + '" style="font-size:11px;' + (isMonthly ? '' : ' display:none;') + '">' + annualKoma + '</span>';
+        html += '</td>';
+
+        months.forEach(function(m) {
+          const val = Number(monthlyKoma[m]) || 0;
+          html += '<td>';
+          html += '<input type="number" class="monthly-koma" data-grade="' + grade + '" data-month="' + m + '" min="0" step="1" value="' + val + '" style="width:36px;' + (isMonthly ? '' : ' display:none;') + '" oninput="updateMonthlyTotal(' + grade + ')">';
+          html += '<span class="monthly-placeholder" data-grade="' + grade + '" style="color:#94a3b8; font-size:10px;' + (isMonthly ? ' display:none;' : '') + '">-</span>';
+          html += '</td>';
+        });
+
+        tr.innerHTML = html;
+        tbody.appendChild(tr);
+      }
+
+      document.getElementById('planNote').value = t.note || '';
+    }
+
+    function toggleGradeMode(grade) {
+      const modeRadio = document.querySelector('input[name="mode_' + grade + '"]:checked');
+      const isMonthly = modeRadio && modeRadio.value === 'monthly';
+      const annualInput = document.querySelector('.annual-koma[data-grade="' + grade + '"]');
+      const autoKomaSpan = document.querySelector('.auto-koma[data-grade="' + grade + '"]');
+      const monthInputs = document.querySelectorAll('.monthly-koma[data-grade="' + grade + '"]');
+      const placeholders = document.querySelectorAll('.monthly-placeholder[data-grade="' + grade + '"]');
+
+      if (isMonthly) {
+        annualInput.style.display = 'none';
+        autoKomaSpan.style.display = '';
+        let hasNonZero = false;
+        monthInputs.forEach(function(input) {
+          if (Number(input.value) > 0) { hasNonZero = true; }
+        });
+        if (!hasNonZero) {
+          const totalKoma = Number(annualInput.value) || 28;
+          const perMonth = Math.floor(totalKoma / 12);
+          const remainder = totalKoma % 12;
+          let idx = 0;
+          monthInputs.forEach(function(input) {
+            input.value = String(perMonth + (idx < remainder ? 1 : 0));
+            idx++;
+          });
+        }
+        monthInputs.forEach(function(input) { input.style.display = ''; });
+        placeholders.forEach(function(el) { el.style.display = 'none'; });
+        updateMonthlyTotal(grade);
+      } else {
+        const currentTotal = Number(autoKomaSpan.textContent) || 0;
+        if (currentTotal > 0) {
+          annualInput.value = String(currentTotal);
+        }
+        annualInput.style.display = '';
+        autoKomaSpan.style.display = 'none';
+        monthInputs.forEach(function(input) { input.style.display = 'none'; });
+        placeholders.forEach(function(el) { el.style.display = ''; });
+      }
+    }
+
+    function updateMonthlyTotal(grade) {
+      const monthInputs = document.querySelectorAll('.monthly-koma[data-grade="' + grade + '"]');
+      let total = 0;
+      monthInputs.forEach(function(input) {
+        total += Math.max(0, Math.round(Number(input.value) || 0));
+      });
+      const autoKomaSpan = document.querySelector('.auto-koma[data-grade="' + grade + '"]');
+      if (autoKomaSpan) {
+        autoKomaSpan.textContent = String(total);
+      }
     }
 
     function setAllGradeKoma() {
@@ -480,36 +570,53 @@
         setStatus('全学年一括の値を0以上の数値で入力してください。');
         return;
       }
-      const inputs = document.querySelectorAll('#planBody .grade-koma');
-      inputs.forEach(function(input) {
-        input.value = String(Math.round(value));
-      });
+      const rounded = Math.round(value);
+      for (let grade = 1; grade <= 6; grade++) {
+        const annualRadio = document.querySelector('input[name="mode_' + grade + '"][value="annual"]');
+        if (annualRadio && !annualRadio.checked) {
+          annualRadio.checked = true;
+          toggleGradeMode(grade);
+        }
+        const annualInput = document.querySelector('.annual-koma[data-grade="' + grade + '"]');
+        if (annualInput) {
+          annualInput.value = String(rounded);
+        }
+      }
     }
 
     function collectAnnualTarget() {
-      const tr = document.querySelector('#planBody tr');
-      if (!tr) {
-        throw new Error('年間目標の入力行がありません。');
-      }
-
-      const target = {
-        g1Koma: Number(tr.querySelector('.grade-koma[data-grade="1"]').value),
-        g2Koma: Number(tr.querySelector('.grade-koma[data-grade="2"]').value),
-        g3Koma: Number(tr.querySelector('.grade-koma[data-grade="3"]').value),
-        g4Koma: Number(tr.querySelector('.grade-koma[data-grade="4"]').value),
-        g5Koma: Number(tr.querySelector('.grade-koma[data-grade="5"]').value),
-        g6Koma: Number(tr.querySelector('.grade-koma[data-grade="6"]').value),
-        note: tr.querySelector('.note-input').value || ''
-      };
+      const result = { grades: {}, note: '' };
+      const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
 
       for (let grade = 1; grade <= 6; grade++) {
-        const key = 'g' + grade + 'Koma';
-        if (!Number.isFinite(target[key]) || target[key] < 0) {
-          throw new Error(grade + '年のコマ数を0以上の数値で入力してください。');
+        const modeRadio = document.querySelector('input[name="mode_' + grade + '"]:checked');
+        const mode = modeRadio ? modeRadio.value : 'annual';
+
+        if (mode === 'monthly') {
+          const monthlyKoma = {};
+          let total = 0;
+          months.forEach(function(m) {
+            const input = document.querySelector('.monthly-koma[data-grade="' + grade + '"][data-month="' + m + '"]');
+            const val = input ? Math.max(0, Math.round(Number(input.value) || 0)) : 0;
+            monthlyKoma[m] = val;
+            total += val;
+          });
+          if (total <= 0) {
+            throw new Error(grade + '年: 月別モードの合計コマ数が0です。1つ以上の月に目標を設定してください。');
+          }
+          result.grades[grade] = { mode: 'monthly', annualKoma: total, monthlyKoma: monthlyKoma };
+        } else {
+          const input = document.querySelector('.annual-koma[data-grade="' + grade + '"]');
+          const koma = input ? Math.round(Number(input.value) || 0) : 28;
+          if (!Number.isFinite(koma) || koma < 0) {
+            throw new Error(grade + '年のコマ数を0以上の数値で入力してください。');
+          }
+          result.grades[grade] = { mode: 'annual', annualKoma: koma, monthlyKoma: null };
         }
       }
 
-      return target;
+      result.note = document.getElementById('planNote').value || '';
+      return result;
     }
 
     function formatMixedFractionFromSessions(sessions) {

@@ -46,18 +46,12 @@ function ensureDefaultAnnualTargetForFiscalYear(fiscalYear, controlSheet, existi
     return false;
   }
 
-  const row = [
-    Number(fiscalYear),
-    MODULE_DEFAULT_ANNUAL_KOMA,
-    MODULE_DEFAULT_ANNUAL_KOMA,
-    MODULE_DEFAULT_ANNUAL_KOMA,
-    MODULE_DEFAULT_ANNUAL_KOMA,
-    MODULE_DEFAULT_ANNUAL_KOMA,
-    MODULE_DEFAULT_ANNUAL_KOMA,
-    'default'
-  ];
+  const rows = [];
+  for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+    rows.push(buildV4PlanRow(Number(fiscalYear), g, MODULE_PLAN_MODE_ANNUAL, MODULE_DEFAULT_ANNUAL_KOMA, null, 'default'));
+  }
 
-  appendAnnualTargetRows(sheet, [row]);
+  appendAnnualTargetRows(sheet, rows);
   return true;
 }
 
@@ -65,7 +59,7 @@ function ensureDefaultAnnualTargetForFiscalYear(fiscalYear, controlSheet, existi
  * 指定年度の年間目標を読み込み
  * @param {number} fiscalYear - 対象年度
  * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
- * @return {Object} 年間目標 { fiscalYear, gradeKoma: {1:N, ..., 6:N}, note }
+ * @return {Object} 年間目標 { fiscalYear, grades: {grade: {mode, annualKoma, monthlyKoma}}, gradeKoma: {grade: N} }
  */
 function loadAnnualTargetForFiscalYear(fiscalYear, controlSheet) {
   const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded();
@@ -80,31 +74,56 @@ function loadAnnualTargetForFiscalYear(fiscalYear, controlSheet) {
     throw new Error('年間目標が取得できません（年度: ' + fiscalYear + '）');
   }
 
-  return toAnnualTargetFromRow(fiscalYear, rows[0]);
+  return buildAnnualTargetFromRows(fiscalYear, rows);
 }
 
 /**
- * シート行を年間目標オブジェクトへ変換
+ * V4形式の複数行から年間目標オブジェクトを構築
  * @param {number} fiscalYear - 対象年度
- * @param {Array<*>} row - 行データ（MODULE_CONTROL_PLAN_HEADERS形式）
+ * @param {Array<Array<*>>} rows - 行データ（V4形式: 学年別行）
  * @return {Object} 年間目標
  */
-function toAnnualTargetFromRow(fiscalYear, row) {
+function buildAnnualTargetFromRows(fiscalYear, rows) {
+  const grades = {};
   const gradeKoma = {};
+
   for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
-    gradeKoma[g] = Math.max(0, Math.round(toNumberOrZero(row[g])));
+    grades[g] = { mode: MODULE_PLAN_MODE_ANNUAL, annualKoma: MODULE_DEFAULT_ANNUAL_KOMA, monthlyKoma: null };
+    gradeKoma[g] = MODULE_DEFAULT_ANNUAL_KOMA;
   }
+
+  rows.forEach(function(row) {
+    const grade = Number(row[1]);
+    if (grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
+      return;
+    }
+    const mode = String(row[2] || '').trim() === MODULE_PLAN_MODE_MONTHLY
+      ? MODULE_PLAN_MODE_MONTHLY
+      : MODULE_PLAN_MODE_ANNUAL;
+    const annualKoma = Math.max(0, Math.round(toNumberOrZero(row[15])));
+
+    if (mode === MODULE_PLAN_MODE_MONTHLY) {
+      const monthlyKoma = {};
+      [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3].forEach(function(m, i) {
+        monthlyKoma[m] = Math.max(0, Math.round(toNumberOrZero(row[3 + i])));
+      });
+      grades[grade] = { mode: MODULE_PLAN_MODE_MONTHLY, annualKoma: annualKoma, monthlyKoma: monthlyKoma };
+    } else {
+      grades[grade] = { mode: MODULE_PLAN_MODE_ANNUAL, annualKoma: annualKoma, monthlyKoma: null };
+    }
+    gradeKoma[grade] = annualKoma;
+  });
 
   return {
     fiscalYear: Number(fiscalYear),
-    gradeKoma: gradeKoma,
-    note: row[MODULE_CONTROL_PLAN_HEADERS.length - 1] || ''
+    grades: grades,
+    gradeKoma: gradeKoma
   };
 }
 
 /**
  * 年間目標から日次計画を構築（保存はしない）
- * 実施期間内の登校日に対してセッションを均等配分し、予備セッション数も算出する。
+ * 実施期間内の実施可能日に対してセッションを均等配分し、予備セッション数も算出する。
  * options.startDate/endDate で実施期間を指定可能（省略時は年度全体）。
  * @param {number} fiscalYear - 対象年度
  * @param {Date|string} baseDate - 集計基準日
@@ -144,16 +163,31 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
   }
 
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+    const gradeTarget = annualTarget.grades[grade];
     const plannedKoma = toNumberOrZero(annualTarget.gradeKoma[grade]);
     const plannedSessions = Math.max(0, Math.round(plannedKoma * 3));
     const gradeDates = schoolDayMap[grade];
 
-    const weekMap = buildWeekMapFromDates(gradeDates);
-    const allocations = allocateSessionsToDateKeys(plannedSessions, weekMap);
+    // モード別にセッションを配分
+    let allocations;
+    if (gradeTarget.mode === MODULE_PLAN_MODE_MONTHLY && gradeTarget.monthlyKoma) {
+      allocations = allocateSessionsByMonth(gradeTarget.monthlyKoma, gradeDates);
+    } else {
+      const weekMap = buildWeekMapFromDates(gradeDates);
+      allocations = allocateSessionsToDateKeys(plannedSessions, weekMap);
+    }
     const allocatedDateKeys = Object.keys(allocations).sort();
 
-    // 予備/不足 = 登校日数 - 計画セッション数（正=予備、負=不足）
-    reserveByGrade[grade] = gradeDates.length - plannedSessions;
+    // 予備/不足 = 実施可能日数 - 計画セッション数（正=予備、負=不足）
+    // monthlyモードでは実施可能日0の月のセッションが失われるため、実配分数を使用
+    let effectiveSessions = plannedSessions;
+    if (gradeTarget.mode === MODULE_PLAN_MODE_MONTHLY) {
+      effectiveSessions = 0;
+      Object.keys(allocations).forEach(function(key) {
+        effectiveSessions += allocations[key];
+      });
+    }
+    reserveByGrade[grade] = gradeDates.length - effectiveSessions;
 
     allocatedDateKeys.forEach(function(dateKey) {
       const dateObj = normalizeToDate(dateKey);
@@ -357,6 +391,49 @@ function allocateSessionsToDateKeys(totalSessions, weekMap) {
       const dateKey = formatInputDate(targetDate);
       allocations[dateKey] = toNumberOrZero(allocations[dateKey]) + 1;
     }
+  });
+
+  return allocations;
+}
+
+/**
+ * 月別コマ目標からセッションを月ごとに配分
+ * @param {Object} monthlyKoma - 月番号→コマ数マップ {4:3, 5:2, ...}
+ * @param {Array<Date>} gradeDates - 学年の実施可能日リスト（ソート済み）
+ * @return {Object} dateKey→セッション数マップ
+ */
+function allocateSessionsByMonth(monthlyKoma, gradeDates) {
+  const allocations = {};
+
+  // 日付を月別にグループ化
+  const datesByMonth = {};
+  gradeDates.forEach(function(date) {
+    const month = date.getMonth() + 1;
+    if (!datesByMonth[month]) {
+      datesByMonth[month] = [];
+    }
+    datesByMonth[month].push(date);
+  });
+
+  // 月ごとに配分
+  [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3].forEach(function(month) {
+    const koma = toNumberOrZero(monthlyKoma[month]);
+    if (koma <= 0) {
+      return;
+    }
+    const sessions = Math.max(0, Math.round(koma * 3));
+    const monthDates = datesByMonth[month] || [];
+    if (monthDates.length === 0) {
+      Logger.log('[WARNING] ' + month + '月に実施可能日がありませんが、目標が' + koma + 'コマ設定されています');
+      return;
+    }
+
+    const weekMap = buildWeekMapFromDates(monthDates);
+    const monthAllocations = allocateSessionsToDateKeys(sessions, weekMap);
+
+    Object.keys(monthAllocations).forEach(function(dateKey) {
+      allocations[dateKey] = toNumberOrZero(allocations[dateKey]) + monthAllocations[dateKey];
+    });
   });
 
   return allocations;

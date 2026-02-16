@@ -325,7 +325,7 @@ function countExceptionRowsForFiscalYear(controlSheet, fiscalYear, exceptionRows
 
 /**
  * 旧モジュールシートおよび旧データ形式から最新版へ移行
- * V1（マルチシート）→ V2（module_control クール制）→ V3（module_control 年間制）
+ * V1（マルチシート）→ V2（module_control クール制）→ V3（年間制8列）→ V4（学年行17列）
  * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  */
@@ -343,6 +343,11 @@ function migrateLegacyModuleSheetsToControlIfNeeded(ss, controlSheet) {
   // ── V2→V3 マイグレーション: クール計画 → 年間目標 ──
   if (currentVersion === 'CONTROL_V2' || currentVersion === '') {
     migrateCyclePlanToAnnualTarget(controlSheet);
+  }
+
+  // ── V3→V4 マイグレーション: 年間制8列 → 学年行17列 ──
+  if (currentVersion === 'CONTROL_V3' || currentVersion === 'CONTROL_V2' || currentVersion === '') {
+    migrateV3ToV4PlanRows(controlSheet);
   }
 
   // ── 旧設定シートからプロパティへ移行 ──
@@ -494,7 +499,7 @@ function convertCycleRowsToAnnualTarget(values, colCount) {
     }
   });
 
-  // 新形式の行を構築
+  // V4形式の行を構築（学年別行）
   const newRows = [];
   Object.keys(byFiscalYear).sort().forEach(function(fyKey) {
     const fy = Number(fyKey);
@@ -502,19 +507,104 @@ function convertCycleRowsToAnnualTarget(values, colCount) {
     const noteText = entry.notes.length > 0
       ? 'migrated: ' + entry.notes.join('; ')
       : 'migrated from cycles';
-    newRows.push([
-      fy,
-      Math.round(entry.gradeKoma[1]),
-      Math.round(entry.gradeKoma[2]),
-      Math.round(entry.gradeKoma[3]),
-      Math.round(entry.gradeKoma[4]),
-      Math.round(entry.gradeKoma[5]),
-      Math.round(entry.gradeKoma[6]),
-      noteText
-    ]);
+    for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+      newRows.push(buildV4PlanRow(fy, g, MODULE_PLAN_MODE_ANNUAL, Math.round(entry.gradeKoma[g]), null, noteText));
+    }
   });
 
   return newRows;
+}
+
+/**
+ * V4形式の計画行を構築
+ * @param {number} fiscalYear - 年度
+ * @param {number} grade - 学年
+ * @param {string} mode - 'annual' or 'monthly'
+ * @param {number} annualKoma - 年間コマ数
+ * @param {Object|null} monthlyKoma - 月別コマ数 {4:N, 5:N, ..., 3:N}（monthlyモード時）
+ * @param {string=} note - メモ
+ * @return {Array<*>} MODULE_CONTROL_PLAN_HEADERS形式の行
+ */
+function buildV4PlanRow(fiscalYear, grade, mode, annualKoma, monthlyKoma, note) {
+  const row = new Array(MODULE_CONTROL_PLAN_HEADERS.length).fill('');
+  row[0] = Number(fiscalYear);
+  row[1] = Number(grade);
+  row[2] = mode || MODULE_PLAN_MODE_ANNUAL;
+  if (mode === MODULE_PLAN_MODE_MONTHLY && monthlyKoma) {
+    [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3].forEach(function(m, i) {
+      row[3 + i] = toNumberOrZero(monthlyKoma[m]);
+    });
+  }
+  row[15] = toNumberOrZero(annualKoma);
+  row[16] = note || '';
+  return row;
+}
+
+/**
+ * V3→V4: 年間制8列を学年行17列に変換
+ * V3: [fiscal_year, g1_koma, g2_koma, ..., g6_koma, note] × 1行/年度
+ * V4: [fiscal_year, grade, plan_mode, m4..m3, annual_koma, note] × 6行/年度
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ */
+function migrateV3ToV4PlanRows(controlSheet) {
+  const layout = getModuleControlLayout(controlSheet);
+  const dataRowCount = layout.exceptionsMarkerRow - layout.planDataStartRow;
+  if (dataRowCount <= 0) {
+    return;
+  }
+
+  const readCols = Math.max(controlSheet.getLastColumn(), MODULE_LEGACY_V3_PLAN_COLUMN_COUNT);
+  const values = controlSheet.getRange(layout.planDataStartRow, 1, dataRowCount, readCols).getValues();
+
+  const nonEmptyRows = values.filter(function(row) {
+    return row.some(function(v) { return isNonEmptyCell(v); });
+  });
+  if (nonEmptyRows.length === 0) {
+    return;
+  }
+
+  // V4形式かどうかを判定: 2列目が学年（1-6の整数）かつ3列目がモード文字列ならV4済み
+  const isAlreadyV4 = nonEmptyRows.some(function(row) {
+    const grade = Number(row[1]);
+    const mode = String(row[2] || '').trim();
+    return Number.isInteger(grade) && grade >= MODULE_GRADE_MIN && grade <= MODULE_GRADE_MAX &&
+      (mode === MODULE_PLAN_MODE_ANNUAL || mode === MODULE_PLAN_MODE_MONTHLY);
+  });
+  if (isAlreadyV4) {
+    return;
+  }
+
+  Logger.log('[INFO] V3→V4 マイグレーション: 年間制8列を学年行17列へ変換します');
+
+  // V3形式: [fiscal_year, g1_koma, g2_koma, g3_koma, g4_koma, g5_koma, g6_koma, note]
+  const v4Rows = [];
+  nonEmptyRows.forEach(function(row) {
+    const fy = Number(row[0]);
+    if (!Number.isInteger(fy) || fy < 2000 || fy > 2100) {
+      return;
+    }
+    const noteText = isNonEmptyCell(row[7]) ? String(row[7]) : '';
+    for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+      const koma = Math.max(0, Math.round(toNumberOrZero(row[g])));
+      v4Rows.push(buildV4PlanRow(fy, g, MODULE_PLAN_MODE_ANNUAL, koma, null, noteText));
+    }
+  });
+
+  // 旧データをクリア
+  controlSheet.getRange(layout.planDataStartRow, 1, dataRowCount, readCols).clearContent();
+
+  // 容量不足時は行を追加
+  if (v4Rows.length > dataRowCount) {
+    controlSheet.insertRowsBefore(layout.exceptionsMarkerRow, v4Rows.length - dataRowCount);
+  }
+
+  // V4データを書き込み
+  if (v4Rows.length > 0) {
+    controlSheet.getRange(layout.planDataStartRow, 1, v4Rows.length, MODULE_CONTROL_PLAN_HEADERS.length)
+      .setValues(v4Rows);
+  }
+
+  Logger.log('[INFO] V3→V4 マイグレーション完了: ' + v4Rows.length + '行の学年別目標を作成');
 }
 
 /**
