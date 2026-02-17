@@ -185,7 +185,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     monthLabels.forEach(function(label) { headers.push(label); });
     headers.push('合計');
     headers.push('計画');
-    headers.push('予備/不足');
+    headers.push('予/不足');
 
     sheet.getRange(headerRow, 1, 1, headers.length).setValues([headers]);
     sheet.getRange(headerRow, 1, 1, headers.length)
@@ -212,9 +212,9 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
 
       const reserve = toNumberOrZero(buildResult.reserveByGrade[grade]);
       if (reserve > 0) {
-        row.push(MODULE_RESERVE_LABEL + ' ' + formatSessionsAsMixedFraction(reserve) + 'コマ');
+        row.push(MODULE_RESERVE_LABEL + formatSessionsAsMixedFraction(reserve));
       } else if (reserve < 0) {
-        row.push(MODULE_DEFICIT_LABEL + ' ' + formatSessionsAsMixedFraction(Math.abs(reserve)) + 'コマ');
+        row.push(MODULE_DEFICIT_LABEL + formatSessionsAsMixedFraction(Math.abs(reserve)));
       } else {
         row.push('-');
       }
@@ -373,6 +373,10 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
           }
         });
 
+        // 左右ブロック間のセパレーター（太罫線）
+        sheet.getRange(dailyHeaderRow, blockCols, maxBlockRows + 1, 1)
+          .setBorder(null, null, null, true, null, null, '#334155', SpreadsheetApp.BorderStyle.SOLID_THICK);
+
         // 日別セクションのフォントサイズ・行高さ（印刷最適化）
         sheet.getRange(dailyHeaderRow, 1, 1, blockCols * 2).setFontSize(9);
         sheet.getRange(dailyDataStartRow, 1, maxBlockRows, blockCols * 2).setFontSize(9);
@@ -389,18 +393,10 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     );
     sheet.getRange(footerRow, 1).setFontSize(9).setFontColor('#64748b');
 
-    // 列幅調整（月別サマリーと日別2段組みの共用）
-    sheet.setColumnWidth(1, 45);
-    for (let c = 2; c <= 8; c++) {
-      sheet.setColumnWidth(c, 40);
+    // 列幅調整（全列均等幅で日別2段組みの左右対称を確保）
+    for (let c = 1; c <= 16; c++) {
+      sheet.setColumnWidth(c, 45);
     }
-    sheet.setColumnWidth(9, 45);
-    for (let c = 10; c <= 13; c++) {
-      sheet.setColumnWidth(c, 40);
-    }
-    sheet.setColumnWidth(14, 50);
-    sheet.setColumnWidth(15, 50);
-    sheet.setColumnWidth(16, 70);
 
     Logger.log('[INFO] モジュール学習計画シートを更新しました');
   } catch (error) {
