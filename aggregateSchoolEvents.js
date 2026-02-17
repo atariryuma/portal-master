@@ -46,9 +46,11 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
 
   let modulePlanMap = null;
   try {
+    const modulePlanOptions = resolveAggregateModulePlanOptions_(endDateObj);
     modulePlanMap = applyModuleExceptions(
-      buildSchoolDayPlanMap(startDateObj, endDateObj),
-      endDateObj
+      buildSchoolDayPlanMap(startDateObj, endDateObj, modulePlanOptions),
+      endDateObj,
+      startDateObj
     );
   } catch (error) {
     moduleCalculationError = error.toString();
@@ -118,6 +120,20 @@ function processAggregateSchoolEventsByGrade(startDate, endDate, gradeHours) {
       '警告'
     );
   }
+}
+
+function resolveAggregateModulePlanOptions_(fallbackDate) {
+  const settingsMap = readModuleSettingsMap();
+  const enabledWeekdays = getEnabledWeekdays(settingsMap);
+  const planningRange = typeof getModulePlanningRangeFromSettings === 'function'
+    ? getModulePlanningRangeFromSettings(fallbackDate, settingsMap)
+    : null;
+
+  return {
+    settingsMap: settingsMap,
+    enabledWeekdays: enabledWeekdays,
+    planningRange: planningRange
+  };
 }
 
 /**

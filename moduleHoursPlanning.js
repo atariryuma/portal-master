@@ -623,9 +623,10 @@ function loadExceptionTotals(fiscalYear, baseDate, controlSheet) {
  * @param {Date|string} endDate - 終了日
  * @return {Object} 計画マップ
  */
-function buildSchoolDayPlanMap(startDate, endDate) {
+function buildSchoolDayPlanMap(startDate, endDate, options) {
   const start = normalizeToDate(startDate);
   const end = normalizeToDate(endDate);
+  const resolvedOptions = resolveSchoolDayPlanMapOptions_(end, options);
 
   if (!start || !end) {
     throw new Error('学校日計画の期間指定が不正です。');
@@ -640,7 +641,11 @@ function buildSchoolDayPlanMap(startDate, endDate) {
 
   fiscalYears.forEach(function(fiscalYear) {
     ensureDefaultAnnualTargetForFiscalYear(fiscalYear);
-    const buildResult = buildDailyPlanFromAnnualTarget(fiscalYear, end);
+    const buildResult = buildDailyPlanFromAnnualTarget(fiscalYear, end, {
+      enabledWeekdays: resolvedOptions.enabledWeekdays,
+      startDate: resolvedOptions.planningRange.startDate,
+      endDate: resolvedOptions.planningRange.endDate
+    });
 
     buildResult.dailyRows.forEach(function(row) {
       const date = normalizeToDate(row[0]);
@@ -688,9 +693,57 @@ function buildSchoolDayPlanMap(startDate, endDate) {
  * @param {Date|string} baseDate - 基準日
  * @return {Object} 差分反映後
  */
-function applyModuleExceptions(planMap, baseDate) {
+function resolveSchoolDayPlanMapOptions_(fallbackDate, options) {
+  const optionMap = options || {};
+  const baseDate = normalizeToDate(fallbackDate) || normalizeToDate(new Date());
+  const settingsMap = optionMap.settingsMap || readModuleSettingsMap();
+  const enabledWeekdays = Array.isArray(optionMap.enabledWeekdays) && optionMap.enabledWeekdays.length > 0
+    ? optionMap.enabledWeekdays.slice()
+    : getEnabledWeekdays(settingsMap);
+
+  let planningRange;
+  if (optionMap.planningRange && optionMap.planningRange.startDate && optionMap.planningRange.endDate) {
+    planningRange = {
+      startDate: normalizeToDate(optionMap.planningRange.startDate),
+      endDate: normalizeToDate(optionMap.planningRange.endDate)
+    };
+  } else if (typeof getModulePlanningRangeFromSettings === 'function') {
+    planningRange = getModulePlanningRangeFromSettings(baseDate, settingsMap);
+  } else {
+    planningRange = buildDefaultPlanningRangeFromDate_(baseDate);
+  }
+
+  if (!planningRange.startDate || !planningRange.endDate || planningRange.startDate > planningRange.endDate) {
+    planningRange = buildDefaultPlanningRangeFromDate_(baseDate);
+  }
+
+  return {
+    enabledWeekdays: enabledWeekdays,
+    planningRange: planningRange
+  };
+}
+
+function buildDefaultPlanningRangeFromDate_(baseDate) {
+  const month = baseDate.getMonth() + 1;
+  const fiscalYear = month >= MODULE_FISCAL_YEAR_START_MONTH
+    ? baseDate.getFullYear()
+    : baseDate.getFullYear() - 1;
+
+  const startDate = new Date(fiscalYear, MODULE_FISCAL_YEAR_START_MONTH - 1, 1);
+  const endDate = new Date(fiscalYear + 1, MODULE_FISCAL_YEAR_START_MONTH - 1, 0);
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(0, 0, 0, 0);
+
+  return {
+    startDate: startDate,
+    endDate: endDate
+  };
+}
+
+function applyModuleExceptions(planMap, baseDate, startDate) {
   const controlSheet = initializeModuleHoursSheetsIfNeeded();
   const cutoffDate = normalizeToDate(baseDate) || normalizeToDate(new Date());
+  const lowerBoundDate = normalizeToDate(startDate);
   const rows = readExceptionRows(controlSheet);
 
   Object.keys(planMap.byMonth).forEach(function(monthKey) {
@@ -707,7 +760,7 @@ function applyModuleExceptions(planMap, baseDate) {
     const grade = Number(item.grade);
     const deltaSessions = toNumberOrZero(item.deltaSessions);
 
-    if (!exceptionDate || exceptionDate > cutoffDate) {
+    if (!isExceptionDateInRange_(exceptionDate, lowerBoundDate, cutoffDate)) {
       return;
     }
     if (!Number.isInteger(grade) || grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
@@ -732,6 +785,16 @@ function applyModuleExceptions(planMap, baseDate) {
   });
 
   return planMap;
+}
+
+function isExceptionDateInRange_(exceptionDate, lowerBoundDate, cutoffDate) {
+  if (!exceptionDate || exceptionDate > cutoffDate) {
+    return false;
+  }
+  if (lowerBoundDate && exceptionDate < lowerBoundDate) {
+    return false;
+  }
+  return true;
 }
 
 /**

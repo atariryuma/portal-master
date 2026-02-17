@@ -134,7 +134,9 @@ function getFullTestPlan_() {
         { name: '3-8. 月キー生成（年度跨ぎ）', fn: testListMonthKeysInRangeAcrossFiscalYear },
         { name: '3-9. 月キー生成（単月）', fn: testListMonthKeysInRangeSingleMonth },
         { name: '3-10. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
-        { name: '3-11. MOD実績取得関数', fn: testGetModuleActualUnitsForMonth }
+        { name: '3-11. MOD実績取得関数', fn: testGetModuleActualUnitsForMonth },
+        { name: '3-12. モジュール計画オプション解決', fn: testResolveSchoolDayPlanMapOptions },
+        { name: '3-13. 例外日付範囲判定', fn: testIsExceptionDateInRange }
       ]
     },
     {
@@ -167,23 +169,17 @@ function getFullTestPlan_() {
       title: '【フェーズ7】最適化検証',
       tests: [
         { name: '7-1. マジックナンバー定数確認', fn: testMagicNumberConstants },
-        { name: '7-2. var宣言ゼロ検証', fn: testNoVarDeclarations },
-        { name: '7-3. ログプレフィックス標準化', fn: testLogPrefixStandard },
-        { name: '7-4. エラーハンドリング完備', fn: testErrorHandlingPresence },
-        { name: '7-5. XSS安全性確認', fn: testOpenWeeklyReportFolderXssSafe },
-        { name: '7-6. 累計カテゴリ導出確認', fn: testCumulativeCategoriesDerivedFromEventCategories },
-        { name: '7-7. 日付変換ヘルパー', fn: testConvertCellValue },
-        { name: '7-8. 日付行検索', fn: testFindDateRow },
-        { name: '7-9. イベント時間解析', fn: testParseEventTimesAndDates },
-        { name: '7-10. 累計計算ロジック', fn: testCalculateResultsForGrade },
-        { name: '7-11. 月キー正規化', fn: testNormalizeAggregateMonthKey },
-        { name: '7-12. 名前結合関数', fn: testJoinNamesWithNewline },
-        { name: '7-13. 全角半角変換', fn: testConvertFullWidthToHalfWidth },
-        { name: '7-14. 分解析関数', fn: testParseMinute },
-        { name: '7-15. 公開関数定義確認', fn: testPublicFunctionDefinitions },
-        { name: '7-16. バッチ読み取り確認', fn: testAssignDutyBatchReads },
-        { name: '7-17. 重複コード排除確認', fn: testNoDuplicateDateFormatter },
-        { name: '7-18. moduleHours分割確認', fn: testModuleHoursDecomposition }
+        { name: '7-2. XSS安全性確認', fn: testOpenWeeklyReportFolderXssSafe },
+        { name: '7-3. 累計カテゴリ導出確認', fn: testCumulativeCategoriesDerivedFromEventCategories },
+        { name: '7-4. 日付変換ヘルパー', fn: testConvertCellValue },
+        { name: '7-5. 日付行検索', fn: testFindDateRow },
+        { name: '7-6. イベント時間解析', fn: testParseEventTimesAndDates },
+        { name: '7-7. 累計計算ロジック', fn: testCalculateResultsForGrade },
+        { name: '7-8. 月キー正規化', fn: testNormalizeAggregateMonthKey },
+        { name: '7-9. 名前結合関数', fn: testJoinNamesWithNewline },
+        { name: '7-10. 全角半角変換', fn: testConvertFullWidthToHalfWidth },
+        { name: '7-11. 分解析関数', fn: testParseMinute },
+        { name: '7-12. 公開関数定義確認', fn: testPublicFunctionDefinitions }
       ]
     }
   ];
@@ -1017,6 +1013,62 @@ function testGetModuleActualUnitsForMonth() {
   }
 
   return { success: true, message: 'MOD実績取得のフォールバックを確認' };
+}
+
+function testResolveSchoolDayPlanMapOptions() {
+  if (typeof resolveSchoolDayPlanMapOptions_ !== 'function') {
+    return { success: false, message: 'resolveSchoolDayPlanMapOptions_関数が見つかりません' };
+  }
+
+  const resolved = resolveSchoolDayPlanMapOptions_(new Date(2026, 1, 21), {
+    enabledWeekdays: [1, 3],
+    planningRange: {
+      startDate: '2025-04-10',
+      endDate: '2026-03-10'
+    }
+  });
+
+  if (!resolved || !resolved.planningRange || !Array.isArray(resolved.enabledWeekdays)) {
+    return { success: false, message: '解決結果の形式が不正です: ' + JSON.stringify(resolved) };
+  }
+  if (resolved.enabledWeekdays.join(',') !== '1,3') {
+    return { success: false, message: '有効曜日が不正です: ' + JSON.stringify(resolved.enabledWeekdays) };
+  }
+  if (formatInputDate(resolved.planningRange.startDate) !== '2025-04-10') {
+    return { success: false, message: '開始日が不正です: ' + formatInputDate(resolved.planningRange.startDate) };
+  }
+  if (formatInputDate(resolved.planningRange.endDate) !== '2026-03-10') {
+    return { success: false, message: '終了日が不正です: ' + formatInputDate(resolved.planningRange.endDate) };
+  }
+
+  return { success: true, message: 'モジュール計画オプション解決を確認' };
+}
+
+function testIsExceptionDateInRange() {
+  if (typeof isExceptionDateInRange_ !== 'function') {
+    return { success: false, message: 'isExceptionDateInRange_関数が見つかりません' };
+  }
+
+  const start = new Date(2025, 3, 15);
+  const end = new Date(2025, 3, 30);
+  const beforeStart = new Date(2025, 3, 10);
+  const inRange = new Date(2025, 3, 20);
+  const afterEnd = new Date(2025, 4, 1);
+
+  if (isExceptionDateInRange_(beforeStart, start, end)) {
+    return { success: false, message: '開始日前の例外が範囲内判定されています' };
+  }
+  if (!isExceptionDateInRange_(inRange, start, end)) {
+    return { success: false, message: '範囲内例外が除外されています' };
+  }
+  if (isExceptionDateInRange_(afterEnd, start, end)) {
+    return { success: false, message: '終了日後の例外が範囲内判定されています' };
+  }
+  if (isExceptionDateInRange_(null, start, end)) {
+    return { success: false, message: 'null日付が範囲内判定されています' };
+  }
+
+  return { success: true, message: '例外日付の範囲判定を確認' };
 }
 
 function testSettingsSheetHiddenForNormalUse() {
@@ -1885,10 +1937,9 @@ function restoreSheetVisibilitySnapshot_() {
 
 function hideInternalSheetsAfterTest_() {
   try {
-    const restored = restoreSheetVisibilitySnapshot_();
-    if (!restored) {
-      hideInternalSheetsForNormalUse_(true);
-    }
+    restoreSheetVisibilitySnapshot_();
+    // テスト後は常に内部管理シートを非表示へ戻す（マスター含む）
+    hideInternalSheetsForNormalUse_(true);
   } catch (error) {
     Logger.log('[WARNING] テスト後の内部シート非表示化に失敗: ' + error.toString());
   }

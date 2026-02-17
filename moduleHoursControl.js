@@ -60,9 +60,8 @@ function initializeModuleHoursSheetsIfNeeded() {
   const controlSheet = getOrCreateSheetByName(ss, MODULE_SHEET_NAMES.CONTROL);
 
   ensureModuleSettingKeys();
-  migrateLegacyModuleSheetsToControlIfNeeded(ss, controlSheet);
+  ensureDataVersionIsLatest();
   ensureModuleControlSheetLayout(controlSheet);
-  hideLegacyModuleSheets(ss);
   hideModuleControlSheetIfPossible(ss, controlSheet);
 
   moduleHoursSheetsCache_ = controlSheet;
@@ -343,195 +342,17 @@ function countExceptionRowsForFiscalYear(controlSheet, fiscalYear, exceptionRows
 }
 
 /**
- * 旧モジュールシートおよび旧データ形式から最新版へ移行
- * V1（マルチシート）→ V2（module_control クール制）→ V3（年間制8列）→ V4（学年行17列）
- * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
- * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
+ * データバージョンが最新でなければ更新する
  */
-function migrateLegacyModuleSheetsToControlIfNeeded(ss, controlSheet) {
+function ensureDataVersionIsLatest() {
   const settings = readModuleSettingsMap();
   const currentVersion = String(settings[MODULE_SETTING_KEYS.DATA_VERSION] || '').trim();
 
-  if (currentVersion === MODULE_DATA_VERSION) {
-    return;
+  if (currentVersion !== MODULE_DATA_VERSION) {
+    upsertModuleSettingsValues({
+      DATA_VERSION: MODULE_DATA_VERSION
+    });
   }
-
-  // ── V1 マイグレーション: 旧マルチシート → module_control ──
-  migrateLegacyMultiSheetsToControl(ss, controlSheet);
-
-  // ── V2→V3 マイグレーション: クール計画 → 年間目標 ──
-  if (currentVersion === 'CONTROL_V2' || currentVersion === '') {
-    migrateCyclePlanToAnnualTarget(controlSheet);
-  }
-
-  // ── V3→V4 マイグレーション: 年間制8列 → 学年行17列 ──
-  if (currentVersion === 'CONTROL_V3' || currentVersion === 'CONTROL_V2' || currentVersion === '') {
-    migrateV3ToV4PlanRows(controlSheet);
-  }
-
-  // ── 旧設定シートからプロパティへ移行 ──
-  const legacySettingsSheet = ss.getSheetByName(MODULE_SHEET_NAMES.SETTINGS);
-  if (legacySettingsSheet) {
-    migrateLegacySettingsFromSheet(legacySettingsSheet);
-  }
-
-  upsertModuleSettingsValues({
-    DATA_VERSION: MODULE_DATA_VERSION
-  });
-}
-
-/**
- * V1: 旧マルチシートからの例外データ移行
- * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
- * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
- */
-function migrateLegacyMultiSheetsToControl(ss, controlSheet) {
-  // 例外データの移行（例外テーブルは V2/V3 で構造変更なし）
-  if (readExceptionRows(controlSheet).length === 0) {
-    const legacyExceptionSheet = ss.getSheetByName(MODULE_SHEET_NAMES.EXCEPTIONS);
-    if (legacyExceptionSheet && legacyExceptionSheet.getLastRow() > 1) {
-      const colCount = Math.min(legacyExceptionSheet.getLastColumn(), MODULE_CONTROL_EXCEPTION_HEADERS.length);
-      const headerCol3 = String(legacyExceptionSheet.getRange(1, 3).getValue() || '').trim();
-      const values = legacyExceptionSheet.getRange(2, 1, legacyExceptionSheet.getLastRow() - 1, colCount).getValues();
-
-      const rows = values.map(function(row) {
-        const padded = new Array(MODULE_CONTROL_EXCEPTION_HEADERS.length).fill('');
-        for (let i = 0; i < colCount; i++) {
-          padded[i] = row[i];
-        }
-        if (headerCol3 === 'delta_units') {
-          padded[2] = toNumberOrZero(padded[2]) * 3;
-        }
-        return padded;
-      }).filter(function(row) {
-        return row.some(function(value) {
-          return isNonEmptyCell(value);
-        });
-      });
-
-      appendExceptionRows(controlSheet, rows);
-    }
-  }
-
-  // 旧クール計画シートの移行（V3形式の年間目標として合算）
-  const layout = getModuleControlLayout(controlSheet);
-  const existingPlanRows = layout.exceptionsMarkerRow - layout.planDataStartRow;
-  if (existingPlanRows <= 0 || readAllAnnualTargetRows(controlSheet, layout).length === 0) {
-    const legacyCycleSheet = ss.getSheetByName(MODULE_SHEET_NAMES.CYCLE_PLAN);
-    if (legacyCycleSheet && legacyCycleSheet.getLastRow() > 1) {
-      const colCount = Math.min(legacyCycleSheet.getLastColumn(), MODULE_LEGACY_CYCLE_PLAN_COLUMN_COUNT);
-      const values = legacyCycleSheet.getRange(2, 1, legacyCycleSheet.getLastRow() - 1, colCount).getValues();
-      const annualRows = convertCycleRowsToAnnualTarget(values, colCount);
-      if (annualRows.length > 0) {
-        appendAnnualTargetRows(controlSheet, annualRows);
-      }
-    }
-  }
-}
-
-/**
- * V2→V3: クール計画行を年間目標行に変換
- * 旧11列のクール計画を読み取り、年度×学年でコマ数を合算して8列の年間目標に変換
- * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
- */
-function migrateCyclePlanToAnnualTarget(controlSheet) {
-  const layout = getModuleControlLayout(controlSheet);
-  const dataRowCount = layout.exceptionsMarkerRow - layout.planDataStartRow;
-  if (dataRowCount <= 0) {
-    return;
-  }
-
-  // 旧データを最大列数で読み取り（11列 or 8列のどちらか）
-  const readCols = Math.min(
-    Math.max(controlSheet.getLastColumn(), MODULE_CONTROL_PLAN_HEADERS.length),
-    MODULE_LEGACY_CYCLE_PLAN_COLUMN_COUNT
-  );
-  const values = controlSheet.getRange(layout.planDataStartRow, 1, dataRowCount, readCols).getValues();
-
-  // クール計画かどうかを判定: 2列目がクール順（整数）かつ 3-4列目が月（1-12）なら旧形式
-  const isCyclePlan = values.some(function(row) {
-    if (!row.some(function(v) { return isNonEmptyCell(v); })) {
-      return false;
-    }
-    const cycleOrder = Number(row[1]);
-    const startMonth = Number(row[2]);
-    const endMonth = Number(row[3]);
-    return Number.isInteger(cycleOrder) && cycleOrder >= 1 && cycleOrder <= 10 &&
-      Number.isInteger(startMonth) && startMonth >= 1 && startMonth <= 12 &&
-      Number.isInteger(endMonth) && endMonth >= 1 && endMonth <= 12;
-  });
-
-  if (!isCyclePlan) {
-    return;
-  }
-
-  Logger.log('[INFO] V2→V3 マイグレーション: クール計画を年間目標へ変換します');
-
-  const annualRows = convertCycleRowsToAnnualTarget(values, readCols);
-
-  // 旧データをクリア
-  controlSheet.getRange(layout.planDataStartRow, 1, dataRowCount, readCols).clearContent();
-
-  // 新データを書き込み
-  if (annualRows.length > 0) {
-    controlSheet.getRange(layout.planDataStartRow, 1, annualRows.length, MODULE_CONTROL_PLAN_HEADERS.length)
-      .setValues(annualRows);
-  }
-
-  Logger.log('[INFO] V2→V3 マイグレーション完了: ' + annualRows.length + '年度分の年間目標を作成');
-}
-
-/**
- * クール計画行を年間目標行に変換（共通ロジック）
- * @param {Array<Array<*>>} values - 旧クール計画の行データ
- * @param {number} colCount - 読み取り列数
- * @return {Array<Array<*>>} 年間目標行（MODULE_CONTROL_PLAN_HEADERS形式）
- */
-function convertCycleRowsToAnnualTarget(values, colCount) {
-  // 年度×学年でコマ数を合算
-  const byFiscalYear = {};
-
-  values.forEach(function(row) {
-    if (!row.some(function(v) { return isNonEmptyCell(v); })) {
-      return;
-    }
-    const fy = Number(row[0]);
-    if (!Number.isInteger(fy) || fy < 2000 || fy > 2100) {
-      return;
-    }
-    if (!Object.prototype.hasOwnProperty.call(byFiscalYear, fy)) {
-      byFiscalYear[fy] = { gradeKoma: {}, notes: [] };
-      for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
-        byFiscalYear[fy].gradeKoma[g] = 0;
-      }
-    }
-    // 旧形式: [fiscal_year, cycle_order, start_month, end_month, g1..g6_koma, note]
-    // g1_koma は index 4, g6_koma は index 9
-    for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
-      const komaIndex = 3 + g; // g1=4, g2=5, ..., g6=9
-      if (komaIndex < colCount) {
-        byFiscalYear[fy].gradeKoma[g] += toNumberOrZero(row[komaIndex]);
-      }
-    }
-    if (colCount > 10 && isNonEmptyCell(row[10])) {
-      byFiscalYear[fy].notes.push(String(row[10]));
-    }
-  });
-
-  // V4形式の行を構築（学年別行）
-  const newRows = [];
-  Object.keys(byFiscalYear).sort().forEach(function(fyKey) {
-    const fy = Number(fyKey);
-    const entry = byFiscalYear[fy];
-    const noteText = entry.notes.length > 0
-      ? 'migrated: ' + entry.notes.join('; ')
-      : 'migrated from cycles';
-    for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
-      newRows.push(buildV4PlanRow(fy, g, MODULE_PLAN_MODE_ANNUAL, Math.round(entry.gradeKoma[g]), null, noteText));
-    }
-  });
-
-  return newRows;
 }
 
 /**
@@ -540,7 +361,7 @@ function convertCycleRowsToAnnualTarget(values, colCount) {
  * @param {number} grade - 学年
  * @param {string} mode - 'annual' or 'monthly'
  * @param {number} annualKoma - 年間コマ数
- * @param {Object|null} monthlyKoma - 月別コマ数 {4:N, 5:N, ..., 3:N}（monthlyモード時）
+ * @param {Object|null} monthlyKoma - 月別コマ数（monthlyモード時）
  * @param {string=} note - メモ
  * @return {Array<*>} MODULE_CONTROL_PLAN_HEADERS形式の行
  */
@@ -557,147 +378,6 @@ function buildV4PlanRow(fiscalYear, grade, mode, annualKoma, monthlyKoma, note) 
   row[15] = toNumberOrZero(annualKoma);
   row[16] = note || '';
   return row;
-}
-
-/**
- * V3→V4: 年間制8列を学年行17列に変換
- * V3: [fiscal_year, g1_koma, g2_koma, ..., g6_koma, note] × 1行/年度
- * V4: [fiscal_year, grade, plan_mode, m4..m3, annual_koma, note] × 6行/年度
- * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
- */
-function migrateV3ToV4PlanRows(controlSheet) {
-  const layout = getModuleControlLayout(controlSheet);
-  const dataRowCount = layout.exceptionsMarkerRow - layout.planDataStartRow;
-  if (dataRowCount <= 0) {
-    return;
-  }
-
-  const readCols = Math.max(controlSheet.getLastColumn(), MODULE_LEGACY_V3_PLAN_COLUMN_COUNT);
-  const values = controlSheet.getRange(layout.planDataStartRow, 1, dataRowCount, readCols).getValues();
-
-  const nonEmptyRows = values.filter(function(row) {
-    return row.some(function(v) { return isNonEmptyCell(v); });
-  });
-  if (nonEmptyRows.length === 0) {
-    return;
-  }
-
-  // V4形式かどうかを判定: 2列目が学年（1-6の整数）かつ3列目がモード文字列ならV4済み
-  const isAlreadyV4 = nonEmptyRows.some(function(row) {
-    const grade = Number(row[1]);
-    const mode = String(row[2] || '').trim();
-    return Number.isInteger(grade) && grade >= MODULE_GRADE_MIN && grade <= MODULE_GRADE_MAX &&
-      (mode === MODULE_PLAN_MODE_ANNUAL || mode === MODULE_PLAN_MODE_MONTHLY);
-  });
-  if (isAlreadyV4) {
-    return;
-  }
-
-  Logger.log('[INFO] V3→V4 マイグレーション: 年間制8列を学年行17列へ変換します');
-
-  // V3形式: [fiscal_year, g1_koma, g2_koma, g3_koma, g4_koma, g5_koma, g6_koma, note]
-  const v4Rows = [];
-  nonEmptyRows.forEach(function(row) {
-    const fy = Number(row[0]);
-    if (!Number.isInteger(fy) || fy < 2000 || fy > 2100) {
-      return;
-    }
-    const noteText = isNonEmptyCell(row[7]) ? String(row[7]) : '';
-    for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
-      const koma = Math.max(0, Math.round(toNumberOrZero(row[g])));
-      v4Rows.push(buildV4PlanRow(fy, g, MODULE_PLAN_MODE_ANNUAL, koma, null, noteText));
-    }
-  });
-
-  // 旧データをクリア
-  controlSheet.getRange(layout.planDataStartRow, 1, dataRowCount, readCols).clearContent();
-
-  // 容量不足時は行を追加
-  if (v4Rows.length > dataRowCount) {
-    controlSheet.insertRowsBefore(layout.exceptionsMarkerRow, v4Rows.length - dataRowCount);
-  }
-
-  // V4データを書き込み
-  if (v4Rows.length > 0) {
-    controlSheet.getRange(layout.planDataStartRow, 1, v4Rows.length, MODULE_CONTROL_PLAN_HEADERS.length)
-      .setValues(v4Rows);
-  }
-
-  Logger.log('[INFO] V3→V4 マイグレーション完了: ' + v4Rows.length + '行の学年別目標を作成');
-}
-
-/**
- * 旧設定シートからプロパティへ移行
- * @param {GoogleAppsScript.Spreadsheet.Sheet} settingsSheet - module_settings
- */
-function migrateLegacySettingsFromSheet(settingsSheet) {
-  const lastRow = settingsSheet.getLastRow();
-  if (lastRow <= 1) {
-    return;
-  }
-
-  const values = settingsSheet.getRange(2, 1, lastRow - 1, 2).getValues();
-  const legacyMap = {};
-
-  values.forEach(function(row) {
-    if (isNonEmptyCell(row[0])) {
-      legacyMap[String(row[0])] = row[1];
-    }
-  });
-
-  const current = readModuleSettingsMap();
-  const updates = {};
-
-  Object.keys(MODULE_SETTING_KEYS).forEach(function(keyName) {
-    const key = MODULE_SETTING_KEYS[keyName];
-    if (!isNonEmptyCell(current[key]) && Object.prototype.hasOwnProperty.call(legacyMap, key)) {
-      updates[key] = legacyMap[key];
-    }
-  });
-
-  if (Object.keys(updates).length > 0) {
-    upsertModuleSettingsValues(updates);
-  }
-}
-
-/**
- * 旧シートを非表示化（1画面運用）
- * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
- */
-function hideLegacyModuleSheets(ss) {
-  const legacyNames = [
-    MODULE_SHEET_NAMES.SETTINGS,
-    MODULE_SHEET_NAMES.CYCLE_PLAN,
-    MODULE_SHEET_NAMES.DAILY_PLAN,
-    MODULE_SHEET_NAMES.PLAN,
-    MODULE_SHEET_NAMES.EXCEPTIONS,
-    MODULE_SHEET_NAMES.SUMMARY
-  ];
-
-  const active = ss.getActiveSheet();
-  const activeName = active ? active.getName() : '';
-
-  legacyNames.forEach(function(name) {
-    if (name === MODULE_SHEET_NAMES.CONTROL) {
-      return;
-    }
-
-    const sheet = ss.getSheetByName(name);
-    if (!sheet) {
-      return;
-    }
-    if (sheet.getName() === activeName) {
-      return;
-    }
-
-    try {
-      if (!sheet.isSheetHidden()) {
-        sheet.hideSheet();
-      }
-    } catch (error) {
-      Logger.log('[WARNING] 旧シート非表示に失敗: ' + name + ' / ' + error.toString());
-    }
-  });
 }
 
 /**

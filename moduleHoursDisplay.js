@@ -297,11 +297,16 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
 
       if (dailyDataRows.length > 0) {
         const dailyDataStartRow = dailyHeaderRow + 1;
+        const dailyGradeStartCol = 3;
+        const dailyGradeColCount = MODULE_GRADE_MAX - MODULE_GRADE_MIN + 1;
         sheet.getRange(dailyDataStartRow, 1, dailyDataRows.length, dailyHeaders.length).setValues(dailyDataRows);
         sheet.getRange(dailyDataStartRow, 1, dailyDataRows.length, dailyHeaders.length)
           .setBorder(true, true, true, true, true, true);
         sheet.getRange(dailyDataStartRow, 2, dailyDataRows.length, dailyHeaders.length - 1)
           .setHorizontalAlignment('center');
+        // 学年列はセッション回数（整数）として固定表示する
+        sheet.getRange(dailyDataStartRow, dailyGradeStartCol, dailyDataRows.length, dailyGradeColCount)
+          .setNumberFormat('0');
 
         monthBoundaryIndices.forEach(function(rowIdx) {
           if (rowIdx > 0) {

@@ -2,14 +2,15 @@
 <html>
 <head>
   <base target="_top">
-  <?!= include_('dialogStyles') ?>
   <style>
     /* ── modulePlanningDialog 固有スタイル ──
      * 共通ベーススタイルは dialogStyles.html から読み込み済み。
      * 以下はこのダイアログ専用のオーバーライドと追加スタイルのみ。
      */
     body {
+      margin: 0;
       padding: 20px;
+      font-family: 'Yu Gothic', Arial, sans-serif;
       background: #eef2f7;
       color: #1f2937;
     }
@@ -130,11 +131,40 @@
       margin-bottom: 8px;
       flex-wrap: wrap;
     }
+    .toolbar.tight {
+      margin-bottom: 12px;
+    }
     .toolbar label {
       display: inline;
       font-weight: normal;
       font-size: 14px;
       color: #475569;
+    }
+    .weekday-option {
+      font-size: 13px;
+    }
+    .weekday-option.first {
+      margin-left: 8px;
+    }
+    .date-input {
+      width: 150px;
+    }
+    .range-separator {
+      font-size: 13px;
+      color: #475569;
+    }
+    .bulk-koma-input {
+      width: 68px;
+    }
+    .note-row {
+      margin-top: 6px;
+    }
+    .note-caption {
+      font-size: 11px;
+      color: #475569;
+    }
+    .note-field {
+      width: 300px;
     }
     label {
       display: inline;
@@ -205,6 +235,19 @@
       width: 58px;
       text-align: right;
     }
+    .plan-table .monthly-koma {
+      width: 42px;
+    }
+    .plan-table .mode-cell {
+      white-space: nowrap;
+    }
+    .auto-koma {
+      font-size: 12px;
+    }
+    .monthly-placeholder {
+      color: #94a3b8;
+      font-size: 11px;
+    }
     .plan-table .note-input {
       width: 120px;
       text-align: left;
@@ -222,7 +265,7 @@
       background: #f1f5f9;
     }
     .reserve-summary {
-      display: flex;
+      display: none;
       flex-wrap: wrap;
       gap: 8px;
       margin-top: 8px;
@@ -462,30 +505,30 @@
       <h3>実施設定</h3>
       <p class="section-note">モジュール学習の実施曜日と実施期間を設定します。</p>
 
-      <div class="toolbar" style="margin-bottom: 12px;">
+      <div class="toolbar tight">
         <label>実施曜日</label>
-        <label style="font-size:13px; margin-left:8px;">
+        <label class="weekday-option first">
           <input type="checkbox" class="weekday-cb" value="1"> 月
         </label>
-        <label style="font-size:13px;">
+        <label class="weekday-option">
           <input type="checkbox" class="weekday-cb" value="2"> 火
         </label>
-        <label style="font-size:13px;">
+        <label class="weekday-option">
           <input type="checkbox" class="weekday-cb" value="3"> 水
         </label>
-        <label style="font-size:13px;">
+        <label class="weekday-option">
           <input type="checkbox" class="weekday-cb" value="4"> 木
         </label>
-        <label style="font-size:13px;">
+        <label class="weekday-option">
           <input type="checkbox" class="weekday-cb" value="5"> 金
         </label>
       </div>
 
       <div class="toolbar">
         <label for="planStartDate">実施期間</label>
-        <input id="planStartDate" type="date" style="width:150px;">
-        <span style="font-size:13px; color:#475569;">～</span>
-        <input id="planEndDate" type="date" style="width:150px;">
+        <input id="planStartDate" type="date" class="date-input">
+        <span class="range-separator">～</span>
+        <input id="planEndDate" type="date" class="date-input">
       </div>
 
       <div class="action-row">
@@ -504,7 +547,7 @@
         <label for="fiscalYearInput">対象年度</label>
         <input id="fiscalYearInput" type="number" readonly>
         <label for="bulkKomaInput">全学年一括</label>
-        <input id="bulkKomaInput" type="number" min="0" step="1" value="28" style="width:68px">
+        <input id="bulkKomaInput" type="number" min="0" step="1" value="28" class="bulk-koma-input">
         <button type="button" class="small-btn" onclick="setAllGradeKoma()">一括設定</button>
         <button type="button" class="small-btn" id="toggleMonthlyColumnsButton" onclick="toggleMonthlyColumns()">月別列を非表示</button>
       </div>
@@ -532,11 +575,11 @@
           <tbody id="planBody"></tbody>
         </table>
       </div>
-      <div style="margin-top:6px;">
-        <label style="font-size:11px; color:#475569;">メモ</label>
-        <input id="planNote" type="text" style="width:300px;" placeholder="備考">
+      <div class="note-row">
+        <label class="note-caption">メモ</label>
+        <input id="planNote" type="text" class="note-field" placeholder="備考">
       </div>
-      <div id="reserveSummary" class="reserve-summary" style="display:none;"></div>
+      <div id="reserveSummary" class="reserve-summary"></div>
       <div class="action-row">
         <button type="button" class="sub" id="savePlanButton" onclick="savePlan()">このステップを保存</button>
       </div>
@@ -616,6 +659,9 @@
   <script>
     let currentState = {};
     let activeStep = 'settings';
+    const MONTH_SEQUENCE = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+    const DEFAULT_WEEKDAYS = [1, 3, 5];
+    const DEFAULT_ANNUAL_KOMA = 28;
     const STEP_KEYS = ['settings', 'plan', 'exception'];
     const STEP_LABELS = {
       settings: '実施設定',
@@ -854,34 +900,34 @@
       tbody.innerHTML = '';
       const t = target || {};
       const grades = t.grades || {};
-      const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+      const months = MONTH_SEQUENCE;
 
       for (let grade = 1; grade <= 6; grade++) {
-        const g = grades[grade] || { mode: 'annual', annualKoma: 28, monthlyKoma: null };
+        const g = grades[grade] || { mode: 'annual', annualKoma: DEFAULT_ANNUAL_KOMA, monthlyKoma: null };
         const mode = g.mode || 'annual';
-        const annualKoma = typeof g.annualKoma === 'number' ? g.annualKoma : 28;
+        const annualKoma = typeof g.annualKoma === 'number' ? g.annualKoma : DEFAULT_ANNUAL_KOMA;
         const monthlyKoma = g.monthlyKoma || {};
         const isMonthly = mode === 'monthly';
         const tr = document.createElement('tr');
         tr.setAttribute('data-grade', String(grade));
 
         let html = '<td>' + grade + '年</td>';
-        html += '<td style="white-space:nowrap;">';
+        html += '<td class="mode-cell">';
         html += '<label><input type="radio" name="mode_' + grade + '" value="annual"' +
                 (!isMonthly ? ' checked' : '') + ' onchange="toggleGradeMode(' + grade + ')"> 年間</label> ';
         html += '<label><input type="radio" name="mode_' + grade + '" value="monthly"' +
                 (isMonthly ? ' checked' : '') + ' onchange="toggleGradeMode(' + grade + ')"> 月別</label>';
         html += '</td>';
         html += '<td>';
-        html += '<input type="number" class="annual-koma" data-grade="' + grade + '" min="0" step="1" value="' + escapeHtml(annualKoma) + '" style="width:58px;' + (isMonthly ? ' display:none;' : '') + '">';
-        html += '<span class="auto-koma" data-grade="' + grade + '" style="font-size:12px;' + (isMonthly ? '' : ' display:none;') + '">' + annualKoma + '</span>';
+        html += '<input type="number" class="annual-koma" data-grade="' + grade + '" min="0" step="1" value="' + escapeHtml(annualKoma) + '" style="' + (isMonthly ? 'display:none;' : '') + '">';
+        html += '<span class="auto-koma" data-grade="' + grade + '" style="' + (isMonthly ? '' : 'display:none;') + '">' + annualKoma + '</span>';
         html += '</td>';
 
         months.forEach(function(m) {
           const val = Number(monthlyKoma[m]) || 0;
           html += '<td class="monthly-col">';
-          html += '<input type="number" class="monthly-koma" data-grade="' + grade + '" data-month="' + m + '" min="0" step="1" value="' + val + '" style="width:42px;' + (isMonthly ? '' : ' display:none;') + '" oninput="updateMonthlyTotal(' + grade + ')">';
-          html += '<span class="monthly-placeholder" data-grade="' + grade + '" style="color:#94a3b8; font-size:11px;' + (isMonthly ? ' display:none;' : '') + '">-</span>';
+          html += '<input type="number" class="monthly-koma" data-grade="' + grade + '" data-month="' + m + '" min="0" step="1" value="' + val + '" style="' + (isMonthly ? '' : 'display:none;') + '" oninput="updateMonthlyTotal(' + grade + ')">';
+          html += '<span class="monthly-placeholder" data-grade="' + grade + '" style="' + (isMonthly ? 'display:none;' : '') + '">-</span>';
           html += '</td>';
         });
 
@@ -911,7 +957,7 @@
           if (Number(input.value) > 0) { hasNonZero = true; }
         });
         if (!hasNonZero) {
-          const totalKoma = Number(annualInput.value) || 28;
+          const totalKoma = Number(annualInput.value) || DEFAULT_ANNUAL_KOMA;
           const perMonth = Math.floor(totalKoma / 12);
           const remainder = totalKoma % 12;
           let idx = 0;
@@ -970,7 +1016,7 @@
 
     function collectAnnualTarget() {
       const result = { grades: {}, note: '' };
-      const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+      const months = MONTH_SEQUENCE;
 
       for (let grade = 1; grade <= 6; grade++) {
         const modeRadio = document.querySelector('input[name="mode_' + grade + '"]:checked');
@@ -991,7 +1037,7 @@
           result.grades[grade] = { mode: 'monthly', annualKoma: total, monthlyKoma: monthlyKoma };
         } else {
           const input = document.querySelector('.annual-koma[data-grade="' + grade + '"]');
-          const koma = input ? Math.round(Number(input.value) || 0) : 28;
+          const koma = input ? Math.round(Number(input.value) || 0) : DEFAULT_ANNUAL_KOMA;
           if (!Number.isFinite(koma) || koma < 0) {
             throw new Error(grade + '年のコマ数を0以上の数値で入力してください。');
           }
@@ -1074,7 +1120,7 @@
     }
 
     function renderWeekdayCheckboxes(enabledWeekdays) {
-      const enabled = enabledWeekdays || [1, 3, 5];
+      const enabled = enabledWeekdays || DEFAULT_WEEKDAYS;
       const checkboxes = document.querySelectorAll('.weekday-cb');
       checkboxes.forEach(function(cb) {
         const day = parseInt(cb.value, 10);
@@ -1135,7 +1181,7 @@
       currentState = state || {};
       updateSummary(currentState);
       updateStepMeta(currentState);
-      renderWeekdayCheckboxes(currentState.enabledWeekdays || [1, 3, 5]);
+      renderWeekdayCheckboxes(currentState.enabledWeekdays || DEFAULT_WEEKDAYS);
       renderPeriodInputs(currentState);
       renderAnnualTarget(currentState.annualTarget || {});
       if (hasMonthlyMode(currentState.annualTarget || {})) {

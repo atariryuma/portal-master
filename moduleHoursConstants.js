@@ -60,12 +60,6 @@ const MODULE_CONTROL_PLAN_HEADERS = Object.freeze([
   'note'
 ]);
 
-/** V3→V4 マイグレーション用: 旧ヘッダー列数 */
-const MODULE_LEGACY_V3_PLAN_COLUMN_COUNT = 8;
-
-/** V2→V3 マイグレーション用: 旧クール計画の列数 */
-const MODULE_LEGACY_CYCLE_PLAN_COLUMN_COUNT = 11;
-
 const MODULE_CONTROL_EXCEPTION_HEADERS = Object.freeze([
   'date',
   'grade',
