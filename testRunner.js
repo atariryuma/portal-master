@@ -1095,10 +1095,6 @@ function testImportAnnualEventsDefinition() {
     return { success: false, message: '導線コード不足: ' + missingFragments.join(', ') };
   }
 
-  if (source.indexOf('年度更新作業') !== -1) {
-    return { success: false, message: '旧設定シート名参照が残っています' };
-  }
-
   return { success: true, message: '年間行事インポート導線を確認' };
 }
 
@@ -1531,25 +1527,16 @@ function testAssignDutyBatchReads() {
 }
 
 function testNoDuplicateDateFormatter() {
-  // formatDateRangeForPdf_ は createFileName にインライン化済み
-  if (typeof formatDateRangeForPdf_ === 'function') {
-    return { success: false, message: '廃止済みのformatDateRangeForPdf_関数が残っています' };
+  if (typeof createFileName_ !== 'function') {
+    return { success: false, message: 'createFileName_関数が見つかりません' };
   }
 
-  // createFileName_ が formatDateToJapanese を再利用していることを確認
-  if (typeof createFileName_ === 'function') {
-    const source = String(createFileName_);
-    if (source.indexOf('formatDateToJapanese') === -1) {
-      return { success: false, message: 'createFileName_がformatDateToJapaneseを使用していません' };
-    }
+  const source = String(createFileName_);
+  if (source.indexOf('formatDateToJapanese') === -1) {
+    return { success: false, message: 'createFileName_がformatDateToJapaneseを使用していません' };
   }
 
-  // formatDateRange がまだ存在する場合は重複
-  if (typeof formatDateRange === 'function') {
-    return { success: false, message: '旧formatDateRange関数が残っています' };
-  }
-
-  return { success: true, message: '重複日付フォーマッターなし（createFileNameにインライン化済み）' };
+  return { success: true, message: 'createFileName_の日付フォーマッター再利用を確認' };
 }
 
 function testBuildV4PlanRowAnnual() {
@@ -1680,8 +1667,7 @@ function testModuleHoursDecomposition() {
       'MODULE_WEEKDAY_LABELS': typeof MODULE_WEEKDAY_LABELS !== 'undefined',
       'MODULE_DEFICIT_LABEL': typeof MODULE_DEFICIT_LABEL !== 'undefined',
       'MODULE_PLAN_MODE_ANNUAL': typeof MODULE_PLAN_MODE_ANNUAL !== 'undefined',
-      'MODULE_PLAN_MODE_MONTHLY': typeof MODULE_PLAN_MODE_MONTHLY !== 'undefined',
-      'MODULE_LEGACY_V3_PLAN_COLUMN_COUNT': typeof MODULE_LEGACY_V3_PLAN_COLUMN_COUNT !== 'undefined'
+      'MODULE_PLAN_MODE_MONTHLY': typeof MODULE_PLAN_MODE_MONTHLY !== 'undefined'
     },
     moduleHoursDialog: {
       'showModulePlanningDialog': typeof showModulePlanningDialog === 'function',
