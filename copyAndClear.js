@@ -65,7 +65,7 @@ function copyAndClear() {
       if (!verifiedFile || verifiedFile.getName() !== filename) {
         throw new Error('ファイル名の一致を確認できません。');
       }
-      const verifiedSs = SpreadsheetApp.openById(copiedFile.getId());
+      const verifiedSs = SpreadsheetApp.openByUrl(copiedFile.getUrl());
       const verifiedSheet = verifiedSs.getSheetByName('年間行事予定表');
       if (!verifiedSheet || verifiedSheet.getLastRow() < 2) {
         throw new Error('コピー先の年間行事予定表シートが不完全です。');

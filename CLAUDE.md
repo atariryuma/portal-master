@@ -22,7 +22,7 @@ clasp open
 ### Testing (executed in Apps Script editor, not locally)
 
 - **Quick test** (daily development): Run `runQuickTest()` in the Apps Script editor
-- **Full test** (before release): Run `runAllTests()` in the Apps Script editor — 60+ tests across 7 phases
+- **Full test** (before release): Run `runAllTests()` in the Apps Script editor — currently 58 tests across 7 phases
 - Tests cannot be run locally. They execute inside the GAS environment against live spreadsheet data.
 - If any test fails, check `【エラー詳細】` in the Apps Script execution log.
 
@@ -65,6 +65,7 @@ All module data lives in a single `module_control` sheet (migrated from multi-sh
 ### Dialog Pattern
 
 HTML dialogs (`*.html`) call server-side functions via `google.script.run`. Each dialog has a paired `.js` file providing the server-side API (e.g., `triggerSettingsDialog.html` ↔ `triggerSettings.js`).
+For shared styles, render dialogs with `createTemplateFromFile(...).evaluate()` and include `<?!= include_('dialogStyles') ?>` (helper: `include_()` in `common.js`). This applies to trigger settings, annual update settings, date selector, and module planning dialogs.
 
 ## Coding Conventions
 
@@ -130,10 +131,6 @@ Japanese school fiscal year runs April 1 – March 31. Dates in January–March 
 ### Annual Update (年度更新)
 
 The `copyAndClear` function copies the current file as a backup, then clears the **current** file (not the copy). This preserves the original file's URL so bookmarks and shared links remain valid.
-
-### Dialog Pattern
-
-HTML dialogs use `createTemplateFromFile().evaluate()` to support shared CSS includes via `<?!= include_('dialogStyles') ?>`. The `include_()` helper is defined in `common.js`. All 4 dialogs (triggerSettings, annualUpdateSettings, DateSelector, modulePlanning) use this pattern.
 
 ### Module Learning Settings
 
