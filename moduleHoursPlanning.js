@@ -1,96 +1,7 @@
 /**
  * @fileoverview モジュール学習管理 - 配分アルゴリズム
- * @description クール計画から日次配分の構築、学校日マップ、例外集計を担当します。
+ * @description 年間目標から日次配分の構築、学校日マップ、例外集計を担当します。
  */
-
-/** @type {?Object} 曜日優先度マップのキャッシュ */
-let activeWeekdayPriorityMap_ = null;
-
-/** @type {?Object} 学校日マップのキャッシュ（実行単位） */
-let schoolDayMapCache_ = null;
-
-/**
- * 保存された曜日優先度マップを読み込み（キャッシュ付き）
- * @return {Object} dayOfWeek → priorityIndex のマップ
- */
-function loadWeekdayPriorityMap_() {
-  if (activeWeekdayPriorityMap_) {
-    return activeWeekdayPriorityMap_;
-  }
-  const settings = readModuleSettingsMap();
-  const raw = settings[MODULE_SETTING_KEYS.WEEKDAY_PRIORITY];
-  if (raw) {
-    try {
-      const days = JSON.parse(raw);
-      if (Array.isArray(days) && days.length > 0) {
-        const map = {};
-        days.forEach(function(day, index) {
-          map[Number(day)] = index;
-        });
-        activeWeekdayPriorityMap_ = map;
-        return map;
-      }
-    } catch (e) {
-      Logger.log('[WARNING] 曜日優先度設定の解析に失敗: ' + e.toString());
-    }
-  }
-  activeWeekdayPriorityMap_ = MODULE_WEEKDAY_PRIORITY;
-  return MODULE_WEEKDAY_PRIORITY;
-}
-
-/**
- * 曜日優先度キャッシュをリセット
- */
-function resetWeekdayPriorityCache_() {
-  activeWeekdayPriorityMap_ = null;
-}
-
-/**
- * 旧期間指定で計画再生成（後方互換）
- * @param {string|Date} startDate - 開始日
- * @param {string|Date} endDate - 終了日
- * @return {Object} 再生成結果
- */
-function rebuildModulePlanFromRange(startDate, endDate) {
-  const start = normalizeToDate(startDate);
-  const end = normalizeToDate(endDate);
-
-  if (!start || !end) {
-    throw new Error('開始日・終了日は yyyy-MM-dd 形式で入力してください。');
-  }
-  if (start > end) {
-    throw new Error('開始日は終了日以前の日付を指定してください。');
-  }
-
-  const fiscalYears = collectFiscalYearsInRange(start, end);
-  let recordCount = 0;
-
-  fiscalYears.forEach(function(fiscalYear) {
-    ensureDefaultCyclePlanForFiscalYear(fiscalYear);
-    const buildResult = buildDailyPlanFromCyclePlan(fiscalYear, end);
-    recordCount += buildResult.dailyPlanCount;
-  });
-
-  upsertModuleSettingsValues({
-    PLAN_START_DATE: start,
-    PLAN_END_DATE: end
-  });
-
-  syncModuleHoursWithCumulative(end, {
-    preservePlanningRange: {
-      startDate: start,
-      endDate: end
-    }
-  });
-
-  return {
-    startDate: start,
-    endDate: end,
-    fiscalYears: fiscalYears,
-    generatedAt: new Date(),
-    recordCount: recordCount
-  };
-}
 
 /**
  * 日次計画と例外を合算して学年別合計を生成
@@ -119,134 +30,129 @@ function buildGradeTotalsFromDailyAndExceptions(dailyTotalsByGrade, exceptionTot
 }
 
 /**
- * 指定年度のデフォルトクール計画を必要時に作成
+ * 指定年度のデフォルト年間目標を必要時に作成
  * @param {number} fiscalYear - 対象年度
  * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
  * @param {Array<Array<*>>=} existingRowsForFiscalYear - 事前取得済みの対象年度行
  * @return {boolean} 作成した場合true
  */
-function ensureDefaultCyclePlanForFiscalYear(fiscalYear, controlSheet, existingRowsForFiscalYear) {
-  const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded().controlSheet;
+function ensureDefaultAnnualTargetForFiscalYear(fiscalYear, controlSheet, existingRowsForFiscalYear) {
+  const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded();
   const existingRows = Array.isArray(existingRowsForFiscalYear)
     ? existingRowsForFiscalYear
-    : readCyclePlanRowsByFiscalYear(sheet, fiscalYear);
+    : readAnnualTargetRowsByFiscalYear(sheet, fiscalYear);
 
   if (existingRows.length > 0) {
     return false;
   }
 
-  const rows = MODULE_DEFAULT_CYCLES.map(function(cycle) {
-    return [
-      Number(fiscalYear),
-      cycle.order,
-      cycle.startMonth,
-      cycle.endMonth,
-      MODULE_DEFAULT_KOMA_PER_CYCLE,
-      MODULE_DEFAULT_KOMA_PER_CYCLE,
-      MODULE_DEFAULT_KOMA_PER_CYCLE,
-      MODULE_DEFAULT_KOMA_PER_CYCLE,
-      MODULE_DEFAULT_KOMA_PER_CYCLE,
-      MODULE_DEFAULT_KOMA_PER_CYCLE,
-      cycle.label + ' default'
-    ];
-  });
+  const rows = [];
+  for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+    rows.push(buildV4PlanRow(Number(fiscalYear), g, MODULE_PLAN_MODE_ANNUAL, MODULE_DEFAULT_ANNUAL_KOMA, null, 'default'));
+  }
 
-  appendCyclePlanRows(sheet, rows);
+  appendAnnualTargetRows(sheet, rows);
   return true;
 }
 
 /**
- * 指定年度のクール計画を読み込み
+ * 指定年度の年間目標を読み込み
  * @param {number} fiscalYear - 対象年度
  * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
- * @return {Array<Object>} クール計画
+ * @return {Object} 年間目標 { fiscalYear, grades: {grade: {mode, annualKoma, monthlyKoma}}, gradeKoma: {grade: N} }
  */
-function loadCyclePlanForFiscalYear(fiscalYear, controlSheet) {
-  const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded().controlSheet;
-  let rows = readCyclePlanRowsByFiscalYear(sheet, fiscalYear);
+function loadAnnualTargetForFiscalYear(fiscalYear, controlSheet) {
+  const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded();
+  let rows = readAnnualTargetRowsByFiscalYear(sheet, fiscalYear);
 
   if (rows.length === 0) {
-    ensureDefaultCyclePlanForFiscalYear(fiscalYear, sheet);
-    rows = readCyclePlanRowsByFiscalYear(sheet, fiscalYear);
+    ensureDefaultAnnualTargetForFiscalYear(fiscalYear, sheet);
+    rows = readAnnualTargetRowsByFiscalYear(sheet, fiscalYear);
   }
 
-  return toCyclePlansFromRows(fiscalYear, rows);
-}
-
-/**
- * 指定年度の計画行を計画オブジェクトへ変換
- * @param {number} fiscalYear - 対象年度
- * @param {Array<Array<*>>} rows - 計画行
- * @return {Array<Object>} 正規化済み計画
- */
-function toCyclePlansFromRows(fiscalYear, rows) {
-  const plans = rows.map(function(row) {
-    return {
-      fiscalYear: Number(fiscalYear),
-      cycleOrder: Number(row[1]),
-      startMonth: Number(row[2]),
-      endMonth: Number(row[3]),
-      gradeKoma: {
-        1: Math.max(0, Math.round(toNumberOrZero(row[4]))),
-        2: Math.max(0, Math.round(toNumberOrZero(row[5]))),
-        3: Math.max(0, Math.round(toNumberOrZero(row[6]))),
-        4: Math.max(0, Math.round(toNumberOrZero(row[7]))),
-        5: Math.max(0, Math.round(toNumberOrZero(row[8]))),
-        6: Math.max(0, Math.round(toNumberOrZero(row[9])))
-      },
-      note: row[10] || ''
-    };
-  }).filter(function(plan) {
-    return Number.isInteger(plan.cycleOrder) &&
-      Number.isInteger(plan.startMonth) &&
-      Number.isInteger(plan.endMonth) &&
-      plan.startMonth >= 1 && plan.startMonth <= 12 &&
-      plan.endMonth >= 1 && plan.endMonth <= 12;
-  });
-
-  plans.sort(function(a, b) {
-    return a.cycleOrder - b.cycleOrder;
-  });
-
-  if (plans.length === 0) {
-    throw new Error('有効なクール計画がありません。モジュール学習管理画面で計画を確認してください。');
+  if (rows.length === 0) {
+    throw new Error('年間目標が取得できません（年度: ' + fiscalYear + '）');
   }
 
-  return plans;
+  return buildAnnualTargetFromRows(fiscalYear, rows);
 }
 
 /**
- * クール計画から日次計画を構築（保存はしない）
+ * V4形式の複数行から年間目標オブジェクトを構築
  * @param {number} fiscalYear - 対象年度
- * @param {Date|string} baseDate - 集計基準日
- * @return {Object} 構築結果
+ * @param {Array<Array<*>>} rows - 行データ（V4形式: 学年別行）
+ * @return {Object} 年間目標
  */
-function buildDailyPlanFromCyclePlan(fiscalYear, baseDate) {
-  return buildDailyPlanFromCyclePlanInternal(fiscalYear, baseDate);
+function buildAnnualTargetFromRows(fiscalYear, rows) {
+  const grades = {};
+  const gradeKoma = {};
+
+  for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+    grades[g] = { mode: MODULE_PLAN_MODE_ANNUAL, annualKoma: MODULE_DEFAULT_ANNUAL_KOMA, monthlyKoma: null };
+    gradeKoma[g] = MODULE_DEFAULT_ANNUAL_KOMA;
+  }
+
+  rows.forEach(function(row) {
+    const grade = Number(row[1]);
+    if (grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
+      return;
+    }
+    const mode = String(row[2] || '').trim() === MODULE_PLAN_MODE_MONTHLY
+      ? MODULE_PLAN_MODE_MONTHLY
+      : MODULE_PLAN_MODE_ANNUAL;
+    const annualKoma = Math.max(0, Math.round(toNumberOrZero(row[15])));
+
+    if (mode === MODULE_PLAN_MODE_MONTHLY) {
+      const monthlyKoma = {};
+      [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3].forEach(function(m, i) {
+        monthlyKoma[m] = Math.max(0, Math.round(toNumberOrZero(row[3 + i])));
+      });
+      grades[grade] = { mode: MODULE_PLAN_MODE_MONTHLY, annualKoma: annualKoma, monthlyKoma: monthlyKoma };
+    } else {
+      grades[grade] = { mode: MODULE_PLAN_MODE_ANNUAL, annualKoma: annualKoma, monthlyKoma: null };
+    }
+    gradeKoma[grade] = annualKoma;
+  });
+
+  return {
+    fiscalYear: Number(fiscalYear),
+    grades: grades,
+    gradeKoma: gradeKoma
+  };
 }
 
 /**
- * クール計画から日次計画を構築（内部実装）
+ * 年間目標から日次計画を構築（保存はしない）
+ * 実施期間内の実施可能日に対してセッションを均等配分し、予備セッション数も算出する。
+ * options.startDate/endDate で実施期間を指定可能（省略時は年度全体）。
  * @param {number} fiscalYear - 対象年度
  * @param {Date|string} baseDate - 集計基準日
  * @param {?Object} options - 実行オプション
- * @return {Object} 構築結果
+ * @param {Sheet} [options.controlSheet] - module_control シート（省略時は自動取得）
+ * @param {number[]} [options.enabledWeekdays] - 有効曜日配列（省略時は設定値）
+ * @param {Date|string} [options.startDate] - 実施開始日（省略時は年度開始日）
+ * @param {Date|string} [options.endDate] - 実施終了日（省略時は年度終了日）
+ * @return {Object} 構築結果（totalsByGrade, reserveByGrade, dailyPlanCount 含む）
  */
-function buildDailyPlanFromCyclePlanInternal(fiscalYear, baseDate, options) {
+function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
   const normalizedFiscalYear = Number(fiscalYear);
   const cutoffDate = normalizeToDate(baseDate) || normalizeToDate(new Date());
   const generatedAt = new Date();
   const fiscalRange = getFiscalYearDateRange(normalizedFiscalYear);
   const weekStart = getWeekStartMonday(cutoffDate);
   const controlSheet = options && options.controlSheet ? options.controlSheet : null;
-  const cyclePlans = (options && options.cyclePlans)
-    ? options.cyclePlans
-    : loadCyclePlanForFiscalYear(normalizedFiscalYear, controlSheet);
-  const schoolDayMap = buildSchoolDayMapByGradeForFiscalYear(normalizedFiscalYear);
+  const annualTarget = loadAnnualTargetForFiscalYear(normalizedFiscalYear, controlSheet);
+  const enabledWeekdays = options && Array.isArray(options.enabledWeekdays)
+    ? options.enabledWeekdays
+    : getEnabledWeekdays();
+  const planStartDate = options && options.startDate ? normalizeToDate(options.startDate) : null;
+  const planEndDate = options && options.endDate ? normalizeToDate(options.endDate) : null;
+  const schoolDayMap = buildSchoolDayMapByGradeForFiscalYear(normalizedFiscalYear, enabledWeekdays, planStartDate, planEndDate);
 
   const dailyEntries = [];
   const planRows = [];
   const totalsByGrade = {};
+  const reserveByGrade = {};
 
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
     totalsByGrade[grade] = {
@@ -256,93 +162,87 @@ function buildDailyPlanFromCyclePlanInternal(fiscalYear, baseDate, options) {
     };
   }
 
-  const carryOverByGrade = {};
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-    carryOverByGrade[grade] = 0;
-  }
+    const gradeTarget = annualTarget.grades[grade];
+    const plannedKoma = toNumberOrZero(annualTarget.gradeKoma[grade]);
+    const plannedSessions = Math.max(0, Math.round(plannedKoma * 3));
+    const gradeDates = schoolDayMap[grade];
 
-  cyclePlans.forEach(function(plan) {
-    const cycleLabel = plan.startMonth + '-' + plan.endMonth;
-    const cycleMonthSet = buildCycleMonthKeySetForFiscalYear(normalizedFiscalYear, plan.startMonth, plan.endMonth);
+    // モード別にセッションを配分
+    let allocations;
+    if (gradeTarget.mode === MODULE_PLAN_MODE_MONTHLY && gradeTarget.monthlyKoma) {
+      allocations = allocateSessionsByMonth(gradeTarget.monthlyKoma, gradeDates);
+    } else {
+      const weekMap = buildWeekMapFromDates(gradeDates);
+      allocations = allocateSessionsToDateKeys(plannedSessions, weekMap);
+    }
+    const allocatedDateKeys = Object.keys(allocations).sort();
 
-    for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-      const plannedKoma = toNumberOrZero(plan.gradeKoma[grade]);
-      const plannedSessions = Math.max(0, Math.round(plannedKoma * 3));
-      const effectiveSessions = plannedSessions + carryOverByGrade[grade];
-      const gradeDates = schoolDayMap[grade].filter(function(date) {
-        return !!cycleMonthSet[formatMonthKey(date)];
+    // 予備/不足 = 実施可能日数 - 計画セッション数（正=予備、負=不足）
+    // monthlyモードでは実施可能日0の月のセッションが失われるため、実配分数を使用
+    let effectiveSessions = plannedSessions;
+    if (gradeTarget.mode === MODULE_PLAN_MODE_MONTHLY) {
+      effectiveSessions = 0;
+      Object.keys(allocations).forEach(function(key) {
+        effectiveSessions += allocations[key];
+      });
+    }
+    reserveByGrade[grade] = gradeDates.length - effectiveSessions;
+
+    allocatedDateKeys.forEach(function(dateKey) {
+      const dateObj = normalizeToDate(dateKey);
+      const sessions = allocations[dateKey];
+      const elapsedFlag = dateObj <= cutoffDate ? 1 : 0;
+
+      dailyEntries.push({
+        date: dateObj,
+        fiscalYear: normalizedFiscalYear,
+        weekKey: getWeekKey(dateObj),
+        grade: grade,
+        plannedSessions: sessions,
+        elapsedFlag: elapsedFlag,
+        generatedAt: generatedAt
       });
 
-      const allocResult = allocateSessionsToDateKeys(effectiveSessions, gradeDates);
-      const allocations = allocResult.allocations;
-      carryOverByGrade[grade] = allocResult.overflow;
-      const allocatedDateKeys = Object.keys(allocations).sort();
-
-      allocatedDateKeys.forEach(function(dateKey) {
-        const dateObj = normalizeToDate(dateKey);
-        const sessions = allocations[dateKey];
-        const elapsedFlag = dateObj <= cutoffDate ? 1 : 0;
-
-        dailyEntries.push({
-          date: dateObj,
-          fiscalYear: normalizedFiscalYear,
-          cycleOrder: plan.cycleOrder,
-          cycleLabel: cycleLabel,
-          weekKey: getWeekKey(dateObj),
-          grade: grade,
-          plannedSessions: sessions,
-          elapsedFlag: elapsedFlag,
-          generatedAt: generatedAt
-        });
-
-        totalsByGrade[grade].plannedSessions += sessions;
-        if (elapsedFlag === 1) {
-          totalsByGrade[grade].elapsedSessions += sessions;
-          if (dateObj >= weekStart && dateObj <= cutoffDate) {
-            totalsByGrade[grade].thisWeekSessions += sessions;
-          }
+      totalsByGrade[grade].plannedSessions += sessions;
+      if (elapsedFlag === 1) {
+        totalsByGrade[grade].elapsedSessions += sessions;
+        if (dateObj >= weekStart && dateObj <= cutoffDate) {
+          totalsByGrade[grade].thisWeekSessions += sessions;
         }
-      });
-
-      if (effectiveSessions > 0 && allocatedDateKeys.length === 0) {
-        Logger.log('[WARNING] 学校週が存在しないため割当をスキップしました: FY' + normalizedFiscalYear + ', cycle=' + cycleLabel + ', grade=' + grade);
       }
+    });
 
-      planRows.push([
-        normalizedFiscalYear,
-        plan.cycleOrder,
-        cycleLabel,
-        grade,
-        plannedKoma,
-        plannedSessions,
-        allocatedDateKeys.length,
-        generatedAt
-      ]);
+    if (plannedSessions > 0 && allocatedDateKeys.length === 0) {
+      Logger.log('[WARNING] 学校週が存在しないため割当をスキップしました: FY' + normalizedFiscalYear + ', grade=' + grade);
     }
-  });
 
-  for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-    if (carryOverByGrade[grade] > 0) {
-      Logger.log('[WARNING] 配分しきれないセッション: FY' + normalizedFiscalYear + ', grade=' + grade + ', overflow=' + carryOverByGrade[grade]);
-    }
+    planRows.push([
+      normalizedFiscalYear,
+      0,
+      '',
+      grade,
+      plannedKoma,
+      plannedSessions,
+      allocatedDateKeys.length,
+      generatedAt
+    ]);
   }
 
   dailyEntries.sort(function(a, b) {
     if (a.date.getTime() !== b.date.getTime()) {
       return a.date.getTime() - b.date.getTime();
     }
-    if (a.grade !== b.grade) {
-      return a.grade - b.grade;
-    }
-    return a.cycleOrder - b.cycleOrder;
+    return a.grade - b.grade;
   });
 
+  // dailyRows: 後方互換のため列配置を維持（cycleOrder/cycleLabel は空値）
   const dailyRows = dailyEntries.map(function(entry) {
     return [
       entry.date,
       entry.fiscalYear,
-      entry.cycleOrder,
-      entry.cycleLabel,
+      0,
+      '',
       entry.weekKey,
       entry.grade,
       entry.plannedSessions,
@@ -353,36 +253,36 @@ function buildDailyPlanFromCyclePlanInternal(fiscalYear, baseDate, options) {
 
   return {
     fiscalYear: normalizedFiscalYear,
-    startDate: fiscalRange.startDate,
-    endDate: fiscalRange.endDate,
+    startDate: planStartDate || fiscalRange.startDate,
+    endDate: planEndDate || fiscalRange.endDate,
     generatedAt: generatedAt,
     dailyPlanCount: dailyRows.length,
     dailyRows: dailyRows,
     planRows: planRows,
     totalsByGrade: totalsByGrade,
-    overflowByGrade: carryOverByGrade
+    reserveByGrade: reserveByGrade
   };
 }
 
 /**
- * 年度・学年別の学校日マップを構築（実行単位キャッシュ付き）
+ * 年度・学年別の学校日マップを構築
  * @param {number} fiscalYear - 対象年度
+ * @param {Array<number>=} enabledWeekdays - 有効曜日配列（省略時はデフォルト）
+ * @param {Date=} startDate - 実施期間の開始日（省略時は年度開始日）
+ * @param {Date=} endDate - 実施期間の終了日（省略時は年度終了日）
  * @return {Object} 学年別日付配列
  */
-function buildSchoolDayMapByGradeForFiscalYear(fiscalYear) {
-  const cacheKey = String(fiscalYear);
-  if (schoolDayMapCache_ && schoolDayMapCache_.fiscalYear === cacheKey) {
-    return schoolDayMapCache_.data;
-  }
-
+function buildSchoolDayMapByGradeForFiscalYear(fiscalYear, enabledWeekdays, startDate, endDate) {
   const fiscalRange = getFiscalYearDateRange(fiscalYear);
+  const rangeStart = startDate && startDate >= fiscalRange.startDate ? startDate : fiscalRange.startDate;
+  const rangeEnd = endDate && endDate <= fiscalRange.endDate ? endDate : fiscalRange.endDate;
   const result = {};
 
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
     result[grade] = [];
   }
 
-  const rows = extractSchoolDayRows(fiscalRange.startDate, fiscalRange.endDate);
+  const rows = extractSchoolDayRows(rangeStart, rangeEnd, enabledWeekdays);
   const unique = {};
 
   rows.forEach(function(row) {
@@ -404,7 +304,6 @@ function buildSchoolDayMapByGradeForFiscalYear(fiscalYear) {
     });
   }
 
-  schoolDayMapCache_ = { fiscalYear: cacheKey, data: result };
   return result;
 }
 
@@ -412,12 +311,18 @@ function buildSchoolDayMapByGradeForFiscalYear(fiscalYear) {
  * 年間行事予定表から学校日候補を抽出
  * @param {Date} startDate - 開始日
  * @param {Date} endDate - 終了日
+ * @param {Array<number>=} enabledWeekdays - 有効曜日配列（省略時はデフォルト月水金）
  * @return {Array<Object>} 日付・学年配列
  */
-function extractSchoolDayRows(startDate, endDate) {
+function extractSchoolDayRows(startDate, endDate, enabledWeekdays) {
   const sheet = getAnnualScheduleSheetOrThrow();
   const values = sheet.getDataRange().getValues();
   const rows = [];
+  const allowedDays = Array.isArray(enabledWeekdays) && enabledWeekdays.length > 0
+    ? enabledWeekdays
+    : MODULE_DEFAULT_WEEKDAYS_ENABLED;
+  const allowedSet = {};
+  allowedDays.forEach(function(d) { allowedSet[d] = true; });
 
   for (let i = 1; i < values.length; i++) {
     const row = values[i];
@@ -428,7 +333,7 @@ function extractSchoolDayRows(startDate, endDate) {
     }
 
     const day = date.getDay();
-    if (day === 0 || day === 6) {
+    if (!allowedSet[day]) {
       continue;
     }
 
@@ -456,141 +361,128 @@ function extractSchoolDayRows(startDate, endDate) {
 }
 
 /**
- * クール対象月の monthKey セットを生成
- * @param {number} fiscalYear - 年度
- * @param {number} startMonth - 開始月
- * @param {number} endMonth - 終了月
- * @return {Object} monthKeyセット
+ * セッションを学校週へ均等配分し、週内優先曜日で日付割当
+ * @param {number} totalSessions - 年間総セッション
+ * @param {Object} weekMap - 週キーごとの学校日配列
+ * @return {Object} dateKey別セッション数
  */
-function buildCycleMonthKeySetForFiscalYear(fiscalYear, startMonth, endMonth) {
-  const months = listCycleMonthsInclusive(startMonth, endMonth);
-  const set = {};
+function allocateSessionsToDateKeys(totalSessions, weekMap) {
+  const allocations = {};
+  const weekKeys = Object.keys(weekMap).sort();
 
-  months.forEach(function(month) {
-    const year = month >= MODULE_FISCAL_YEAR_START_MONTH ? fiscalYear : fiscalYear + 1;
-    set[year + '-' + String(month).padStart(2, '0')] = true;
+  if (totalSessions <= 0 || weekKeys.length === 0) {
+    return allocations;
+  }
+
+  const basePerWeek = Math.floor(totalSessions / weekKeys.length);
+  const remainder = totalSessions % weekKeys.length;
+
+  weekKeys.forEach(function(weekKey, index) {
+    const extraCount = Math.floor((index + 1) * remainder / weekKeys.length) - Math.floor(index * remainder / weekKeys.length);
+    const weekSessions = basePerWeek + extraCount;
+    const orderedDates = sortWeekDatesByPriority(weekMap[weekKey]);
+
+    if (weekSessions <= 0 || orderedDates.length === 0) {
+      return;
+    }
+
+    for (let i = 0; i < weekSessions; i++) {
+      const targetDate = orderedDates[i % orderedDates.length];
+      const dateKey = formatInputDate(targetDate);
+      allocations[dateKey] = toNumberOrZero(allocations[dateKey]) + 1;
+    }
   });
 
-  return set;
+  return allocations;
 }
 
 /**
- * クール対象月（開始～終了、循環許容）
- * @param {number} startMonth - 開始月
- * @param {number} endMonth - 終了月
- * @return {Array<number>} 月配列
+ * 月別コマ目標からセッションを月ごとに配分
+ * @param {Object} monthlyKoma - 月番号→コマ数マップ {4:3, 5:2, ...}
+ * @param {Array<Date>} gradeDates - 学年の実施可能日リスト（ソート済み）
+ * @return {Object} dateKey→セッション数マップ
  */
-function listCycleMonthsInclusive(startMonth, endMonth) {
-  if (!Number.isInteger(startMonth) || !Number.isInteger(endMonth) ||
-      startMonth < 1 || startMonth > 12 || endMonth < 1 || endMonth > 12) {
-    return [];
-  }
-
-  const months = [];
-  let cursor = startMonth;
-  let guard = 0;
-
-  while (guard < 13) {
-    months.push(cursor);
-    if (cursor === endMonth) {
-      break;
-    }
-    cursor = cursor === 12 ? 1 : cursor + 1;
-    guard++;
-  }
-
-  return months;
-}
-
-/**
- * セッションを曜日優先度ごとに3等分し、各曜日内でBresenham均等配分（1日1セッション上限）
- * 高優先曜日から順に充填し、余りは優先度順に+1ずつ配分する。
- * 特定曜日の日数が不足した場合、溢れ分は次の優先曜日へ繰り越す。
- * @param {number} totalSessions - クール総セッション
- * @param {Array<Date>} dates - クール内の学校日（優先曜日以外も含む）
- * @return {Object} {allocations: dateKey別セッション数, overflow: 配分しきれなかったセッション数}
- */
-function allocateSessionsToDateKeys(totalSessions, dates) {
+function allocateSessionsByMonth(monthlyKoma, gradeDates) {
   const allocations = {};
 
-  if (totalSessions <= 0 || dates.length === 0) {
-    return { allocations: allocations, overflow: Math.max(0, totalSessions) };
-  }
-
-  const priorityGroups = {};
-  dates.forEach(function(date) {
-    const pri = weekdayPriority(date.getDay());
-    if (pri === 99) { return; }
-    if (!priorityGroups[pri]) {
-      priorityGroups[pri] = [];
+  // 日付を月別にグループ化
+  const datesByMonth = {};
+  gradeDates.forEach(function(date) {
+    const month = date.getMonth() + 1;
+    if (!datesByMonth[month]) {
+      datesByMonth[month] = [];
     }
-    priorityGroups[pri].push(date);
+    datesByMonth[month].push(date);
   });
 
-  const priorities = Object.keys(priorityGroups).map(Number).sort(function(a, b) { return a - b; });
+  // 月ごとに配分
+  [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3].forEach(function(month) {
+    const koma = toNumberOrZero(monthlyKoma[month]);
+    if (koma <= 0) {
+      return;
+    }
+    const sessions = Math.max(0, Math.round(koma * 3));
+    const monthDates = datesByMonth[month] || [];
+    if (monthDates.length === 0) {
+      Logger.log('[WARNING] ' + month + '月に実施可能日がありませんが、目標が' + koma + 'コマ設定されています');
+      return;
+    }
 
-  if (priorities.length === 0) {
-    return { allocations: allocations, overflow: totalSessions };
-  }
+    const weekMap = buildWeekMapFromDates(monthDates);
+    const monthAllocations = allocateSessionsToDateKeys(sessions, weekMap);
 
-  const basePerPriority = Math.floor(totalSessions / priorities.length);
-  let extraSessions = totalSessions % priorities.length;
-  let carry = 0;
-
-  priorities.forEach(function(pri) {
-    const sortedDates = priorityGroups[pri].sort(function(a, b) {
-      return a.getTime() - b.getTime();
+    Object.keys(monthAllocations).forEach(function(dateKey) {
+      allocations[dateKey] = toNumberOrZero(allocations[dateKey]) + monthAllocations[dateKey];
     });
-
-    let target = basePerPriority + carry;
-    if (extraSessions > 0) {
-      target += 1;
-      extraSessions -= 1;
-    }
-    carry = 0;
-
-    if (target <= 0) { return; }
-
-    const available = sortedDates.length;
-
-    if (target >= available) {
-      sortedDates.forEach(function(date) {
-        allocations[formatInputDate(date)] = 1;
-      });
-      carry = target - available;
-    } else {
-      distributeByBresenham(sortedDates, target, allocations);
-    }
   });
 
-  return { allocations: allocations, overflow: carry };
+  return allocations;
 }
 
 /**
- * Bresenhamアルゴリズムで日付配列から均等にtarget個を選択して配分
- * @param {Array<Date>} sortedDates - 時系列ソート済み日付配列
- * @param {number} target - 配分するセッション数
- * @param {Object} allocations - 配分先オブジェクト（dateKey → セッション数）
+ * 学校日を週単位にグルーピング
+ * @param {Array<Date>} dates - 日付配列
+ * @return {Object} 週キー => 日付配列
  */
-function distributeByBresenham(sortedDates, target, allocations) {
-  const total = sortedDates.length;
-  for (let i = 0; i < total; i++) {
-    if (Math.floor((i + 1) * target / total) > Math.floor(i * target / total)) {
-      allocations[formatInputDate(sortedDates[i])] = 1;
+function buildWeekMapFromDates(dates) {
+  const map = {};
+
+  dates.forEach(function(date) {
+    const key = getWeekKey(date);
+    if (!map[key]) {
+      map[key] = [];
     }
-  }
+    map[key].push(date);
+  });
+
+  return map;
 }
 
 /**
- * 曜日優先度を返却（設定値またはデフォルト: 月→水→金）
- * 優先度マップに含まれない曜日は 99 を返す（配分対象外）。
+ * 週内日付を優先曜日順でソート
+ * @param {Array<Date>} dates - 週内日付配列
+ * @return {Array<Date>} ソート後
+ */
+function sortWeekDatesByPriority(dates) {
+  return dates.slice().sort(function(a, b) {
+    const priorityA = weekdayPriority(a.getDay());
+    const priorityB = weekdayPriority(b.getDay());
+
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+    return a.getTime() - b.getTime();
+  });
+}
+
+/**
+ * 曜日優先度（月→水→金→火→木）
  * @param {number} dayOfWeek - Date#getDay()
- * @return {number} 優先度インデックス（小さいほど優先、99=対象外）
+ * @return {number} 優先度
  */
 function weekdayPriority(dayOfWeek) {
-  const map = loadWeekdayPriorityMap_();
-  if (Object.prototype.hasOwnProperty.call(map, dayOfWeek)) {
-    return map[dayOfWeek];
+  if (Object.prototype.hasOwnProperty.call(MODULE_WEEKDAY_PRIORITY, dayOfWeek)) {
+    return MODULE_WEEKDAY_PRIORITY[dayOfWeek];
   }
   return 99;
 }
@@ -642,7 +534,7 @@ function loadExceptionTotals(fiscalYear, baseDate, controlSheet) {
     totals.thisWeekByGrade[grade] = 0;
   }
 
-  const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded().controlSheet;
+  const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded();
   const rows = readExceptionRows(sheet);
 
   rows.forEach(function(item) {
@@ -692,8 +584,8 @@ function buildSchoolDayPlanMap(startDate, endDate) {
   const countedDays = {};
 
   fiscalYears.forEach(function(fiscalYear) {
-    ensureDefaultCyclePlanForFiscalYear(fiscalYear);
-    const buildResult = buildDailyPlanFromCyclePlanInternal(fiscalYear, end);
+    ensureDefaultAnnualTargetForFiscalYear(fiscalYear);
+    const buildResult = buildDailyPlanFromAnnualTarget(fiscalYear, end);
 
     buildResult.dailyRows.forEach(function(row) {
       const date = normalizeToDate(row[0]);
@@ -742,9 +634,9 @@ function buildSchoolDayPlanMap(startDate, endDate) {
  * @return {Object} 差分反映後
  */
 function applyModuleExceptions(planMap, baseDate) {
-  const sheets = initializeModuleHoursSheetsIfNeeded();
+  const controlSheet = initializeModuleHoursSheetsIfNeeded();
   const cutoffDate = normalizeToDate(baseDate) || normalizeToDate(new Date());
-  const rows = readExceptionRows(sheets.controlSheet);
+  const rows = readExceptionRows(controlSheet);
 
   Object.keys(planMap.byMonth).forEach(function(monthKey) {
     for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {

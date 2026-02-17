@@ -250,7 +250,7 @@ const SCHEDULE_COLUMNS = Object.freeze({
  */
 const MODULE_SHEET_NAMES = Object.freeze({
   CONTROL: 'module_control',
-  SCHEDULE: 'モジュール計画',
+  PLAN_SUMMARY: 'モジュール学習計画',
   // 旧シート名（移行用に保持）
   SETTINGS: 'module_settings',
   CYCLE_PLAN: 'module_cycle_plan',
@@ -270,14 +270,14 @@ const MODULE_SETTING_KEYS = Object.freeze({
   LAST_GENERATED_AT: 'LAST_GENERATED_AT',
   LAST_DAILY_PLAN_COUNT: 'LAST_DAILY_PLAN_COUNT',
   DATA_VERSION: 'DATA_VERSION',
-  WEEKDAY_PRIORITY: 'WEEKDAY_PRIORITY'
+  WEEKDAYS_ENABLED: 'WEEKDAYS_ENABLED'
 });
 
 /**
  * モジュール学習データバージョン
  * @const {string}
  */
-const MODULE_DATA_VERSION = 'CONTROL_V2';
+const MODULE_DATA_VERSION = 'CONTROL_V4';
 
 /**
  * モジュール学習の年度開始月（4月）

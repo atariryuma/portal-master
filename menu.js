@@ -47,17 +47,7 @@ function onOpen() {
     .addToUi();
 
   // 内部管理シートは通常利用で見せない（軽量な非表示のみ。完全初期化はモジュール機能の初回使用時に遅延実行）
-  try {
-    hideSheetForNormalUse_(MODULE_SHEET_NAMES.CONTROL);
-  } catch (error) {
-    Logger.log('[WARNING] module_control シートの非表示化に失敗: ' + error.toString());
-  }
-
-  try {
-    hideSheetForNormalUse_(SETTINGS_SHEET_NAME);
-  } catch (error) {
-    Logger.log('[WARNING] 設定シートの非表示化に失敗: ' + error.toString());
-  }
+  hideInternalSheetsForNormalUse_();
 }
 
 /**
@@ -97,22 +87,45 @@ function hideSheetForNormalUse_(sheetName) {
   Logger.log('[INFO] ' + sheetName + 'シートを非表示にしました。');
 }
 
+/**
+ * 内部管理シートを非表示にする
+ * @param {boolean=} includeMaster - マスターも含める場合true（テスト後クリーンアップ用）
+ *   onOpenではfalse: マスターは初期セットアップ中にユーザーが編集するため隠さない。
+ *   マスターの非表示は年間行事インポート完了時（updateAnnualEvents）で行う。
+ */
+function hideInternalSheetsForNormalUse_(includeMaster) {
+  const sheetNames = [
+    MODULE_SHEET_NAMES.CONTROL,
+    SETTINGS_SHEET_NAME
+  ];
+  if (includeMaster) {
+    sheetNames.unshift(MASTER_SHEET.NAME);
+  }
+
+  sheetNames.forEach(function(name) {
+    try {
+      hideSheetForNormalUse_(name);
+    } catch (error) {
+      Logger.log('[WARNING] ' + name + 'シートの非表示化に失敗: ' + error.toString());
+    }
+  });
+}
+
 function showCreatorInfo() {
-  const htmlOutput = HtmlService.createHtmlOutput(
-    '<div style="font-family: \'Yu Gothic\', Arial, sans-serif; padding: 10px;">' +
-      '<h3 style="color: #2c3e50; margin-top: 0;">製作者情報</h3>' +
-      '<p><strong>製作者:</strong> 当たり竜馬 (Atari Ryuma)</p>' +
-      '<p><strong>連絡先:</strong> <a href="mailto:atarirym@open.ed.jp" style="color: #3498db;">atarirym@open.ed.jp</a></p>' +
-      '<hr style="border: none; border-top: 1px solid #ecf0f1; margin: 15px 0;">' +
-      '<p style="font-size: 0.9em; color: #7f8c8d;">' +
-        'このスプレッドシートは、学校業務の「テンプレート＋年間行事予定（評価語句）＋学年別時数」に' +
-        'いくつかの機能を追加したカスタムバージョンです。' +
-      '</p>' +
-      '<p style="font-size: 0.9em; color: #7f8c8d;">' +
-        '使用方法等について質問がある場合は、上記のメールアドレスまでご連絡ください。' +
-      '</p>' +
-    '</div>'
-  )
+  const html = '<div style="font-family: \'Yu Gothic\', Arial, sans-serif; padding: 10px;">' +
+    '<h3 style="color: #2c3e50; margin-top: 0;">製作者情報</h3>' +
+    '<p><strong>製作者:</strong> 中龍馬（Atari Ryuma）</p>' +
+    '<p><strong>連絡先:</strong> <a href="mailto:atarirym@open.ed.jp" style="color: #3498db;">atarirym@open.ed.jp</a></p>' +
+    '<hr style="border: none; border-top: 1px solid #ecf0f1; margin: 15px 0;">' +
+    '<p style="font-size: 0.9em; color: #7f8c8d;">' +
+    'このスプレッドシートは、学校業務の「テンプレート＋年間行事予定（評価語句）＋学年別時数」に' +
+    'いくつかの機能を追加したカスタムバージョンです。' +
+    '</p>' +
+    '<p style="font-size: 0.9em; color: #7f8c8d;">' +
+    '使用方法等について質問がある場合は、上記のメールアドレスまでご連絡ください。' +
+    '</p>' +
+    '</div>';
+  const htmlOutput = HtmlService.createHtmlOutput(html)
     .setWidth(400)
     .setHeight(250);
 
@@ -129,44 +142,43 @@ function showUserGuide() {
     SpreadsheetApp.getUi().showModalDialog(htmlFile, 'ポータルマスター - 使い方ガイド');
   } catch (error) {
     Logger.log('[WARNING] userGuide.html の読み込みに失敗しました: ' + error.toString());
-    const fallbackHtml = HtmlService.createHtmlOutput(
-      '<div style="font-family: \'Yu Gothic\', Arial, sans-serif; padding: 20px;">' +
-        '<h2 style="color: #2c3e50;">&#10067; ポータルマスター 使い方ガイド</h2>' +
-        '<h3>&#128640; 導入</h3>' +
-        '<ul>' +
-          '<li><strong>年間行事計画をインポート:</strong> Googleスプレッドシートから行事予定をインポート</li>' +
-          '<li><strong>行事予定表へ反映:</strong> マスターから年間行事予定表にデータを反映</li>' +
-        '</ul>' +
-        '<h3>&#9881;&#65039; 設定</h3>' +
-        '<ul>' +
-          '<li><strong>年度更新設定:</strong> 年度更新・連携先ID・基準日を設定</li>' +
-          '<li><strong>自動トリガー設定:</strong> 自動処理のON/OFF・曜日・時刻を設定</li>' +
-        '</ul>' +
-        '<h3>&#128197; 日常業務</h3>' +
-        '<ul>' +
-          '<li><strong>今日の日付へ移動:</strong> B1セルに今日の日付リンクを設定</li>' +
-          '<li><strong>週報をPDF保存:</strong> 週報シートをPDF形式で保存</li>' +
-          '<li><strong>週報フォルダを開く:</strong> PDF保存先フォルダをブラウザで開く</li>' +
-        '</ul>' +
-        '<h3>&#128101; 日直</h3>' +
-        '<ul>' +
-          '<li><strong>日直を自動割り当て:</strong> 日直表を元にマスターへ日直を設定</li>' +
-          '<li><strong>日直のみ更新:</strong> マスターの日直列のみ年間行事予定表へ反映</li>' +
-          '<li><strong>休業期間日直を集計:</strong> 年間行事予定表の☆を日直ごとに集計</li>' +
-        '</ul>' +
-        '<h3>&#128202; 集計</h3>' +
-        '<ul>' +
-          '<li><strong>累計時数を計算:</strong> 最新土曜日までの累計授業時数を更新</li>' +
-          '<li><strong>学年別授業時数を集計:</strong> 低中高学年別の詳細な時数レポート作成</li>' +
-          '<li><strong>モジュール学習管理:</strong> 計画・実施差分を管理して再集計</li>' +
-        '</ul>' +
-        '<h3>&#128257; 連携と年度更新</h3>' +
-        '<ul>' +
-          '<li><strong>カレンダーと同期:</strong> Googleカレンダーにイベントを同期します</li>' +
-          '<li><strong>年度更新ファイル作成:</strong> 新年度用にファイルをコピー・クリア</li>' +
-        '</ul>' +
-      '</div>'
-    )
+    const fallbackContent = '<div style="font-family: \'Yu Gothic\', Arial, sans-serif; padding: 20px;">' +
+      '<h2 style="color: #2c3e50;">ポータルマスター 使い方ガイド</h2>' +
+      '<h3>導入</h3>' +
+      '<ul>' +
+      '<li><strong>年間行事計画をインポート:</strong> Googleスプレッドシートから行事予定をインポート</li>' +
+      '<li><strong>行事予定表へ反映:</strong> マスターから年間行事予定表にデータを反映</li>' +
+      '</ul>' +
+      '<h3>設定</h3>' +
+      '<ul>' +
+      '<li><strong>年度更新設定:</strong> 年度更新・連携先ID・基準日を設定</li>' +
+      '<li><strong>自動トリガー設定:</strong> 自動処理のON/OFF・曜日・時刻を設定</li>' +
+      '</ul>' +
+      '<h3>日常業務</h3>' +
+      '<ul>' +
+      '<li><strong>今日の日付へ移動:</strong> B1セルに今日の日付リンクを設定</li>' +
+      '<li><strong>週報をPDF保存:</strong> 週報シートをPDF形式で保存</li>' +
+      '<li><strong>週報フォルダを開く:</strong> PDF保存先フォルダをブラウザで開く</li>' +
+      '</ul>' +
+      '<h3>日直</h3>' +
+      '<ul>' +
+      '<li><strong>日直を自動割り当て:</strong> 日直表を元にマスターへ日直を設定</li>' +
+      '<li><strong>日直のみ更新:</strong> マスターの日直列のみ年間行事予定表へ反映</li>' +
+      '<li><strong>休業期間日直を集計:</strong> 年間行事予定表の☆を日直ごとに集計</li>' +
+      '</ul>' +
+      '<h3>集計</h3>' +
+      '<ul>' +
+      '<li><strong>累計時数を計算:</strong> 最新土曜日までの累計授業時数を更新</li>' +
+      '<li><strong>学年別授業時数を集計:</strong> 低中高学年別の詳細な時数レポート作成</li>' +
+      '<li><strong>モジュール学習管理:</strong> 計画・実施差分を管理して再集計</li>' +
+      '</ul>' +
+      '<h3>連携と年度更新</h3>' +
+      '<ul>' +
+      '<li><strong>カレンダーと同期:</strong> Googleカレンダーにイベントを同期します</li>' +
+      '<li><strong>年度更新ファイル作成:</strong> 新年度用にファイルをコピー・クリア</li>' +
+      '</ul>' +
+      '</div>';
+    const fallbackHtml = HtmlService.createHtmlOutput(fallbackContent)
       .setWidth(800)
       .setHeight(600);
 

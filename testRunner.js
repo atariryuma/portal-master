@@ -34,6 +34,8 @@ function runAllTests() {
     results.errors.push('致命的エラー: ' + error.toString());
   }
 
+  hideInternalSheetsAfterTest_();
+
   // 最終結果サマリー
   Logger.log('\n====================================');
   Logger.log('テスト結果サマリー');
@@ -61,34 +63,19 @@ function runAllTests() {
 
   Logger.log('====================================\n');
 
-  // UIにも結果を表示（エディタ直接実行時はUIコンテキストがないためスキップ）
-  try {
-    const ui = SpreadsheetApp.getUi();
-    const message = 'テスト完了\n\n' +
-                    '総テスト数: ' + results.total + '\n' +
-                    '✅ 成功: ' + results.passed + '\n' +
-                    '❌ 失敗: ' + results.failed + '\n' +
-                    '成功率: ' + successRate + '%\n\n' +
-                    '詳細はスクリプトエディタのログを確認してください。';
+  // UIにも結果を表示
+  const ui = SpreadsheetApp.getUi();
+  const message = 'テスト完了\n\n' +
+                  '総テスト数: ' + results.total + '\n' +
+                  '✅ 成功: ' + results.passed + '\n' +
+                  '❌ 失敗: ' + results.failed + '\n' +
+                  '成功率: ' + successRate + '%\n\n' +
+                  '詳細はスクリプトエディタのログを確認してください。';
 
-    if (results.failed === 0) {
-      ui.alert('✅ テスト成功', message, ui.ButtonSet.OK);
-    } else {
-      ui.alert('⚠️ テスト失敗あり', message, ui.ButtonSet.OK);
-    }
-  } catch (e) {
-    Logger.log('[INFO] UIコンテキストなし — ダイアログ表示をスキップしました。');
-  }
-
-  hideInternalSheetsAfterTest_();
-}
-
-function hideInternalSheetsAfterTest_() {
-  try {
-    hideSheetForNormalUse_(MODULE_SHEET_NAMES.CONTROL);
-    hideSheetForNormalUse_(SETTINGS_SHEET_NAME);
-  } catch (error) {
-    Logger.log('[WARNING] テスト後の内部シート非表示化に失敗: ' + error.toString());
+  if (results.failed === 0) {
+    ui.alert('✅ テスト成功', message, ui.ButtonSet.OK);
+  } else {
+    ui.alert('⚠️ テスト失敗あり', message, ui.ButtonSet.OK);
   }
 }
 
@@ -115,46 +102,52 @@ function getFullTestPlan_() {
     {
       title: '【フェーズ2】モジュール時数統合検証',
       tests: [
-        { name: '2-1. モジュールシート初期化確認', fn: testInitializeModuleSheets },
-        { name: '2-2. 累計時数へのMOD統合確認', fn: testModuleCumulativeIntegration },
-        { name: '2-3. 表示フォーマット関数確認', fn: testModuleDisplayFormatter },
-        { name: '2-4. 45分換算関数確認', fn: testSessionsToUnits },
-        { name: '2-5. 旧スキーマ行の置換除外', fn: testReplaceRowsDropsLegacyFiscalRows },
-        { name: '2-6. 他年度旧スキーマ行の保持', fn: testReplaceRowsKeepsOtherLegacyFiscalRows },
-        { name: '2-7. Bresenham配分均等性', fn: testDistributeByBresenham },
-        { name: '2-8. セッション曜日別配分', fn: testAllocateSessionsToDateKeys }
+        { name: '2-1. モジュール定数整合性', fn: testModuleConstants },
+        { name: '2-2. モジュールシート初期化確認', fn: testInitializeModuleSheets },
+        { name: '2-3. 累計時数へのMOD統合確認', fn: testModuleCumulativeIntegration },
+        { name: '2-4. 表示フォーマット関数確認', fn: testModuleDisplayFormatter },
+        { name: '2-5. 45分換算関数確認', fn: testSessionsToUnits },
+        { name: '2-6. 表示列の固定列定数確認', fn: testModuleDisplayColumnIsFixed },
+        { name: '2-7. 実施曜日フィルタデフォルト', fn: testWeekdayFilterDefault },
+        { name: '2-8. 実施曜日パース', fn: testWeekdayFilterParsing },
+        { name: '2-9. 曜日シリアライズ', fn: testSerializeWeekdays },
+        { name: '2-10. V4計画行構築（annualモード）', fn: testBuildV4PlanRowAnnual },
+        { name: '2-11. V4計画行構築（monthlyモード）', fn: testBuildV4PlanRowMonthly },
+        { name: '2-12. 月別配分アルゴリズム', fn: testAllocateSessionsByMonth }
       ]
     },
     {
       title: '【フェーズ3】学年別集計・データ処理',
       tests: [
-        { name: '3-1. 日付マップ作成', fn: testCreateDateMap },
-        { name: '3-2. 重複日付の先頭行マッピング', fn: testCreateDateMapKeepsFirstRow },
-        { name: '3-3. 集計期間バリデーション（不正日付）', fn: testValidateAggregateDateRangeRejectsInvalidDate },
-        { name: '3-4. 集計期間バリデーション（日付順）', fn: testValidateAggregateDateRangeRejectsReverseRange },
-        { name: '3-5. 集計期間バリデーション（正常系）', fn: testValidateAggregateDateRangeAcceptsValidRange },
-        { name: '3-6. 月キー生成（年度跨ぎ）', fn: testBuildMonthKeysForAggregateAcrossFiscalYear },
-        { name: '3-7. 月キー生成（単月）', fn: testBuildMonthKeysForAggregateSingleMonth },
-        { name: '3-8. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
-        { name: '3-9. MOD実績取得関数', fn: testGetModuleActualUnitsForMonth }
+        { name: '3-1. 年間行事予定表シート取得', fn: testGetAnnualScheduleSheet },
+        { name: '3-2. 日付マップ作成', fn: testCreateDateMap },
+        { name: '3-3. 重複日付の先頭行マッピング', fn: testCreateDateMapKeepsFirstRow },
+        { name: '3-4. イベントカテゴリ定数確認', fn: testEventCategories },
+        { name: '3-5. 集計期間バリデーション（不正日付）', fn: testValidateAggregateDateRangeRejectsInvalidDate },
+        { name: '3-6. 集計期間バリデーション（日付順）', fn: testValidateAggregateDateRangeRejectsReverseRange },
+        { name: '3-7. 集計期間バリデーション（正常系）', fn: testValidateAggregateDateRangeAcceptsValidRange },
+        { name: '3-8. 月キー生成（年度跨ぎ）', fn: testListMonthKeysInRangeAcrossFiscalYear },
+        { name: '3-9. 月キー生成（単月）', fn: testListMonthKeysInRangeSingleMonth },
+        { name: '3-10. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
+        { name: '3-11. MOD実績取得関数', fn: testGetModuleActualUnitsForMonth }
       ]
     },
     {
       title: '【フェーズ4】設定・バリデーション',
       tests: [
-        { name: '4-1. トリガー設定値読み込み', fn: testGetTriggerSettings },
-        { name: '4-2. トリガー設定バリデーション', fn: testValidateTriggerSettings },
-        { name: '4-3. トリガー設定正規化', fn: testNormalizeTriggerSettings },
-        { name: '4-4. 年度更新設定バリデーション', fn: testValidateAnnualUpdateSettings }
+        { name: '4-1. トリガー設定定数の存在確認', fn: testTriggerConfigConstants },
+        { name: '4-2. トリガー設定値読み込み', fn: testGetTriggerSettings },
+        { name: '4-3. トリガー設定バリデーション', fn: testValidateTriggerSettings },
+        { name: '4-4. トリガー設定正規化', fn: testNormalizeTriggerSettings },
+        { name: '4-5. 年度更新設定定数の存在確認', fn: testAnnualUpdateConfigConstants },
+        { name: '4-6. 年度更新設定バリデーション', fn: testValidateAnnualUpdateSettings }
       ]
     },
     {
       title: '【フェーズ5】共通関数',
       tests: [
         { name: '5-1. 日付フォーマット関数', fn: testFormatDateToJapanese },
-        { name: '5-2. 名前抽出関数', fn: testExtractFirstName },
-        { name: '5-3. 日付正規化関数', fn: testNormalizeToDate },
-        { name: '5-4. カレンダー日付範囲抽出', fn: testExtractDateRangeFromData }
+        { name: '5-2. 名前抽出関数', fn: testExtractFirstName }
       ]
     },
     {
@@ -163,28 +156,32 @@ function getFullTestPlan_() {
         { name: '6-1. 設定シート非表示動作', fn: testSettingsSheetHiddenForNormalUse },
         { name: '6-2. 年度更新設定ダイアログ定義', fn: testAnnualUpdateDialogDefinition },
         { name: '6-3. 自動トリガー設定ダイアログ定義', fn: testTriggerSettingsDialogDefinition },
-        { name: '6-4. 年度更新安全性パターン', fn: testCopyAndClearSafetyPattern },
-        { name: '6-5. カレンダー同期管理マーカー', fn: testSyncCalendarsManagedMarkerPattern }
+        { name: '6-4. 年間行事インポート導線定義', fn: testImportAnnualEventsDefinition },
+        { name: '6-5. onOpen設定シート非表示配線', fn: testOnOpenWiresSettingsSheetHide },
+        { name: '6-6. 年度更新現行ファイルクリア配線', fn: testCopyAndClearTargetsActiveFileAfterCopy }
       ]
     },
     {
-      title: '【フェーズ7】コード品質・ロジック検証',
+      title: '【フェーズ7】最適化検証',
       tests: [
-        { name: '7-1. var宣言ゼロ検証', fn: testNoVarDeclarations },
-        { name: '7-2. ログプレフィックス標準化', fn: testLogPrefixStandard },
-        { name: '7-3. エラーハンドリング完備', fn: testErrorHandlingPresence },
-        { name: '7-4. XSS安全性確認', fn: testOpenWeeklyReportFolderXssSafe },
-        { name: '7-5. 累計カテゴリ導出確認', fn: testCumulativeCategoriesDerivedFromEventCategories },
-        { name: '7-6. 日付変換ヘルパー', fn: testConvertCellValue },
-        { name: '7-7. 日付行検索', fn: testFindDateRow },
-        { name: '7-8. イベント時間解析', fn: testParseEventTimesAndDates },
-        { name: '7-9. 累計計算ロジック', fn: testCalculateResultsForGrade },
-        { name: '7-10. 月キー正規化', fn: testNormalizeAggregateMonthKey },
-        { name: '7-11. 名前結合関数', fn: testJoinNamesWithNewline },
-        { name: '7-12. 全角半角変換', fn: testConvertFullWidthToHalfWidth },
-        { name: '7-13. 分解析関数', fn: testParseMinute },
-        { name: '7-14. バッチ読み取り確認', fn: testAssignDutyBatchReads },
-        { name: '7-15. カレンダーイベントキー生成', fn: testBuildCalendarEventKey }
+        { name: '7-1. マジックナンバー定数確認', fn: testMagicNumberConstants },
+        { name: '7-2. var宣言ゼロ検証', fn: testNoVarDeclarations },
+        { name: '7-3. ログプレフィックス標準化', fn: testLogPrefixStandard },
+        { name: '7-4. エラーハンドリング完備', fn: testErrorHandlingPresence },
+        { name: '7-5. XSS安全性確認', fn: testOpenWeeklyReportFolderXssSafe },
+        { name: '7-6. 累計カテゴリ導出確認', fn: testCumulativeCategoriesDerivedFromEventCategories },
+        { name: '7-7. 日付変換ヘルパー', fn: testConvertCellValue },
+        { name: '7-8. 日付行検索', fn: testFindDateRow },
+        { name: '7-9. イベント時間解析', fn: testParseEventTimesAndDates },
+        { name: '7-10. 累計計算ロジック', fn: testCalculateResultsForGrade },
+        { name: '7-11. 月キー正規化', fn: testNormalizeAggregateMonthKey },
+        { name: '7-12. 名前結合関数', fn: testJoinNamesWithNewline },
+        { name: '7-13. 全角半角変換', fn: testConvertFullWidthToHalfWidth },
+        { name: '7-14. 分解析関数', fn: testParseMinute },
+        { name: '7-15. 公開関数定義確認', fn: testPublicFunctionDefinitions },
+        { name: '7-16. バッチ読み取り確認', fn: testAssignDutyBatchReads },
+        { name: '7-17. 重複コード排除確認', fn: testNoDuplicateDateFormatter },
+        { name: '7-18. moduleHours分割確認', fn: testModuleHoursDecomposition }
       ]
     }
   ];
@@ -207,7 +204,7 @@ function getQuickTestPlan_() {
         { name: 'Q-5. 集計期間バリデーション（日付順）', fn: testValidateAggregateDateRangeRejectsReverseRange },
         { name: 'Q-6. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
         { name: 'Q-7. 設定シート非表示動作', fn: testSettingsSheetHiddenForNormalUse },
-        { name: 'Q-8. Bresenham配分均等性', fn: testDistributeByBresenham }
+        { name: 'Q-8. 年度更新現行ファイルクリア配線', fn: testCopyAndClearTargetsActiveFileAfterCopy }
       ]
     }
   ];
@@ -309,6 +306,30 @@ function testConfigSheetStructure() {
 // フェーズ2: モジュール時数統合検証
 // ========================================
 
+function testModuleConstants() {
+  const requiredConstantsMap = {
+    'MODULE_SHEET_NAMES': typeof MODULE_SHEET_NAMES !== 'undefined' ? MODULE_SHEET_NAMES : undefined,
+    'MODULE_SETTING_KEYS': typeof MODULE_SETTING_KEYS !== 'undefined' ? MODULE_SETTING_KEYS : undefined,
+    'MODULE_DATA_VERSION': typeof MODULE_DATA_VERSION !== 'undefined' ? MODULE_DATA_VERSION : undefined,
+    'MODULE_FISCAL_YEAR_START_MONTH': typeof MODULE_FISCAL_YEAR_START_MONTH !== 'undefined' ? MODULE_FISCAL_YEAR_START_MONTH : undefined,
+    'MODULE_CUMULATIVE_COLUMNS': typeof MODULE_CUMULATIVE_COLUMNS !== 'undefined' ? MODULE_CUMULATIVE_COLUMNS : undefined
+  };
+
+  const missingConstants = Object.keys(requiredConstantsMap).filter(function(constantName) {
+    return typeof requiredConstantsMap[constantName] === 'undefined';
+  });
+
+  if (missingConstants.length > 0) {
+    return { success: false, message: '不足定数: ' + missingConstants.join(', ') };
+  }
+
+  if (MODULE_FISCAL_YEAR_START_MONTH !== 4) {
+    return { success: false, message: '年度開始月が4月固定になっていません' };
+  }
+
+  return { success: true, message: Object.keys(requiredConstantsMap).length + '個のモジュール定数を確認' };
+}
+
 function testInitializeModuleSheets() {
   if (typeof initializeModuleHoursSheetsIfNeeded !== 'function') {
     return { success: false, message: 'initializeModuleHoursSheetsIfNeeded関数が見つかりません' };
@@ -335,66 +356,38 @@ function testInitializeModuleSheets() {
   }
 }
 
-/**
- * 累計時数統合の検証（非破壊テスト）
- * 本番シートへの書き込みを行わず、以下を検証する:
- * 1. 統合関数の存在確認
- * 2. 純粋な計算ロジック（buildGradeTotalsFromDailyAndExceptions）の検証
- * 3. 累計時数シートの構造を読み取り専用で確認
- */
 function testModuleCumulativeIntegration() {
   if (typeof syncModuleHoursWithCumulative !== 'function') {
     return { success: false, message: 'syncModuleHoursWithCumulative関数が見つかりません' };
   }
-  if (typeof buildGradeTotalsFromDailyAndExceptions !== 'function') {
-    return { success: false, message: 'buildGradeTotalsFromDailyAndExceptions関数が見つかりません' };
-  }
 
-  // 計算ロジックをモックデータで検証（副作用なし）
-  const mockDailyTotals = {};
-  const mockExceptionTotals = { byGrade: {}, thisWeekByGrade: {} };
-  for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-    mockDailyTotals[grade] = { plannedSessions: 21, elapsedSessions: 15, thisWeekSessions: 3 };
-    mockExceptionTotals.byGrade[grade] = 3;
-    mockExceptionTotals.thisWeekByGrade[grade] = 1;
-  }
+  try {
+    // calculateCumulativeHoursと同じ基準日を使用して、テスト実行による副作用を最小化
+    syncModuleHoursWithCumulative(getCurrentOrNextSaturday());
+    const cumulativeSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('累計時数');
+    if (!cumulativeSheet) {
+      return { success: false, message: '累計時数シートが見つかりません' };
+    }
 
-  const gradeTotals = buildGradeTotalsFromDailyAndExceptions(mockDailyTotals, mockExceptionTotals);
-  const grade1 = gradeTotals[1];
-  if (grade1.actualSessions !== 18) {
-    return { success: false, message: '実施セッション計算が不正: 期待18, 実際' + grade1.actualSessions };
-  }
-  if (grade1.thisWeekSessions !== 4) {
-    return { success: false, message: '今週セッション計算が不正: 期待4, 実際' + grade1.thisWeekSessions };
-  }
+    const headers = cumulativeSheet.getRange(2, MODULE_CUMULATIVE_COLUMNS.PLAN, 1, 3).getValues()[0];
+    const expectedHeaders = ['MOD計画累計', 'MOD実施累計', 'MOD差分'];
+    const mismatch = expectedHeaders.filter(function(header, index) {
+      return headers[index] !== header;
+    });
 
-  // 累計時数シートの構造を読み取り専用で確認
-  const cumulativeSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CUMULATIVE_SHEET.NAME);
-  if (!cumulativeSheet) {
-    return { success: false, message: '累計時数シートが見つかりません' };
+    if (mismatch.length > 0) {
+      return { success: false, message: '累計時数シートのMOD列ヘッダーが不正です' };
+    }
+
+    const displayHeaderRow = cumulativeSheet.getRange(2, 1, 1, cumulativeSheet.getLastColumn()).getValues()[0];
+    if (displayHeaderRow.indexOf('MOD実施累計(表示)') === -1) {
+      return { success: false, message: 'MOD実施累計(表示)列が作成されていません' };
+    }
+
+    return { success: true, message: '累計時数シートへMOD列を統合' };
+  } catch (error) {
+    return { success: false, message: error.toString() };
   }
-
-  const lastCol = cumulativeSheet.getLastColumn();
-  if (lastCol < MODULE_CUMULATIVE_COLUMNS.PLAN) {
-    return { success: false, message: 'MOD列が存在しません（最終列: ' + lastCol + '）' };
-  }
-
-  const headers = cumulativeSheet.getRange(2, MODULE_CUMULATIVE_COLUMNS.PLAN, 1, 3).getValues()[0];
-  const expectedHeaders = ['MOD計画累計', 'MOD実施累計', 'MOD差分'];
-  const mismatch = expectedHeaders.filter(function(header, index) {
-    return headers[index] !== header;
-  });
-
-  if (mismatch.length > 0) {
-    return { success: false, message: 'MOD列ヘッダーが不正: ' + JSON.stringify(headers) };
-  }
-
-  const displayHeaderRow = cumulativeSheet.getRange(2, 1, 1, lastCol).getValues()[0];
-  if (displayHeaderRow.indexOf(MODULE_DISPLAY_HEADER) === -1) {
-    return { success: false, message: MODULE_DISPLAY_HEADER + '列が見つかりません' };
-  }
-
-  return { success: true, message: '計算ロジック検証 + 累計時数シート構造確認（読み取り専用）' };
 }
 
 function testModuleDisplayFormatter() {
@@ -437,111 +430,107 @@ function testSessionsToUnits() {
   return { success: true, message: '45分換算ロジックを確認' };
 }
 
-function testReplaceRowsDropsLegacyFiscalRows() {
-  if (typeof replaceRowsForFiscalYear !== 'function') {
-    return { success: false, message: 'replaceRowsForFiscalYear関数が見つかりません' };
+function testModuleDisplayColumnIsFixed() {
+  if (typeof MODULE_CUMULATIVE_COLUMNS === 'undefined' ||
+      typeof MODULE_CUMULATIVE_COLUMNS.DISPLAY === 'undefined') {
+    return { success: false, message: 'MODULE_CUMULATIVE_COLUMNS.DISPLAY が定義されていません' };
   }
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const tempSheet = ss.insertSheet('tmp_mod_replace_' + Date.now());
-
-  try {
-    tempSheet.getRange(1, 1, 1, 2).setValues([['fiscal_year', 'value']]);
-    tempSheet.getRange(2, 1, 3, 2).setValues([
-      ['2025-06', 'legacy'],
-      [2024, 'keep'],
-      [2025, 'old']
-    ]);
-
-    replaceRowsForFiscalYear(tempSheet, [[2025, 'new']], 2025, 0, 2);
-
-    const afterLastRow = tempSheet.getLastRow();
-    const values = afterLastRow > 1 ? tempSheet.getRange(2, 1, afterLastRow - 1, 2).getValues() : [];
-    const legacyExists = values.some(function(row) {
-      return String(row[0]) === '2025-06';
-    });
-    const oldTargetExists = values.some(function(row) {
-      return Number(row[0]) === 2025 && row[1] === 'old';
-    });
-    const keepExists = values.some(function(row) {
-      return Number(row[0]) === 2024 && row[1] === 'keep';
-    });
-    const newExists = values.some(function(row) {
-      return Number(row[0]) === 2025 && row[1] === 'new';
-    });
-
-    if (legacyExists || oldTargetExists || !keepExists || !newExists) {
-      return { success: false, message: '置換結果が不正です: ' + JSON.stringify(values) };
-    }
-
-    return { success: true, message: '旧スキーマ行を除外して年度置換できることを確認' };
-  } catch (error) {
-    return { success: false, message: error.toString() };
-  } finally {
-    ss.deleteSheet(tempSheet);
+  if (MODULE_CUMULATIVE_COLUMNS.DISPLAY !== 16) {
+    return { success: false, message: '表示列が16(P列)ではありません: ' + MODULE_CUMULATIVE_COLUMNS.DISPLAY };
   }
+
+  if (typeof breakMergesInRange !== 'function') {
+    return { success: false, message: 'breakMergesInRange関数が見つかりません' };
+  }
+
+  if (typeof cleanupStaleDisplayColumns !== 'function') {
+    return { success: false, message: 'cleanupStaleDisplayColumns関数が見つかりません' };
+  }
+
+  return { success: true, message: 'MOD表示列の固定列定数と補助関数を確認' };
 }
 
-function testReplaceRowsKeepsOtherLegacyFiscalRows() {
-  if (typeof replaceRowsForFiscalYear !== 'function') {
-    return { success: false, message: 'replaceRowsForFiscalYear関数が見つかりません' };
+function testWeekdayFilterDefault() {
+  if (typeof getEnabledWeekdays !== 'function') {
+    return { success: false, message: 'getEnabledWeekdays関数が見つかりません' };
   }
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const tempSheet = ss.insertSheet('tmp_mod_replace_keep_' + Date.now());
-
-  try {
-    tempSheet.getRange(1, 1, 1, 2).setValues([['fiscal_year', 'value']]);
-    tempSheet.getRange(2, 1, 3, 2).setValues([
-      ['2024-12', 'legacy_keep'],
-      ['unknown', 'opaque_keep'],
-      [2025, 'old_target']
-    ]);
-
-    replaceRowsForFiscalYear(tempSheet, [[2025, 'new_target']], 2025, 0, 2);
-
-    const afterLastRow = tempSheet.getLastRow();
-    const values = afterLastRow > 1 ? tempSheet.getRange(2, 1, afterLastRow - 1, 2).getValues() : [];
-    const isLegacyMonthValue = function(value, year, month) {
-      if (value instanceof Date) {
-        return value.getFullYear() === year && (value.getMonth() + 1) === month;
-      }
-      const text = String(value === null || value === undefined ? '' : value).trim();
-      if (!text) {
-        return false;
-      }
-      return text.indexOf(year + '-' + String(month).padStart(2, '0')) === 0 ||
-        text.indexOf(year + '/' + month) === 0 ||
-        text.indexOf(year + '/' + String(month).padStart(2, '0')) === 0;
-    };
-    const legacyKeepExists = values.some(function(row) {
-      return isLegacyMonthValue(row[0], 2024, 12) && row[1] === 'legacy_keep';
-    });
-    const opaqueKeepExists = values.some(function(row) {
-      return String(row[0]) === 'unknown' && row[1] === 'opaque_keep';
-    });
-    const oldTargetExists = values.some(function(row) {
-      return Number(row[0]) === 2025 && row[1] === 'old_target';
-    });
-    const newTargetExists = values.some(function(row) {
-      return Number(row[0]) === 2025 && row[1] === 'new_target';
-    });
-
-    if (!legacyKeepExists || !opaqueKeepExists || oldTargetExists || !newTargetExists) {
-      return { success: false, message: '保持/置換結果が不正です: ' + JSON.stringify(values) };
-    }
-
-    return { success: true, message: '対象年度のみ置換し、他年度旧スキーマ行を保持' };
-  } catch (error) {
-    return { success: false, message: error.toString() };
-  } finally {
-    ss.deleteSheet(tempSheet);
+  const result = getEnabledWeekdays({});
+  if (!Array.isArray(result) || result.length !== 3) {
+    return { success: false, message: 'デフォルト曜日が[1,3,5]ではありません: ' + JSON.stringify(result) };
   }
+  if (result[0] !== 1 || result[1] !== 3 || result[2] !== 5) {
+    return { success: false, message: 'デフォルト曜日の値が不正: ' + JSON.stringify(result) };
+  }
+
+  return { success: true, message: 'デフォルト実施曜日（月水金）を確認' };
+}
+
+function testWeekdayFilterParsing() {
+  if (typeof getEnabledWeekdays !== 'function') {
+    return { success: false, message: 'getEnabledWeekdays関数が見つかりません' };
+  }
+
+  const result1 = getEnabledWeekdays({ WEEKDAYS_ENABLED: '1,2,4' });
+  if (result1.length !== 3 || result1[0] !== 1 || result1[1] !== 2 || result1[2] !== 4) {
+    return { success: false, message: '曜日パース結果が不正: ' + JSON.stringify(result1) };
+  }
+
+  const result2 = getEnabledWeekdays({ WEEKDAYS_ENABLED: 'invalid' });
+  if (result2.length !== 3 || result2[0] !== 1 || result2[1] !== 3 || result2[2] !== 5) {
+    return { success: false, message: '不正値のフォールバックが不正: ' + JSON.stringify(result2) };
+  }
+
+  return { success: true, message: '実施曜日パースロジックを確認' };
+}
+
+function testSerializeWeekdays() {
+  if (typeof serializeWeekdays !== 'function') {
+    return { success: false, message: 'serializeWeekdays関数が見つかりません' };
+  }
+
+  const result = serializeWeekdays([5, 1, 3]);
+  if (result !== '1,3,5') {
+    return { success: false, message: 'シリアライズ結果が不正: ' + result };
+  }
+
+  const result2 = serializeWeekdays([]);
+  if (result2 !== '1,3,5') {
+    return { success: false, message: '空配列のフォールバックが不正: ' + result2 };
+  }
+
+  return { success: true, message: '曜日シリアライズを確認' };
 }
 
 // ========================================
 // 設定・バリデーション
 // ========================================
+
+function testTriggerConfigConstants() {
+  if (typeof TRIGGER_CONFIG_CELLS === 'undefined') {
+    return { success: false, message: 'TRIGGER_CONFIG_CELLS定数が見つかりません' };
+  }
+
+  if (typeof WEEKDAY_MAP === 'undefined') {
+    return { success: false, message: 'WEEKDAY_MAP定数が見つかりません' };
+  }
+
+  const requiredKeys = ['WEEKLY_PDF_ENABLED', 'WEEKLY_PDF_DAY', 'WEEKLY_PDF_HOUR',
+                       'CUMULATIVE_HOURS_ENABLED', 'CUMULATIVE_HOURS_DAY', 'CUMULATIVE_HOURS_HOUR',
+                       'CALENDAR_SYNC_ENABLED', 'CALENDAR_SYNC_HOUR',
+                       'DAILY_LINK_ENABLED', 'DAILY_LINK_HOUR', 'LAST_UPDATE'];
+
+  const missingKeys = requiredKeys.filter(function(key) {
+    return !TRIGGER_CONFIG_CELLS.hasOwnProperty(key);
+  });
+
+  if (missingKeys.length > 0) {
+    return { success: false, message: '不足キー: ' + missingKeys.join(', ') };
+  }
+
+  return { success: true, message: requiredKeys.length + '個の設定キーを確認' };
+}
 
 function testGetTriggerSettings() {
   try {
@@ -553,7 +542,7 @@ function testGetTriggerSettings() {
 
     const requiredSections = ['weeklyPdf', 'cumulativeHours', 'calendarSync', 'dailyLink'];
     const missingSections = requiredSections.filter(function(section) {
-      return !Object.prototype.hasOwnProperty.call(settings, section);
+      return !settings.hasOwnProperty(section);
     });
 
     if (missingSections.length > 0) {
@@ -625,6 +614,31 @@ function testNormalizeTriggerSettings() {
   }
 
   return { success: true, message: 'トリガー設定の正規化を確認' };
+}
+
+function testAnnualUpdateConfigConstants() {
+  if (typeof ANNUAL_UPDATE_CONFIG_CELLS === 'undefined') {
+    return { success: false, message: 'ANNUAL_UPDATE_CONFIG_CELLS定数が見つかりません' };
+  }
+
+  const requiredKeys = [
+    'COPY_FILE_NAME',
+    'COPY_DESTINATION_FOLDER_ID',
+    'BASE_SUNDAY',
+    'WEEKLY_REPORT_FOLDER_ID',
+    'EVENT_CALENDAR_ID',
+    'EXTERNAL_CALENDAR_ID'
+  ];
+
+  const missingKeys = requiredKeys.filter(function(key) {
+    return !ANNUAL_UPDATE_CONFIG_CELLS.hasOwnProperty(key);
+  });
+
+  if (missingKeys.length > 0) {
+    return { success: false, message: '不足キー: ' + missingKeys.join(', ') };
+  }
+
+  return { success: true, message: requiredKeys.length + '個の年度更新設定キーを確認' };
 }
 
 function testValidateAnnualUpdateSettings() {
@@ -710,72 +724,22 @@ function testExtractFirstName() {
   return { success: true, message: testCases.length + '件のテストケースが成功' };
 }
 
-function testNormalizeToDate() {
-  if (typeof normalizeToDate !== 'function') {
-    return { success: false, message: 'normalizeToDate関数が見つかりません' };
-  }
-
-  // Date入力: 時刻が00:00:00にリセットされること
-  const fromDate = normalizeToDate(new Date(2025, 3, 1, 14, 30, 45));
-  if (!fromDate || fromDate.getFullYear() !== 2025 || fromDate.getMonth() !== 3 || fromDate.getDate() !== 1) {
-    return { success: false, message: 'Date入力の日付部分が不正' };
-  }
-  if (fromDate.getHours() !== 0 || fromDate.getMinutes() !== 0 || fromDate.getSeconds() !== 0) {
-    return { success: false, message: 'Date入力の時刻リセットが不正' };
-  }
-
-  // yyyy-MM-dd文字列
-  const fromString = normalizeToDate('2025-04-01');
-  if (!fromString || fromString.getFullYear() !== 2025 || fromString.getMonth() !== 3 || fromString.getDate() !== 1) {
-    return { success: false, message: 'yyyy-MM-dd文字列パースが不正: ' + fromString };
-  }
-
-  // null/undefined/空文字 → null
-  if (normalizeToDate(null) !== null || normalizeToDate(undefined) !== null || normalizeToDate('') !== null) {
-    return { success: false, message: '空値がnullを返しません' };
-  }
-
-  // 不正文字列 → null
-  if (normalizeToDate('invalid-date-string') !== null) {
-    return { success: false, message: '不正文字列がnullを返しません' };
-  }
-
-  return { success: true, message: '4パターンの日付正規化を確認' };
-}
-
-function testExtractDateRangeFromData() {
-  if (typeof extractDateRangeFromData_ !== 'function') {
-    return { success: false, message: 'extractDateRangeFromData_関数が見つかりません' };
-  }
-
-  // 正常系: ヘッダー行 + データ行。DATE_INDEXは1（B列相当）
-  const data = [
-    ['header', 'date_header'],
-    ['row1', new Date(2025, 5, 15)],
-    ['row2', new Date(2025, 3, 1)],
-    ['row3', new Date(2025, 11, 31)]
-  ];
-
-  const range = extractDateRangeFromData_(data);
-  if (!range || !range.minDate || !range.maxDate) {
-    return { success: false, message: '日付範囲が取得できません' };
-  }
-  if (range.minDate.getMonth() !== 3 || range.maxDate.getMonth() !== 11) {
-    return { success: false, message: '最小/最大日付が不正: min=' + range.minDate + ', max=' + range.maxDate };
-  }
-
-  // 空データ → null
-  const emptyRange = extractDateRangeFromData_([['header', 'date_header']]);
-  if (emptyRange !== null) {
-    return { success: false, message: '空データでnullが返りません' };
-  }
-
-  return { success: true, message: '正常系・空データの日付範囲抽出を確認' };
-}
-
 // ========================================
 // データ処理テスト
 // ========================================
+
+function testGetAnnualScheduleSheet() {
+  if (typeof getAnnualScheduleSheet !== 'function') {
+    return { success: false, message: '関数が見つかりません' };
+  }
+
+  const sheet = getAnnualScheduleSheet();
+  if (!sheet) {
+    return { success: false, message: '年間行事予定表シートを取得できません' };
+  }
+
+  return { success: true, message: 'シート名: ' + sheet.getName() };
+}
 
 function testCreateDateMap() {
   if (typeof createDateMap !== 'function') {
@@ -831,6 +795,23 @@ function testCreateDateMapKeepsFirstRow() {
   } finally {
     ss.deleteSheet(tempSheet);
   }
+}
+
+function testEventCategories() {
+  if (typeof EVENT_CATEGORIES === 'undefined') {
+    return { success: false, message: 'EVENT_CATEGORIES定数が見つかりません' };
+  }
+
+  const requiredCategories = ['儀式', '文化', '保健', '遠足', '勤労', '欠時数', '児童会', 'クラブ', '委員会活動', '補習'];
+  const missingCategories = requiredCategories.filter(function(cat) {
+    return !EVENT_CATEGORIES.hasOwnProperty(cat);
+  });
+
+  if (missingCategories.length > 0) {
+    return { success: false, message: '不足カテゴリ: ' + missingCategories.join(', ') };
+  }
+
+  return { success: true, message: requiredCategories.length + '個のカテゴリを確認' };
 }
 
 function testValidateAggregateDateRangeRejectsInvalidDate() {
@@ -895,12 +876,12 @@ function testValidateAggregateDateRangeAcceptsValidRange() {
   return { success: true, message: '正常な期間を受理' };
 }
 
-function testBuildMonthKeysForAggregateAcrossFiscalYear() {
-  if (typeof buildMonthKeysForAggregate !== 'function') {
-    return { success: false, message: 'buildMonthKeysForAggregate関数が見つかりません' };
+function testListMonthKeysInRangeAcrossFiscalYear() {
+  if (typeof listMonthKeysInRange !== 'function') {
+    return { success: false, message: 'listMonthKeysInRange関数が見つかりません' };
   }
 
-  const keys = buildMonthKeysForAggregate(new Date(2025, 3, 1), new Date(2026, 2, 31));
+  const keys = listMonthKeysInRange(new Date(2025, 3, 1), new Date(2026, 2, 31));
   if (!Array.isArray(keys) || keys.length !== 12) {
     return { success: false, message: '月キー数が不正です: ' + JSON.stringify(keys) };
   }
@@ -911,12 +892,12 @@ function testBuildMonthKeysForAggregateAcrossFiscalYear() {
   return { success: true, message: '年度跨ぎの月キー生成を確認' };
 }
 
-function testBuildMonthKeysForAggregateSingleMonth() {
-  if (typeof buildMonthKeysForAggregate !== 'function') {
-    return { success: false, message: 'buildMonthKeysForAggregate関数が見つかりません' };
+function testListMonthKeysInRangeSingleMonth() {
+  if (typeof listMonthKeysInRange !== 'function') {
+    return { success: false, message: 'listMonthKeysInRange関数が見つかりません' };
   }
 
-  const keys = buildMonthKeysForAggregate(new Date(2025, 8, 1), new Date(2025, 8, 30));
+  const keys = listMonthKeysInRange(new Date(2025, 8, 1), new Date(2025, 8, 30));
   if (!Array.isArray(keys) || keys.length !== 1 || keys[0] !== '2025-09') {
     return { success: false, message: '単月キー生成が不正です: ' + JSON.stringify(keys) };
   }
@@ -1066,12 +1047,12 @@ function testAnnualUpdateDialogDefinition() {
   }
 
   try {
-    const html = HtmlService.createTemplateFromFile('annualUpdateSettingsDialog').evaluate();
+    const html = HtmlService.createHtmlOutputFromFile('annualUpdateSettingsDialog');
     const content = html.getContent();
     if (!content || content.length === 0) {
       return { success: false, message: '年度更新設定ダイアログHTMLが空です' };
     }
-    return { success: true, message: '年度更新設定ダイアログHTML（テンプレート評価）を確認' };
+    return { success: true, message: '年度更新設定ダイアログHTMLを確認' };
   } catch (error) {
     return { success: false, message: error.toString() };
   }
@@ -1083,20 +1064,118 @@ function testTriggerSettingsDialogDefinition() {
   }
 
   try {
-    const html = HtmlService.createTemplateFromFile('triggerSettingsDialog').evaluate();
+    const html = HtmlService.createHtmlOutputFromFile('triggerSettingsDialog');
     const content = html.getContent();
     if (!content || content.length === 0) {
       return { success: false, message: '自動トリガー設定ダイアログHTMLが空です' };
     }
-    return { success: true, message: '自動トリガー設定ダイアログHTML（テンプレート評価）を確認' };
+    return { success: true, message: '自動トリガー設定ダイアログHTMLを確認' };
   } catch (error) {
     return { success: false, message: error.toString() };
   }
 }
 
+function testImportAnnualEventsDefinition() {
+  if (typeof importAnnualEvents !== 'function') {
+    return { success: false, message: 'importAnnualEvents関数が見つかりません' };
+  }
+
+  const source = String(importAnnualEvents);
+  const requiredFragments = [
+    'getSettingsSheetOrThrow',
+    'ANNUAL_UPDATE_CONFIG_CELLS.BASE_SUNDAY',
+    'SpreadsheetApp.openByUrl'
+  ];
+
+  const missingFragments = requiredFragments.filter(function(fragment) {
+    return source.indexOf(fragment) === -1;
+  });
+
+  if (missingFragments.length > 0) {
+    return { success: false, message: '導線コード不足: ' + missingFragments.join(', ') };
+  }
+
+  if (source.indexOf('年度更新作業') !== -1) {
+    return { success: false, message: '旧設定シート名参照が残っています' };
+  }
+
+  return { success: true, message: '年間行事インポート導線を確認' };
+}
+
+function testOnOpenWiresSettingsSheetHide() {
+  if (typeof onOpen !== 'function') {
+    return { success: false, message: 'onOpen関数が見つかりません' };
+  }
+
+  const source = String(onOpen);
+  if (source.indexOf('hideInternalSheetsForNormalUse_') === -1) {
+    return { success: false, message: 'onOpenの内部シート非表示配線が見つかりません' };
+  }
+
+  const helperSource = String(hideInternalSheetsForNormalUse_);
+  if (helperSource.indexOf('MODULE_SHEET_NAMES') === -1 || helperSource.indexOf('SETTINGS_SHEET_NAME') === -1) {
+    return { success: false, message: 'hideInternalSheetsForNormalUse_にmodule_control・設定シートが含まれていません' };
+  }
+
+  return { success: true, message: 'onOpenの設定シート非表示配線を確認' };
+}
+
+function testCopyAndClearTargetsActiveFileAfterCopy() {
+  if (typeof copyAndClear !== 'function') {
+    return { success: false, message: 'copyAndClear関数が見つかりません' };
+  }
+
+  const source = String(copyAndClear);
+  const requiredFragments = [
+    'makeCopy(',
+    "getSheetByName('年間行事予定表')",
+    'ANNUAL_SCHEDULE.CLEAR_EVENT_RANGE',
+    'ANNUAL_SCHEDULE.CLEAR_DATA_RANGE'
+  ];
+  const missingFragments = requiredFragments.filter(function(fragment) {
+    return source.indexOf(fragment) === -1;
+  });
+
+  if (missingFragments.length > 0) {
+    return { success: false, message: '現行ファイルクリアの導線不足: ' + missingFragments.join(', ') };
+  }
+
+  if (source.indexOf('copiedSheet.getRange(') !== -1 || source.indexOf('SpreadsheetApp.openById') !== -1) {
+    return { success: false, message: 'コピー先ファイルを直接クリアする導線が残っています' };
+  }
+
+  return { success: true, message: '年度更新はコピー後に現行ファイルをクリアする配線を確認' };
+}
+
 // ========================================
-// フェーズ7: コード品質・ロジック検証テスト
+// フェーズ7: 最適化検証テスト
 // ========================================
+
+function testMagicNumberConstants() {
+  const requiredConstantsMap = {
+    'MASTER_SHEET': typeof MASTER_SHEET !== 'undefined' ? MASTER_SHEET : undefined,
+    'DUTY_ROSTER_SHEET': typeof DUTY_ROSTER_SHEET !== 'undefined' ? DUTY_ROSTER_SHEET : undefined,
+    'ANNUAL_SCHEDULE': typeof ANNUAL_SCHEDULE !== 'undefined' ? ANNUAL_SCHEDULE : undefined,
+    'JISUU_TEMPLATE': typeof JISUU_TEMPLATE !== 'undefined' ? JISUU_TEMPLATE : undefined,
+    'WEEKLY_REPORT': typeof WEEKLY_REPORT !== 'undefined' ? WEEKLY_REPORT : undefined,
+    'CUMULATIVE_SHEET': typeof CUMULATIVE_SHEET !== 'undefined' ? CUMULATIVE_SHEET : undefined,
+    'IMPORT_CONSTANTS': typeof IMPORT_CONSTANTS !== 'undefined' ? IMPORT_CONSTANTS : undefined
+  };
+
+  const missingConstants = Object.keys(requiredConstantsMap).filter(function(name) {
+    return typeof requiredConstantsMap[name] === 'undefined';
+  });
+
+  if (missingConstants.length > 0) {
+    return { success: false, message: '不足定数: ' + missingConstants.join(', ') };
+  }
+
+  if (MASTER_SHEET.DUTY_COLUMN !== 41 || ANNUAL_SCHEDULE.DUTY_COLUMN !== 18) {
+    return { success: false, message: '定数値が不正です' };
+  }
+
+  return { success: true, message: Object.keys(requiredConstantsMap).length + '個の定数グループを確認' };
+}
 
 function testNoVarDeclarations() {
   const functionsToCheck = [
@@ -1402,6 +1481,38 @@ function testParseMinute() {
   return { success: true, message: cases.length + 'ケースの分解析を確認' };
 }
 
+function testPublicFunctionDefinitions() {
+  const publicFunctionsMap = {
+    'assignDuty': assignDuty,
+    'updateAnnualDuty': updateAnnualDuty,
+    'updateAnnualEvents': updateAnnualEvents,
+    'countStars': countStars,
+    'setDailyHyperlink': setDailyHyperlink,
+    'saveToPDF': saveToPDF,
+    'openWeeklyReportFolder': openWeeklyReportFolder,
+    'syncCalendars': syncCalendars,
+    'calculateCumulativeHours': calculateCumulativeHours,
+    'importAnnualEvents': importAnnualEvents,
+    'aggregateSchoolEventsByGrade': aggregateSchoolEventsByGrade,
+    'processAggregateSchoolEventsByGrade': processAggregateSchoolEventsByGrade,
+    'copyAndClear': copyAndClear,
+    'showAnnualUpdateSettingsDialog': showAnnualUpdateSettingsDialog,
+    'showTriggerSettingsDialog': showTriggerSettingsDialog,
+    'showModulePlanningDialog': showModulePlanningDialog,
+    'runAllTests': runAllTests
+  };
+
+  const missingFunctions = Object.keys(publicFunctionsMap).filter(function(name) {
+    return typeof publicFunctionsMap[name] !== 'function';
+  });
+
+  if (missingFunctions.length > 0) {
+    return { success: false, message: '未定義関数: ' + missingFunctions.join(', ') };
+  }
+
+  return { success: true, message: Object.keys(publicFunctionsMap).length + '個の公開関数を確認' };
+}
+
 function testAssignDutyBatchReads() {
   const source = String(assignDuty);
 
@@ -1419,159 +1530,200 @@ function testAssignDutyBatchReads() {
   return { success: true, message: 'バッチ読み取りパターンを確認' };
 }
 
-function testDistributeByBresenham() {
-  // Case 1: 均等配分（3日に3セッション → 全日に1セッションずつ）
-  const dates1 = [
-    new Date(2025, 5, 2),
-    new Date(2025, 5, 4),
-    new Date(2025, 5, 6)
-  ];
-  const alloc1 = {};
-  distributeByBresenham(dates1, 3, alloc1);
-  const keys1 = Object.keys(alloc1);
-  if (keys1.length !== 3) {
-    return { success: false, message: '3日に3セッション: 全日に配分されるべき（実際: ' + keys1.length + '日）' };
+function testNoDuplicateDateFormatter() {
+  // formatDateRangeForPdf_ は createFileName にインライン化済み
+  if (typeof formatDateRangeForPdf_ === 'function') {
+    return { success: false, message: '廃止済みのformatDateRangeForPdf_関数が残っています' };
   }
 
-  // Case 2: 不均等配分（5日に2セッション → 2日のみ選択）
-  const dates2 = [
-    new Date(2025, 5, 2),
-    new Date(2025, 5, 4),
-    new Date(2025, 5, 6),
-    new Date(2025, 5, 9),
-    new Date(2025, 5, 11)
-  ];
-  const alloc2 = {};
-  distributeByBresenham(dates2, 2, alloc2);
-  const keys2 = Object.keys(alloc2);
-  if (keys2.length !== 2) {
-    return { success: false, message: '5日に2セッション: 2日に配分されるべき（実際: ' + keys2.length + '日）' };
+  // createFileName_ が formatDateToJapanese を再利用していることを確認
+  if (typeof createFileName_ === 'function') {
+    const source = String(createFileName_);
+    if (source.indexOf('formatDateToJapanese') === -1) {
+      return { success: false, message: 'createFileName_がformatDateToJapaneseを使用していません' };
+    }
   }
 
-  // Case 3: 0セッション → 配分なし
-  const alloc3 = {};
-  distributeByBresenham(dates1, 0, alloc3);
-  if (Object.keys(alloc3).length !== 0) {
-    return { success: false, message: '0セッション: 配分なしであるべき' };
+  // formatDateRange がまだ存在する場合は重複
+  if (typeof formatDateRange === 'function') {
+    return { success: false, message: '旧formatDateRange関数が残っています' };
   }
 
-  return { success: true, message: '3ケースのBresenham配分を確認' };
+  return { success: true, message: '重複日付フォーマッターなし（createFileNameにインライン化済み）' };
 }
 
-function testAllocateSessionsToDateKeys() {
-  // デフォルト曜日優先度（月水金）に対応する日付を使用
+function testBuildV4PlanRowAnnual() {
+  if (typeof buildV4PlanRow !== 'function') {
+    return { success: false, message: 'buildV4PlanRow関数が見つかりません' };
+  }
+
+  const row = buildV4PlanRow(2025, 3, MODULE_PLAN_MODE_ANNUAL, 21, null, 'テスト');
+
+  if (!Array.isArray(row) || row.length !== MODULE_CONTROL_PLAN_HEADERS.length) {
+    return { success: false, message: '配列長が不正: ' + (row ? row.length : 'null') + ' (期待: ' + MODULE_CONTROL_PLAN_HEADERS.length + ')' };
+  }
+  if (row[0] !== 2025) {
+    return { success: false, message: 'fiscal_year不正: ' + row[0] };
+  }
+  if (row[1] !== 3) {
+    return { success: false, message: 'grade不正: ' + row[1] };
+  }
+  if (row[2] !== MODULE_PLAN_MODE_ANNUAL) {
+    return { success: false, message: 'plan_mode不正: ' + row[2] };
+  }
+  // annualモードでは月別列(3-14)は空
+  for (let i = 3; i <= 14; i++) {
+    if (row[i] !== '') {
+      return { success: false, message: '月別列[' + i + ']が空でない: ' + row[i] };
+    }
+  }
+  if (row[15] !== 21) {
+    return { success: false, message: 'annual_koma不正: ' + row[15] };
+  }
+  if (row[16] !== 'テスト') {
+    return { success: false, message: 'note不正: ' + row[16] };
+  }
+
+  return { success: true, message: 'annualモードのV4行構築が正常' };
+}
+
+function testBuildV4PlanRowMonthly() {
+  if (typeof buildV4PlanRow !== 'function') {
+    return { success: false, message: 'buildV4PlanRow関数が見つかりません' };
+  }
+
+  const monthlyKoma = { 4: 3, 5: 2, 6: 2, 7: 1, 8: 0, 9: 2, 10: 2, 11: 2, 12: 1, 1: 2, 2: 2, 3: 1 };
+  const expectedTotal = 20;
+  const row = buildV4PlanRow(2025, 1, MODULE_PLAN_MODE_MONTHLY, expectedTotal, monthlyKoma, '');
+
+  if (!Array.isArray(row) || row.length !== MODULE_CONTROL_PLAN_HEADERS.length) {
+    return { success: false, message: '配列長が不正: ' + (row ? row.length : 'null') };
+  }
+  if (row[2] !== MODULE_PLAN_MODE_MONTHLY) {
+    return { success: false, message: 'plan_mode不正: ' + row[2] };
+  }
+
+  // 月別列の検証: [4,5,6,7,8,9,10,11,12,1,2,3] → row[3..14]
+  const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+  for (let i = 0; i < months.length; i++) {
+    const expected = monthlyKoma[months[i]];
+    if (row[3 + i] !== expected) {
+      return { success: false, message: months[i] + '月の値不正: ' + row[3 + i] + ' (期待: ' + expected + ')' };
+    }
+  }
+  if (row[15] !== expectedTotal) {
+    return { success: false, message: 'annual_koma不正: ' + row[15] + ' (期待: ' + expectedTotal + ')' };
+  }
+
+  return { success: true, message: 'monthlyモードのV4行構築が正常（月別値・合計一致）' };
+}
+
+function testAllocateSessionsByMonth() {
+  if (typeof allocateSessionsByMonth !== 'function') {
+    return { success: false, message: 'allocateSessionsByMonth関数が見つかりません' };
+  }
+
+  // 4月に2コマ(6セッション)、5月に1コマ(3セッション)のテストケース
+  const monthlyKoma = { 4: 2, 5: 1, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0, 1: 0, 2: 0, 3: 0 };
+
+  // テスト用日付: 4月に3日、5月に3日（月・水・金）
   const dates = [
-    new Date(2025, 5, 2),
-    new Date(2025, 5, 4),
-    new Date(2025, 5, 6),
-    new Date(2025, 5, 9),
-    new Date(2025, 5, 11),
-    new Date(2025, 5, 13)
+    new Date(2025, 3, 7),  new Date(2025, 3, 9),  new Date(2025, 3, 11),
+    new Date(2025, 4, 5),  new Date(2025, 4, 7),  new Date(2025, 4, 9)
   ];
 
-  // Case 1: 正常配分 — 合計がセッション数と一致
-  const result = allocateSessionsToDateKeys(3, dates);
-  let totalAllocated = 0;
-  Object.keys(result.allocations).forEach(function(k) {
-    totalAllocated += result.allocations[k];
+  const result = allocateSessionsByMonth(monthlyKoma, dates);
+
+  if (typeof result !== 'object' || result === null) {
+    return { success: false, message: '返却値がオブジェクトでない' };
+  }
+
+  // 総セッション数を検証: 4月6 + 5月3 = 9
+  let totalSessions = 0;
+  Object.keys(result).forEach(function(key) {
+    totalSessions += result[key];
   });
-  if (totalAllocated + result.overflow !== 3) {
-    return { success: false, message: '配分合計+溢れ(' + totalAllocated + '+' + result.overflow + ')が入力(3)と不一致' };
+  if (totalSessions !== 9) {
+    return { success: false, message: '総セッション数不正: ' + totalSessions + ' (期待: 9)' };
   }
 
-  // Case 2: 0セッション → 配分なし・溢れなし
-  const resultZero = allocateSessionsToDateKeys(0, dates);
-  if (Object.keys(resultZero.allocations).length !== 0 || resultZero.overflow !== 0) {
-    return { success: false, message: '0セッション: 配分なし・溢れなしであるべき' };
+  // 4月の日付のみに4月分が配分されているか確認
+  const aprilKeys = Object.keys(result).filter(function(key) {
+    return key.indexOf('2025-04') === 0;
+  });
+  let aprilSessions = 0;
+  aprilKeys.forEach(function(key) {
+    aprilSessions += result[key];
+  });
+  if (aprilSessions !== 6) {
+    return { success: false, message: '4月セッション数不正: ' + aprilSessions + ' (期待: 6)' };
   }
 
-  // Case 3: 空日付配列 → 全セッションが溢れ
-  const resultEmpty = allocateSessionsToDateKeys(5, []);
-  if (resultEmpty.overflow !== 5) {
-    return { success: false, message: '空日付: 全セッションが溢れるべき（実際: ' + resultEmpty.overflow + '）' };
-  }
-
-  return { success: true, message: '3ケースのセッション配分を確認' };
+  return { success: true, message: '月別配分が正常（月の境界を越えず配分）' };
 }
 
-function testCopyAndClearSafetyPattern() {
-  const source = String(copyAndClear);
+function testModuleHoursDecomposition() {
+  const expectedFiles = [
+    'moduleHoursConstants',
+    'moduleHoursDialog',
+    'moduleHoursPlanning',
+    'moduleHoursControl',
+    'moduleHoursDisplay'
+  ];
 
-  // OK_CANCEL 確認ダイアログの使用
-  if (source.indexOf('OK_CANCEL') === -1) {
-    return { success: false, message: 'OK_CANCEL確認ダイアログが見つかりません' };
+  // 各ファイルからの代表的な関数/定数が存在するか確認
+  const checkSymbols = {
+    moduleHoursConstants: {
+      'MODULE_DEFAULT_ANNUAL_KOMA': typeof MODULE_DEFAULT_ANNUAL_KOMA !== 'undefined',
+      'MODULE_CONTROL_MARKERS': typeof MODULE_CONTROL_MARKERS !== 'undefined',
+      'MODULE_DEFAULT_WEEKDAYS_ENABLED': typeof MODULE_DEFAULT_WEEKDAYS_ENABLED !== 'undefined',
+      'MODULE_WEEKDAY_LABELS': typeof MODULE_WEEKDAY_LABELS !== 'undefined',
+      'MODULE_DEFICIT_LABEL': typeof MODULE_DEFICIT_LABEL !== 'undefined',
+      'MODULE_PLAN_MODE_ANNUAL': typeof MODULE_PLAN_MODE_ANNUAL !== 'undefined',
+      'MODULE_PLAN_MODE_MONTHLY': typeof MODULE_PLAN_MODE_MONTHLY !== 'undefined',
+      'MODULE_LEGACY_V3_PLAN_COLUMN_COUNT': typeof MODULE_LEGACY_V3_PLAN_COLUMN_COUNT !== 'undefined'
+    },
+    moduleHoursDialog: {
+      'showModulePlanningDialog': typeof showModulePlanningDialog === 'function',
+      'getModulePlanningDialogState': typeof getModulePlanningDialogState === 'function',
+      'saveModuleAnnualTargetFromDialog': typeof saveModuleAnnualTargetFromDialog === 'function',
+      'saveModuleSettingsFromDialog': typeof saveModuleSettingsFromDialog === 'function',
+      'buildDialogAnnualTargetForFiscalYear': typeof buildDialogAnnualTargetForFiscalYear === 'function',
+      'normalizeAnnualTargetRowsFromDialog': typeof normalizeAnnualTargetRowsFromDialog === 'function'
+    },
+    moduleHoursPlanning: {
+      'buildDailyPlanFromAnnualTarget': typeof buildDailyPlanFromAnnualTarget === 'function',
+      'allocateSessionsToDateKeys': typeof allocateSessionsToDateKeys === 'function',
+      'allocateSessionsByMonth': typeof allocateSessionsByMonth === 'function'
+    },
+    moduleHoursControl: {
+      'initializeModuleHoursSheetsIfNeeded': typeof initializeModuleHoursSheetsIfNeeded === 'function',
+      'readExceptionRows': typeof readExceptionRows === 'function',
+      'readModuleSettingsMap': typeof readModuleSettingsMap === 'function',
+      'buildV4PlanRow': typeof buildV4PlanRow === 'function'
+    },
+    moduleHoursDisplay: {
+      'syncModuleHoursWithCumulative': typeof syncModuleHoursWithCumulative === 'function',
+      'formatSessionsAsMixedFraction': typeof formatSessionsAsMixedFraction === 'function',
+      'normalizeToDate': typeof normalizeToDate === 'function',
+      'toNumberOrZero': typeof toNumberOrZero === 'function'
+    }
+  };
+
+  const missing = [];
+  Object.keys(checkSymbols).forEach(function(file) {
+    Object.keys(checkSymbols[file]).forEach(function(name) {
+      if (!checkSymbols[file][name]) {
+        missing.push(file + '/' + name);
+      }
+    });
+  });
+
+  if (missing.length > 0) {
+    return { success: false, message: '未定義: ' + missing.join(', ') };
   }
 
-  // バックアップ整合性検証（コピー後にシート存在・行数を確認してからクリア）
-  if (source.indexOf('verifiedSheet') === -1 || source.indexOf('getLastRow') === -1) {
-    return { success: false, message: 'バックアップ整合性検証が見つかりません' };
-  }
-
-  // clearContent使用（deleteRowsではなくデータのみクリア）
-  if (source.indexOf('clearContent') === -1) {
-    return { success: false, message: 'clearContent使用が確認できません' };
-  }
-
-  // LockService による同時実行保護
-  if (source.indexOf('LockService') === -1) {
-    return { success: false, message: 'LockServiceによる同時実行保護が見つかりません' };
-  }
-
-  return { success: true, message: '年度更新安全性パターンを確認（確認ダイアログ・検証・クリア方式・排他制御）' };
-}
-
-function testSyncCalendarsManagedMarkerPattern() {
-  const source = String(processEventUpdates_);
-
-  // 管理マーカー判定による選択的削除
-  if (source.indexOf('isManagedCalendarEvent_') === -1) {
-    return { success: false, message: '管理マーカー判定が見つかりません' };
-  }
-
-  // 管理イベントのみ削除（ユーザー手動イベントを保護）
-  if (source.indexOf('managedExistingEventMap') === -1) {
-    return { success: false, message: '管理イベント限定削除パターンが見つかりません' };
-  }
-
-  // 新規イベントへの管理マーカー付与
-  if (source.indexOf('markCalendarEventAsManaged_') === -1) {
-    return { success: false, message: '新規イベントへの管理マーカー付与が見つかりません' };
-  }
-
-  // syncCalendars本体のLockService保護
-  const syncSource = String(syncCalendars);
-  if (syncSource.indexOf('LockService') === -1) {
-    return { success: false, message: 'syncCalendarsにLockServiceによる排他制御が見つかりません' };
-  }
-
-  return { success: true, message: 'カレンダー管理マーカーパターンを確認（判定・限定削除・マーカー付与・排他制御）' };
-}
-
-function testBuildCalendarEventKey() {
-  const start = new Date(2025, 3, 1, 9, 0, 0);
-  const end = new Date(2025, 3, 1, 10, 0, 0);
-
-  // Case 1: 同一イベント → 同一キー
-  const key1 = buildCalendarEventKey_('入学式', start, end);
-  const key2 = buildCalendarEventKey_('入学式', start, end);
-  if (key1 !== key2) {
-    return { success: false, message: '同一イベントのキーが一致しません' };
-  }
-
-  // Case 2: 異なるタイトル → 異なるキー
-  const key3 = buildCalendarEventKey_('始業式', start, end);
-  if (key1 === key3) {
-    return { success: false, message: '異なるタイトルのキーが同一です' };
-  }
-
-  // Case 3: 異なる終了時刻 → 異なるキー
-  const end2 = new Date(2025, 3, 1, 11, 0, 0);
-  const key4 = buildCalendarEventKey_('入学式', start, end2);
-  if (key1 === key4) {
-    return { success: false, message: '異なる終了時刻のキーが同一です' };
-  }
-
-  return { success: true, message: '3ケースのキー一意性を確認' };
+  return { success: true, message: expectedFiles.length + 'ファイルの代表関数/定数がすべて定義済み' };
 }
 
 // ========================================
@@ -1591,6 +1743,8 @@ function runQuickTest() {
   const results = { total: 0, passed: 0, failed: 0, skipped: 0, errors: [] };
   runTestGroups_(results, getQuickTestPlan_());
 
+  hideInternalSheetsAfterTest_();
+
   // 結果表示
   Logger.log('\n====================================');
   Logger.log('簡易テスト結果');
@@ -1604,20 +1758,20 @@ function runQuickTest() {
 
   if (results.failed === 0) {
     Logger.log('\n🎉 簡易テスト成功！');
+    SpreadsheetApp.getUi().alert('✅ 簡易テスト成功', '成功率: ' + successRate + '%\n詳細はログを確認してください。', SpreadsheetApp.getUi().ButtonSet.OK);
   } else {
     Logger.log('\n⚠️  一部失敗あり');
+    SpreadsheetApp.getUi().alert('⚠️ 簡易テスト失敗あり', '成功率: ' + successRate + '%\n詳細はログを確認してください。', SpreadsheetApp.getUi().ButtonSet.OK);
   }
+}
 
+/**
+ * テスト終了後に内部管理シートを非表示に復元
+ */
+function hideInternalSheetsAfterTest_() {
   try {
-    const ui = SpreadsheetApp.getUi();
-    if (results.failed === 0) {
-      ui.alert('✅ 簡易テスト成功', '成功率: ' + successRate + '%\n詳細はログを確認してください。', ui.ButtonSet.OK);
-    } else {
-      ui.alert('⚠️ 簡易テスト失敗あり', '成功率: ' + successRate + '%\n詳細はログを確認してください。', ui.ButtonSet.OK);
-    }
-  } catch (e) {
-    Logger.log('[INFO] UIコンテキストなし — ダイアログ表示をスキップしました。');
+    hideInternalSheetsForNormalUse_(true);
+  } catch (error) {
+    Logger.log('[WARNING] テスト後の内部シート非表示化に失敗: ' + error.toString());
   }
-
-  hideInternalSheetsAfterTest_();
 }

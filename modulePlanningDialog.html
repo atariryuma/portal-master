@@ -4,26 +4,36 @@
   <base target="_top">
   <?!= include_('dialogStyles') ?>
   <style>
-    /* モジュール学習管理ダイアログ固有スタイル（共通CSSを上書き） */
+    /* ── modulePlanningDialog 固有スタイル ──
+     * 共通ベーススタイルは dialogStyles.html から読み込み済み。
+     * 以下はこのダイアログ専用のオーバーライドと追加スタイルのみ。
+     */
     body {
       padding: 18px;
+      background: #eef2f7;
+      color: #1f2937;
     }
     .container {
-      max-width: none;
+      border: 1px solid #dbe3ee;
+      border-radius: 12px;
       padding: 16px;
+      max-width: none;
+      box-shadow: none;
     }
     h2 {
       text-align: left;
       font-size: 20px;
+      color: inherit;
       margin: 0 0 8px 0;
     }
     h3 {
       margin: 0 0 10px 0;
       font-size: 15px;
+      color: #0f172a;
     }
     .lead {
       margin: 0 0 12px 0;
-      color: var(--pm-text-secondary);
+      color: #475569;
       line-height: 1.6;
       font-size: 13px;
     }
@@ -32,7 +42,7 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
       background: #f8fafc;
-      border: 1px solid var(--pm-border);
+      border: 1px solid #e2e8f0;
       border-radius: 8px;
       padding: 10px;
       margin-bottom: 12px;
@@ -45,23 +55,20 @@
       color: #334155;
     }
     .summary-item strong {
-      color: var(--pm-text);
+      color: #0f172a;
       text-align: right;
     }
     .section {
-      border: 1px solid var(--pm-border);
+      border: 1px solid #e2e8f0;
       border-radius: 8px;
       padding: 12px;
-      background: var(--pm-surface);
+      background: #ffffff;
       margin-bottom: 10px;
-    }
-    .section h3 {
-      margin: 0 0 10px 0;
     }
     .section-note {
       margin: 0 0 8px 0;
       font-size: 12px;
-      color: var(--pm-text-secondary);
+      color: #64748b;
     }
     .toolbar {
       display: flex;
@@ -71,55 +78,41 @@
       flex-wrap: wrap;
     }
     .toolbar label {
+      display: inline;
+      font-weight: normal;
       font-size: 12px;
-      color: var(--pm-text-secondary);
+      color: #475569;
+    }
+    label {
+      display: inline;
       font-weight: normal;
     }
-    /* コンパクトなinput */
+    input,
+    select,
+    textarea,
+    button {
+      font-family: inherit;
+    }
     input,
     select,
     textarea {
-      font-size: 12px;
+      width: auto;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
       padding: 6px 8px;
+      font-size: 12px;
+      color: #0f172a;
+      background: #fff;
+      box-sizing: border-box;
     }
     input[readonly] {
       background: #f8fafc;
-      color: var(--pm-text-secondary);
+      color: #475569;
     }
     textarea {
       resize: vertical;
       min-height: 34px;
     }
-    /* コンパクトなボタン */
-    .btn {
-      padding: 9px 12px;
-      font-size: 13px;
-      margin: 0;
-    }
-    .small-btn {
-      border: 1px solid #cbd5e1;
-      background: #f8fafc;
-      color: var(--pm-text);
-      border-radius: 6px;
-      padding: 6px 8px;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .small-btn:hover {
-      background: #f1f5f9;
-    }
-    .small-btn:disabled {
-      opacity: 0.65;
-      cursor: not-allowed;
-    }
-    .small-btn.danger {
-      color: var(--pm-error);
-      border-color: var(--pm-error);
-    }
-    .small-btn.danger:hover {
-      background: #fef2f2;
-    }
-    /* クール計画テーブル */
     .plan-table {
       width: 100%;
       border-collapse: collapse;
@@ -127,7 +120,7 @@
     }
     .plan-table th,
     .plan-table td {
-      border: 1px solid var(--pm-border);
+      border: 1px solid #e2e8f0;
       padding: 6px;
       font-size: 11px;
       text-align: center;
@@ -139,21 +132,55 @@
       font-weight: 700;
     }
     .plan-table input[type="number"] {
-      width: 52px;
+      width: 58px;
       text-align: right;
-    }
-    .plan-table select {
-      width: 68px;
     }
     .plan-table .note-input {
-      width: 100px;
+      width: 120px;
       text-align: left;
     }
-    .plan-table .bulk-input {
-      width: 52px;
-      text-align: right;
+    .small-btn {
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #0f172a;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+      cursor: pointer;
     }
-    /* 実施差分フォーム */
+    .small-btn:hover {
+      background: #f1f5f9;
+    }
+    .reserve-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 8px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #166534;
+    }
+    .reserve-summary.has-deficit {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+    .reserve-summary .reserve-item {
+      white-space: nowrap;
+    }
+    .reserve-summary .deficit-item {
+      white-space: nowrap;
+      font-weight: bold;
+    }
+    .delta-quick {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 6px 0;
+    }
     .exception-form {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -168,16 +195,13 @@
     }
     .field label {
       font-size: 11px;
-      color: var(--pm-text-secondary);
-      font-weight: normal;
+      color: #475569;
     }
-    .delta-quick {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin: 6px 0;
+    .hint {
+      margin: 0;
+      font-size: 11px;
+      color: #64748b;
     }
-    /* 実施差分テーブル */
     .exception-list {
       width: 100%;
       border-collapse: collapse;
@@ -185,7 +209,7 @@
     }
     .exception-list th,
     .exception-list td {
-      border: 1px solid var(--pm-border);
+      border: 1px solid #e2e8f0;
       padding: 6px;
       font-size: 11px;
       text-align: left;
@@ -195,118 +219,43 @@
       color: #334155;
       font-weight: 700;
     }
-    /* 曜日設定 */
-    details.section > summary {
-      cursor: pointer;
-      list-style: none;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    details.section > summary::-webkit-details-marker {
-      display: none;
-    }
-    details.section > summary::before {
-      content: '▶';
-      font-size: 10px;
-      transition: transform 0.2s;
-    }
-    details.section[open] > summary::before {
-      transform: rotate(90deg);
-    }
-    details.section > summary h3 {
-      display: inline;
-      margin: 0;
-    }
-    .weekday-list {
-      list-style: none;
-      padding: 0;
-      margin: 8px 0 0;
-    }
-    .weekday-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 8px;
-      border: 1px solid var(--pm-border);
-      border-radius: 4px;
-      margin-bottom: 4px;
-      background: var(--pm-surface);
-      font-size: 12px;
-    }
-    .weekday-item.excluded {
-      opacity: 0.4;
-      background: #f5f5f5;
-    }
-    .weekday-order {
-      font-weight: bold;
-      min-width: 18px;
-      color: var(--pm-primary);
-    }
-    .weekday-name {
-      flex: 1;
-    }
-    .weekday-arrows {
-      display: flex;
-      gap: 2px;
-    }
-    .weekday-arrows button {
-      padding: 2px 6px;
-      font-size: 10px;
-      border: 1px solid #cbd5e1;
-      background: #f8fafc;
-      border-radius: 3px;
-      cursor: pointer;
-      line-height: 1;
-    }
-    .weekday-arrows button:hover {
-      background: var(--pm-border);
-    }
-    .weekday-arrows button:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
-    }
-    /* プレビュー */
-    .preview-area {
-      background: #f0f9ff;
-      border: 1px solid #bae6fd;
-      border-radius: 6px;
-      padding: 10px;
-      margin-top: 8px;
-      font-size: 12px;
-      display: none;
-    }
-    .preview-area.visible {
-      display: block;
-    }
-    .preview-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 6px;
-    }
-    .preview-table th,
-    .preview-table td {
-      border: 1px solid #bae6fd;
-      padding: 4px 6px;
-      font-size: 11px;
-      text-align: center;
-    }
-    .preview-table th {
-      background: #e0f2fe;
-    }
-    /* アクション行 */
     .action-row {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
       margin-top: 8px;
     }
+    button {
+      border: none;
+      border-radius: 6px;
+      padding: 9px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .primary {
+      background: #2563eb;
+      color: #fff;
+    }
+    .sub {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+    .close {
+      background: #f1f5f9;
+      color: #0f172a;
+      min-width: 110px;
+    }
     .status {
       margin-top: 10px;
       min-height: 18px;
-      color: var(--pm-text-secondary);
+      color: #475569;
       font-size: 12px;
       white-space: pre-line;
+    }
+    button:disabled,
+    .small-btn:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
     }
     @media (max-width: 980px) {
       .summary {
@@ -327,7 +276,7 @@
   <div class="container">
     <h2>モジュール学習管理</h2>
     <p class="lead">
-      内部シートを直接編集せず、この画面で「クール計画」と「実施差分」を管理できます。<br>
+      内部シートを直接編集せず、この画面で「年間目標」と「実施差分」を管理できます。<br>
       保存時に再集計まで自動実行し、累計時数シートへ反映します。
     </p>
 
@@ -339,10 +288,6 @@
       <div class="summary-item">
         <span>年度範囲</span>
         <strong id="fiscalRange">-</strong>
-      </div>
-      <div class="summary-item">
-        <span>クール計画件数</span>
-        <strong id="cyclePlanCount">0件</strong>
       </div>
       <div class="summary-item">
         <span>日次計画件数（再集計結果）</span>
@@ -358,58 +303,85 @@
       </div>
     </div>
 
-    <!-- 1. クール計画入力 -->
     <section class="section">
-      <h3>1. クール計画入力</h3>
-      <p class="section-note">1行が1クールです。コマ数は1コマ（45分）単位で入力してください。「一括」欄に入力すると全学年に反映します。</p>
+      <h3>1. 実施設定</h3>
+      <p class="section-note">モジュール学習の実施曜日と実施期間を設定します。</p>
+
+      <div class="toolbar" style="margin-bottom: 12px;">
+        <label>実施曜日</label>
+        <label style="font-size:13px; margin-left:8px;">
+          <input type="checkbox" class="weekday-cb" value="1"> 月
+        </label>
+        <label style="font-size:13px;">
+          <input type="checkbox" class="weekday-cb" value="2"> 火
+        </label>
+        <label style="font-size:13px;">
+          <input type="checkbox" class="weekday-cb" value="3"> 水
+        </label>
+        <label style="font-size:13px;">
+          <input type="checkbox" class="weekday-cb" value="4"> 木
+        </label>
+        <label style="font-size:13px;">
+          <input type="checkbox" class="weekday-cb" value="5"> 金
+        </label>
+      </div>
+
+      <div class="toolbar">
+        <label for="planStartDate">実施期間</label>
+        <input id="planStartDate" type="date" style="width:150px;">
+        <span style="font-size:13px; color:#475569;">～</span>
+        <input id="planEndDate" type="date" style="width:150px;">
+      </div>
+
+      <div class="action-row">
+        <button type="button" class="primary" id="saveSettingsButton" onclick="saveSettings()">実施設定を保存して再集計</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h3>2. 年間目標入力</h3>
+      <p class="section-note">各学年の年間目標コマ数（1コマ＝1単位時間＝45分）を入力してください。</p>
       <div class="toolbar">
         <label for="fiscalYearInput">対象年度</label>
         <input id="fiscalYearInput" type="number" readonly>
-        <button type="button" class="small-btn" id="addPlanRowButton" onclick="addPlanRow()">行を追加</button>
+        <label for="bulkKomaInput">全学年一括</label>
+        <input id="bulkKomaInput" type="number" min="0" step="1" value="28" style="width:68px">
+        <button type="button" class="small-btn" onclick="setAllGradeKoma()">一括設定</button>
       </div>
-      <table class="plan-table" aria-label="クール計画">
+      <table class="plan-table" aria-label="年間目標">
         <thead>
           <tr>
-            <th>順</th>
-            <th>開始月</th>
-            <th>終了月</th>
-            <th>一括</th>
-            <th>1年</th>
-            <th>2年</th>
-            <th>3年</th>
-            <th>4年</th>
-            <th>5年</th>
-            <th>6年</th>
-            <th>メモ</th>
-            <th></th>
+            <th>学年</th>
+            <th>モード</th>
+            <th>年間コマ</th>
+            <th>4月</th>
+            <th>5月</th>
+            <th>6月</th>
+            <th>7月</th>
+            <th>8月</th>
+            <th>9月</th>
+            <th>10月</th>
+            <th>11月</th>
+            <th>12月</th>
+            <th>1月</th>
+            <th>2月</th>
+            <th>3月</th>
           </tr>
         </thead>
         <tbody id="planBody"></tbody>
       </table>
-      <div class="action-row">
-        <button type="button" class="btn btn-primary" id="savePlanButton" onclick="savePlan()">計画を保存して再集計</button>
-        <button type="button" class="small-btn" id="previewButton" onclick="previewPlan()">プレビュー</button>
+      <div style="margin-top:6px;">
+        <label style="font-size:11px; color:#475569;">メモ</label>
+        <input id="planNote" type="text" style="width:300px;" placeholder="備考">
       </div>
-      <div class="preview-area" id="previewArea"></div>
+      <div id="reserveSummary" class="reserve-summary" style="display:none;"></div>
+      <div class="action-row">
+        <button type="button" class="primary" id="savePlanButton" onclick="savePlan()">年間目標を保存して再集計</button>
+      </div>
     </section>
 
-    <!-- 配分曜日設定 -->
-    <details class="section">
-      <summary><h3>配分曜日設定</h3></summary>
-      <p class="section-note" style="margin-top:8px">
-        モジュール学習を配分する曜日と優先順位を設定します。上にあるほど優先的に配分されます。<br>
-        チェックを外すとその曜日には配分されません。
-      </p>
-      <ul class="weekday-list" id="weekdayList"></ul>
-      <div class="action-row" style="margin-top:6px">
-        <button type="button" class="small-btn" onclick="resetWeekdayOrder()">デフォルトに戻す</button>
-        <button type="button" class="btn btn-primary" style="font-size:12px;padding:6px 12px" id="saveWeekdayButton" onclick="saveWeekdayPriority()">曜日設定を保存して再集計</button>
-      </div>
-    </details>
-
-    <!-- 2. 実施差分入力 -->
     <section class="section">
-      <h3>2. 実施差分入力</h3>
+      <h3>3. 実施差分入力</h3>
       <p class="section-note">実施に合わせて差分だけ入力します。差分値は15分単位で、+は追加・-は減算です（+3は+1コマ、-1は-15分）。</p>
 
       <div class="exception-form">
@@ -440,11 +412,11 @@
         <button type="button" class="small-btn" onclick="setDelta(1)">+15分</button>
         <button type="button" class="small-btn" onclick="setDelta(-1)">-15分</button>
         <button type="button" class="small-btn" onclick="setDelta(-3)">-1コマ</button>
-        <span class="hint" id="deltaHint" style="font-size:11px;color:var(--pm-text-secondary)"></span>
+        <span class="hint" id="deltaHint"></span>
       </div>
 
       <div class="action-row">
-        <button type="button" class="btn btn-primary" id="addExceptionButton" onclick="addException()">実施差分を保存して再集計</button>
+        <button type="button" class="primary" id="addExceptionButton" onclick="addException()">実施差分を保存して再集計</button>
       </div>
 
       <table class="exception-list" aria-label="最近の差分">
@@ -455,7 +427,6 @@
             <th>差分値</th>
             <th>理由</th>
             <th>メモ</th>
-            <th></th>
           </tr>
         </thead>
         <tbody id="recentExceptionBody"></tbody>
@@ -463,8 +434,8 @@
     </section>
 
     <div class="action-row">
-      <button type="button" class="btn btn-secondary" id="refreshButton" onclick="refreshPlanning()">再集計のみ実行</button>
-      <button type="button" class="btn btn-secondary" id="closeButton" onclick="google.script.host.close()">閉じる</button>
+      <button type="button" class="sub" id="refreshButton" onclick="refreshPlanning()">再集計のみ実行</button>
+      <button type="button" class="close" id="closeButton" onclick="google.script.host.close()">閉じる</button>
     </div>
 
     <div class="status" id="status"></div>
@@ -472,27 +443,13 @@
 
   <script>
     let currentState = {};
-    const WEEKDAY_NAMES = { 1: '月曜日', 2: '火曜日', 3: '水曜日', 4: '木曜日', 5: '金曜日' };
-    const DEFAULT_WEEKDAY_ORDER = [1, 3, 5];
-    let currentWeekdayOrder = DEFAULT_WEEKDAY_ORDER.slice();
-
-    const DEFAULT_PLAN_ROWS = [
-      { cycleOrder: 1, startMonth: 6, endMonth: 7, g1Koma: 7, g2Koma: 7, g3Koma: 7, g4Koma: 7, g5Koma: 7, g6Koma: 7, note: '' },
-      { cycleOrder: 2, startMonth: 9, endMonth: 10, g1Koma: 7, g2Koma: 7, g3Koma: 7, g4Koma: 7, g5Koma: 7, g6Koma: 7, note: '' },
-      { cycleOrder: 3, startMonth: 11, endMonth: 12, g1Koma: 7, g2Koma: 7, g3Koma: 7, g4Koma: 7, g5Koma: 7, g6Koma: 7, note: '' },
-      { cycleOrder: 4, startMonth: 1, endMonth: 2, g1Koma: 7, g2Koma: 7, g3Koma: 7, g4Koma: 7, g5Koma: 7, g6Koma: 7, note: '' }
-    ];
-
-    // ========================================
-    // 共通ユーティリティ
-    // ========================================
 
     function setStatus(text) {
       document.getElementById('status').textContent = text || '';
     }
 
     function setLoading(isLoading) {
-      const ids = ['addPlanRowButton', 'savePlanButton', 'previewButton', 'addExceptionButton', 'saveWeekdayButton', 'refreshButton', 'closeButton'];
+      const ids = ['saveSettingsButton', 'savePlanButton', 'addExceptionButton', 'refreshButton', 'closeButton'];
       ids.forEach(function(id) {
         const el = document.getElementById(id);
         if (el) {
@@ -506,6 +463,16 @@
       return error.message || error.toString();
     }
 
+    function updateSummary(state) {
+      const range = (state.fiscalYearStartDate || '-') + ' ～ ' + (state.fiscalYearEndDate || '-');
+      document.getElementById('fiscalYear').textContent = (state.fiscalYear || '-') + '年度';
+      document.getElementById('fiscalRange').textContent = range;
+      document.getElementById('dailyPlanCount').textContent = (state.dailyPlanRecordCount || 0) + '件';
+      document.getElementById('exceptionCount').textContent = (state.exceptionRecordCount || 0) + '件';
+      document.getElementById('lastGeneratedAt').textContent = state.lastGeneratedAt || '未生成';
+      document.getElementById('fiscalYearInput').value = state.fiscalYear || '';
+    }
+
     function escapeHtml(value) {
       return String(value || '')
         .replace(/&/g, '&amp;')
@@ -515,299 +482,154 @@
         .replace(/'/g, '&#39;');
     }
 
-    // ========================================
-    // サマリー
-    // ========================================
-
-    function updateSummary(state) {
-      const range = (state.fiscalYearStartDate || '-') + ' ～ ' + (state.fiscalYearEndDate || '-');
-      document.getElementById('fiscalYear').textContent = (state.fiscalYear || '-') + '年度';
-      document.getElementById('fiscalRange').textContent = range;
-      document.getElementById('cyclePlanCount').textContent = (state.cyclePlanRecordCount || 0) + '件';
-      document.getElementById('dailyPlanCount').textContent = (state.dailyPlanRecordCount || 0) + '件';
-      document.getElementById('exceptionCount').textContent = (state.exceptionRecordCount || 0) + '件';
-      document.getElementById('lastGeneratedAt').textContent = state.lastGeneratedAt || '未生成';
-      document.getElementById('fiscalYearInput').value = state.fiscalYear || '';
-    }
-
-    // ========================================
-    // クール計画テーブル
-    // ========================================
-
-    function buildMonthOptions(selectedMonth) {
-      let html = '';
-      for (let month = 1; month <= 12; month++) {
-        const selected = Number(selectedMonth) === month ? ' selected' : '';
-        html += '<option value="' + month + '"' + selected + '>' + month + '月</option>';
-      }
-      return html;
-    }
-
-    function normalizePlanRows(rows) {
-      if (!Array.isArray(rows) || rows.length === 0) {
-        return DEFAULT_PLAN_ROWS.map(function(item) {
-          return Object.assign({}, item);
-        });
-      }
-      return rows.slice().sort(function(a, b) {
-        return Number(a.cycleOrder || 0) - Number(b.cycleOrder || 0);
-      });
-    }
-
-    function appendPlanRow(row) {
-      const tbody = document.getElementById('planBody');
-      const tr = document.createElement('tr');
-      tr.innerHTML = [
-        '<td><input type="number" class="cycle-order" min="1" step="1" value="' + escapeHtml(row.cycleOrder) + '"></td>',
-        '<td><select class="start-month">' + buildMonthOptions(row.startMonth) + '</select></td>',
-        '<td><select class="end-month">' + buildMonthOptions(row.endMonth) + '</select></td>',
-        '<td><input type="number" class="bulk-input" min="0" step="1" placeholder="-" onchange="applyBulkKoma(this)"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="1" min="0" step="1" value="' + escapeHtml(row.g1Koma) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="2" min="0" step="1" value="' + escapeHtml(row.g2Koma) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="3" min="0" step="1" value="' + escapeHtml(row.g3Koma) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="4" min="0" step="1" value="' + escapeHtml(row.g4Koma) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="5" min="0" step="1" value="' + escapeHtml(row.g5Koma) + '"></td>',
-        '<td><input type="number" class="grade-koma" data-grade="6" min="0" step="1" value="' + escapeHtml(row.g6Koma) + '"></td>',
-        '<td><input type="text" class="note-input" value="' + escapeHtml(row.note) + '"></td>',
-        '<td><button type="button" class="small-btn danger" onclick="removePlanRow(this)" title="行を削除">&times;</button></td>'
-      ].join('');
-      tbody.appendChild(tr);
-    }
-
-    function applyBulkKoma(input) {
-      const value = input.value;
-      if (value === '') return;
-      const tr = input.closest('tr');
-      const gradeInputs = tr.querySelectorAll('.grade-koma');
-      gradeInputs.forEach(function(gi) {
-        gi.value = value;
-      });
-    }
-
-    function removePlanRow(button) {
-      const tr = button.closest('tr');
-      const tbody = tr.parentElement;
-      if (tbody.children.length <= 1) {
-        setStatus('最低1行の計画が必要です。');
-        return;
-      }
-      tr.remove();
-    }
-
-    function renderPlanRows(rows) {
+    function renderAnnualTarget(target) {
       const tbody = document.getElementById('planBody');
       tbody.innerHTML = '';
-      normalizePlanRows(rows).forEach(function(row) {
-        appendPlanRow(row);
-      });
-    }
+      const t = target || {};
+      const grades = t.grades || {};
+      const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
 
-    function addPlanRow() {
-      const rows = document.querySelectorAll('#planBody tr');
-      let maxOrder = 0;
-      rows.forEach(function(row) {
-        const value = Number(row.querySelector('.cycle-order').value);
-        if (value > maxOrder) {
-          maxOrder = value;
-        }
-      });
-
-      appendPlanRow({
-        cycleOrder: maxOrder + 1,
-        startMonth: 4,
-        endMonth: 5,
-        g1Koma: 7,
-        g2Koma: 7,
-        g3Koma: 7,
-        g4Koma: 7,
-        g5Koma: 7,
-        g6Koma: 7,
-        note: ''
-      });
-    }
-
-    function collectPlanRows() {
-      const rows = [];
-      const trs = document.querySelectorAll('#planBody tr');
-
-      trs.forEach(function(tr) {
-        const values = {
-          cycleOrder: Number(tr.querySelector('.cycle-order').value),
-          startMonth: Number(tr.querySelector('.start-month').value),
-          endMonth: Number(tr.querySelector('.end-month').value),
-          g1Koma: Number(tr.querySelector('.grade-koma[data-grade="1"]').value),
-          g2Koma: Number(tr.querySelector('.grade-koma[data-grade="2"]').value),
-          g3Koma: Number(tr.querySelector('.grade-koma[data-grade="3"]').value),
-          g4Koma: Number(tr.querySelector('.grade-koma[data-grade="4"]').value),
-          g5Koma: Number(tr.querySelector('.grade-koma[data-grade="5"]').value),
-          g6Koma: Number(tr.querySelector('.grade-koma[data-grade="6"]').value),
-          note: tr.querySelector('.note-input').value || ''
-        };
-
-        if (!Number.isFinite(values.cycleOrder) || values.cycleOrder <= 0) {
-          throw new Error('クール順を正しく入力してください。');
-        }
-
-        rows.push(values);
-      });
-
-      if (rows.length === 0) {
-        throw new Error('計画行がありません。');
-      }
-
-      return rows;
-    }
-
-    // ========================================
-    // 曜日優先度設定
-    // ========================================
-
-    function renderWeekdayList() {
-      const list = document.getElementById('weekdayList');
-      list.innerHTML = '';
-
-      currentWeekdayOrder.forEach(function(day, index) {
-        const li = document.createElement('li');
-        li.className = 'weekday-item';
-        li.setAttribute('data-day', day);
-        li.innerHTML = '<span class="weekday-order">' + (index + 1) + '</span>' +
-          '<label style="flex:1;cursor:pointer"><input type="checkbox" checked onchange="toggleWeekday(' + day + ', this.checked)"> ' + escapeHtml(WEEKDAY_NAMES[day]) + '</label>' +
-          '<span class="weekday-arrows">' +
-            '<button type="button" onclick="moveWeekday(' + day + ',-1)" title="上へ"' + (index === 0 ? ' disabled' : '') + '>&#9650;</button>' +
-            '<button type="button" onclick="moveWeekday(' + day + ',1)" title="下へ"' + (index === currentWeekdayOrder.length - 1 ? ' disabled' : '') + '>&#9660;</button>' +
-          '</span>';
-        list.appendChild(li);
-      });
-
-      [1, 2, 3, 4, 5].forEach(function(day) {
-        if (currentWeekdayOrder.indexOf(day) === -1) {
-          const li = document.createElement('li');
-          li.className = 'weekday-item excluded';
-          li.innerHTML = '<span class="weekday-order">-</span>' +
-            '<label style="flex:1;cursor:pointer"><input type="checkbox" onchange="toggleWeekday(' + day + ', this.checked)"> ' + escapeHtml(WEEKDAY_NAMES[day]) + '</label>' +
-            '<span class="weekday-arrows"></span>';
-          list.appendChild(li);
-        }
-      });
-    }
-
-    function moveWeekday(day, direction) {
-      const index = currentWeekdayOrder.indexOf(day);
-      if (index < 0) return;
-      const newIndex = index + direction;
-      if (newIndex < 0 || newIndex >= currentWeekdayOrder.length) return;
-      currentWeekdayOrder.splice(index, 1);
-      currentWeekdayOrder.splice(newIndex, 0, day);
-      renderWeekdayList();
-    }
-
-    function toggleWeekday(day, enabled) {
-      if (enabled) {
-        if (currentWeekdayOrder.indexOf(day) === -1) {
-          currentWeekdayOrder.push(day);
-        }
-      } else {
-        const index = currentWeekdayOrder.indexOf(day);
-        if (index >= 0) {
-          currentWeekdayOrder.splice(index, 1);
-        }
-      }
-      renderWeekdayList();
-    }
-
-    function resetWeekdayOrder() {
-      currentWeekdayOrder = DEFAULT_WEEKDAY_ORDER.slice();
-      renderWeekdayList();
-    }
-
-    function saveWeekdayPriority() {
-      if (currentWeekdayOrder.length === 0) {
-        setStatus('少なくとも1つの曜日を有効にしてください。');
-        return;
-      }
-      setLoading(true);
-      setStatus('曜日設定を保存して再集計中...');
-      google.script.run
-        .withSuccessHandler(function(message) {
-          setLoading(false);
-          setStatus(message || '曜日設定を保存しました。');
-          loadDialogState(true);
-        })
-        .withFailureHandler(function(error) {
-          setLoading(false);
-          setStatus('曜日設定の保存に失敗しました: ' + getErrorMessage(error));
-        })
-        .saveWeekdayPriorityFromDialog({
-          orderedDays: currentWeekdayOrder,
-          baseDate: currentState.baseDate
-        });
-    }
-
-    // ========================================
-    // 実施差分
-    // ========================================
-
-    function renderRecentExceptions(rows) {
-      const tbody = document.getElementById('recentExceptionBody');
-      tbody.innerHTML = '';
-
-      if (!Array.isArray(rows) || rows.length === 0) {
-        const emptyRow = document.createElement('tr');
-        emptyRow.innerHTML = '<td colspan="6">実施差分はまだありません。</td>';
-        tbody.appendChild(emptyRow);
-        return;
-      }
-
-      rows.forEach(function(row) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = [
-          '<td>' + escapeHtml(row.date) + '</td>',
-          '<td>' + escapeHtml(row.grade) + '年</td>',
-          '<td>' + escapeHtml(row.deltaDisplay) + '</td>',
-          '<td>' + escapeHtml(row.reason || '') + '</td>',
-          '<td>' + escapeHtml(row.note || '') + '</td>',
-          '<td><button type="button" class="small-btn danger" onclick="deleteException(' + row.rowNumber + ')" title="削除">&times;</button></td>'
-        ].join('');
-        tbody.appendChild(tr);
-      });
-    }
-
-    function deleteException(rowNumber) {
-      if (!window.confirm('この実施差分を削除しますか？')) return;
-      setLoading(true);
-      setStatus('実施差分を削除中...');
-      google.script.run
-        .withSuccessHandler(function(message) {
-          setLoading(false);
-          setStatus(message || '削除しました。');
-          loadDialogState(true);
-        })
-        .withFailureHandler(function(error) {
-          setLoading(false);
-          setStatus('削除に失敗しました: ' + getErrorMessage(error));
-        })
-        .deleteModuleExceptionFromDialog({
-          rowNumber: rowNumber,
-          baseDate: currentState.baseDate
-        });
-    }
-
-    function populateGradeOptions() {
-      const select = document.getElementById('exceptionGrade');
-      if (select.options.length > 0) {
-        return;
-      }
       for (let grade = 1; grade <= 6; grade++) {
-        const option = document.createElement('option');
-        option.value = String(grade);
-        option.textContent = grade + '年';
-        select.appendChild(option);
+        const g = grades[grade] || { mode: 'annual', annualKoma: 28, monthlyKoma: null };
+        const mode = g.mode || 'annual';
+        const annualKoma = typeof g.annualKoma === 'number' ? g.annualKoma : 28;
+        const monthlyKoma = g.monthlyKoma || {};
+        const isMonthly = mode === 'monthly';
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-grade', String(grade));
+
+        let html = '<td>' + grade + '年</td>';
+        html += '<td style="white-space:nowrap; font-size:10px;">';
+        html += '<label><input type="radio" name="mode_' + grade + '" value="annual"' +
+                (!isMonthly ? ' checked' : '') + ' onchange="toggleGradeMode(' + grade + ')"> 年間</label> ';
+        html += '<label><input type="radio" name="mode_' + grade + '" value="monthly"' +
+                (isMonthly ? ' checked' : '') + ' onchange="toggleGradeMode(' + grade + ')"> 月別</label>';
+        html += '</td>';
+        html += '<td>';
+        html += '<input type="number" class="annual-koma" data-grade="' + grade + '" min="0" step="1" value="' + escapeHtml(annualKoma) + '" style="width:50px;' + (isMonthly ? ' display:none;' : '') + '">';
+        html += '<span class="auto-koma" data-grade="' + grade + '" style="font-size:11px;' + (isMonthly ? '' : ' display:none;') + '">' + annualKoma + '</span>';
+        html += '</td>';
+
+        months.forEach(function(m) {
+          const val = Number(monthlyKoma[m]) || 0;
+          html += '<td>';
+          html += '<input type="number" class="monthly-koma" data-grade="' + grade + '" data-month="' + m + '" min="0" step="1" value="' + val + '" style="width:36px;' + (isMonthly ? '' : ' display:none;') + '" oninput="updateMonthlyTotal(' + grade + ')">';
+          html += '<span class="monthly-placeholder" data-grade="' + grade + '" style="color:#94a3b8; font-size:10px;' + (isMonthly ? ' display:none;' : '') + '">-</span>';
+          html += '</td>';
+        });
+
+        tr.innerHTML = html;
+        tbody.appendChild(tr);
+      }
+
+      document.getElementById('planNote').value = t.note || '';
+    }
+
+    function toggleGradeMode(grade) {
+      const modeRadio = document.querySelector('input[name="mode_' + grade + '"]:checked');
+      const isMonthly = modeRadio && modeRadio.value === 'monthly';
+      const annualInput = document.querySelector('.annual-koma[data-grade="' + grade + '"]');
+      const autoKomaSpan = document.querySelector('.auto-koma[data-grade="' + grade + '"]');
+      const monthInputs = document.querySelectorAll('.monthly-koma[data-grade="' + grade + '"]');
+      const placeholders = document.querySelectorAll('.monthly-placeholder[data-grade="' + grade + '"]');
+
+      if (isMonthly) {
+        annualInput.style.display = 'none';
+        autoKomaSpan.style.display = '';
+        let hasNonZero = false;
+        monthInputs.forEach(function(input) {
+          if (Number(input.value) > 0) { hasNonZero = true; }
+        });
+        if (!hasNonZero) {
+          const totalKoma = Number(annualInput.value) || 28;
+          const perMonth = Math.floor(totalKoma / 12);
+          const remainder = totalKoma % 12;
+          let idx = 0;
+          monthInputs.forEach(function(input) {
+            input.value = String(perMonth + (idx < remainder ? 1 : 0));
+            idx++;
+          });
+        }
+        monthInputs.forEach(function(input) { input.style.display = ''; });
+        placeholders.forEach(function(el) { el.style.display = 'none'; });
+        updateMonthlyTotal(grade);
+      } else {
+        const currentTotal = Number(autoKomaSpan.textContent) || 0;
+        if (currentTotal > 0) {
+          annualInput.value = String(currentTotal);
+        }
+        annualInput.style.display = '';
+        autoKomaSpan.style.display = 'none';
+        monthInputs.forEach(function(input) { input.style.display = 'none'; });
+        placeholders.forEach(function(el) { el.style.display = ''; });
       }
     }
 
-    function setDelta(value) {
-      document.getElementById('deltaSessionsInput').value = String(value);
-      updateDeltaHint();
+    function updateMonthlyTotal(grade) {
+      const monthInputs = document.querySelectorAll('.monthly-koma[data-grade="' + grade + '"]');
+      let total = 0;
+      monthInputs.forEach(function(input) {
+        total += Math.max(0, Math.round(Number(input.value) || 0));
+      });
+      const autoKomaSpan = document.querySelector('.auto-koma[data-grade="' + grade + '"]');
+      if (autoKomaSpan) {
+        autoKomaSpan.textContent = String(total);
+      }
+    }
+
+    function setAllGradeKoma() {
+      const value = Number(document.getElementById('bulkKomaInput').value);
+      if (!Number.isFinite(value) || value < 0) {
+        setStatus('全学年一括の値を0以上の数値で入力してください。');
+        return;
+      }
+      const rounded = Math.round(value);
+      for (let grade = 1; grade <= 6; grade++) {
+        const annualRadio = document.querySelector('input[name="mode_' + grade + '"][value="annual"]');
+        if (annualRadio && !annualRadio.checked) {
+          annualRadio.checked = true;
+          toggleGradeMode(grade);
+        }
+        const annualInput = document.querySelector('.annual-koma[data-grade="' + grade + '"]');
+        if (annualInput) {
+          annualInput.value = String(rounded);
+        }
+      }
+    }
+
+    function collectAnnualTarget() {
+      const result = { grades: {}, note: '' };
+      const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+
+      for (let grade = 1; grade <= 6; grade++) {
+        const modeRadio = document.querySelector('input[name="mode_' + grade + '"]:checked');
+        const mode = modeRadio ? modeRadio.value : 'annual';
+
+        if (mode === 'monthly') {
+          const monthlyKoma = {};
+          let total = 0;
+          months.forEach(function(m) {
+            const input = document.querySelector('.monthly-koma[data-grade="' + grade + '"][data-month="' + m + '"]');
+            const val = input ? Math.max(0, Math.round(Number(input.value) || 0)) : 0;
+            monthlyKoma[m] = val;
+            total += val;
+          });
+          if (total <= 0) {
+            throw new Error(grade + '年: 月別モードの合計コマ数が0です。1つ以上の月に目標を設定してください。');
+          }
+          result.grades[grade] = { mode: 'monthly', annualKoma: total, monthlyKoma: monthlyKoma };
+        } else {
+          const input = document.querySelector('.annual-koma[data-grade="' + grade + '"]');
+          const koma = input ? Math.round(Number(input.value) || 0) : 28;
+          if (!Number.isFinite(koma) || koma < 0) {
+            throw new Error(grade + '年のコマ数を0以上の数値で入力してください。');
+          }
+          result.grades[grade] = { mode: 'annual', annualKoma: koma, monthlyKoma: null };
+        }
+      }
+
+      result.note = document.getElementById('planNote').value || '';
+      return result;
     }
 
     function formatMixedFractionFromSessions(sessions) {
@@ -826,6 +648,197 @@
         return sign + String(remainder) + '/3';
       }
       return sign + String(whole) + ' ' + String(remainder) + '/3';
+    }
+
+    function renderReserveSummary(reserveByGrade) {
+      const container = document.getElementById('reserveSummary');
+      if (!reserveByGrade) {
+        container.style.display = 'none';
+        return;
+      }
+
+      let hasDeficit = false;
+      const items = [];
+      for (let grade = 1; grade <= 6; grade++) {
+        const sessions = Number(reserveByGrade[grade]) || 0;
+        if (sessions > 0) {
+          const display = formatMixedFractionFromSessions(sessions);
+          items.push('<span class="reserve-item">' + grade + '年: 予備 ' + escapeHtml(display) + 'コマ</span>');
+        } else if (sessions < 0) {
+          hasDeficit = true;
+          const display = formatMixedFractionFromSessions(Math.abs(sessions));
+          items.push('<span class="deficit-item">' + grade + '年: 不足 ' + escapeHtml(display) + 'コマ</span>');
+        } else {
+          items.push('<span class="reserve-item">' + grade + '年: 予備なし</span>');
+        }
+      }
+
+      container.innerHTML = items.join('');
+      container.className = hasDeficit ? 'reserve-summary has-deficit' : 'reserve-summary';
+      container.style.display = 'flex';
+    }
+
+    function renderRecentExceptions(rows) {
+      const tbody = document.getElementById('recentExceptionBody');
+      tbody.innerHTML = '';
+
+      if (!Array.isArray(rows) || rows.length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = '<td colspan="5">実施差分はまだありません。</td>';
+        tbody.appendChild(emptyRow);
+        return;
+      }
+
+      rows.forEach(function(row) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = [
+          '<td>' + escapeHtml(row.date) + '</td>',
+          '<td>' + escapeHtml(row.grade) + '年</td>',
+          '<td>' + escapeHtml(row.deltaDisplay) + '</td>',
+          '<td>' + escapeHtml(row.reason || '') + '</td>',
+          '<td>' + escapeHtml(row.note || '') + '</td>'
+        ].join('');
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderWeekdayCheckboxes(enabledWeekdays) {
+      const enabled = enabledWeekdays || [1, 3, 5];
+      const checkboxes = document.querySelectorAll('.weekday-cb');
+      checkboxes.forEach(function(cb) {
+        const day = parseInt(cb.value, 10);
+        cb.checked = enabled.indexOf(day) !== -1;
+      });
+    }
+
+    function renderPeriodInputs(state) {
+      document.getElementById('planStartDate').value = state.startDate || state.fiscalYearStartDate || '';
+      document.getElementById('planEndDate').value = state.endDate || state.fiscalYearEndDate || '';
+    }
+
+    function collectWeekdays() {
+      const checkboxes = document.querySelectorAll('.weekday-cb:checked');
+      const result = [];
+      checkboxes.forEach(function(cb) {
+        result.push(parseInt(cb.value, 10));
+      });
+      return result;
+    }
+
+    function saveSettings() {
+      const weekdays = collectWeekdays();
+      if (weekdays.length === 0) {
+        setStatus('実施曜日を1つ以上選択してください。');
+        return;
+      }
+
+      const startDate = document.getElementById('planStartDate').value;
+      const endDate = document.getElementById('planEndDate').value;
+      if (!startDate || !endDate) {
+        setStatus('実施期間の開始日と終了日を入力してください。');
+        return;
+      }
+
+      setLoading(true);
+      setStatus('実施設定を保存して再集計しています...');
+
+      google.script.run
+        .withSuccessHandler(function(message) {
+          setLoading(false);
+          setStatus(message || '実施設定を保存しました。');
+          loadDialogState(true);
+        })
+        .withFailureHandler(function(error) {
+          setLoading(false);
+          setStatus('実施設定の保存に失敗しました: ' + getErrorMessage(error));
+        })
+        .saveModuleSettingsFromDialog({
+          weekdays: weekdays,
+          startDate: startDate,
+          endDate: endDate,
+          baseDate: currentState.baseDate
+        });
+    }
+
+    function applyState(state) {
+      currentState = state || {};
+      updateSummary(currentState);
+      renderWeekdayCheckboxes(currentState.enabledWeekdays || [1, 3, 5]);
+      renderPeriodInputs(currentState);
+      renderAnnualTarget(currentState.annualTarget || {});
+      renderReserveSummary(currentState.reserveByGrade || null);
+      renderRecentExceptions(currentState.recentExceptions || []);
+
+      document.getElementById('exceptionDate').value = currentState.defaultExceptionDate || '';
+      populateGradeOptions();
+      updateDeltaHint();
+    }
+
+    function loadDialogState(keepStatus) {
+      if (!keepStatus) {
+        setStatus('現在の状態を読み込み中...');
+      }
+
+      google.script.run
+        .withSuccessHandler(function(state) {
+          applyState(state || {});
+          if (!keepStatus) {
+            setStatus('');
+          }
+        })
+        .withFailureHandler(function(error) {
+          setStatus('状態の取得に失敗しました: ' + getErrorMessage(error));
+        })
+        .getModulePlanningDialogState();
+    }
+
+    function populateGradeOptions() {
+      const select = document.getElementById('exceptionGrade');
+      if (select.options.length > 0) {
+        return;
+      }
+      for (let grade = 1; grade <= 6; grade++) {
+        const option = document.createElement('option');
+        option.value = String(grade);
+        option.textContent = grade + '年';
+        select.appendChild(option);
+      }
+    }
+
+    function savePlan() {
+      const fiscalYear = Number(document.getElementById('fiscalYearInput').value);
+      let target;
+
+      try {
+        target = collectAnnualTarget();
+      } catch (error) {
+        setStatus(getErrorMessage(error));
+        return;
+      }
+
+      setLoading(true);
+      setStatus('年間目標を保存して再集計しています...');
+
+      google.script.run
+        .withSuccessHandler(function(message) {
+          setLoading(false);
+          setStatus(message || '年間目標を保存しました。');
+          loadDialogState(true);
+        })
+        .withFailureHandler(function(error) {
+          setLoading(false);
+          setStatus('年間目標の保存に失敗しました: ' + getErrorMessage(error));
+        })
+        .saveModuleAnnualTargetFromDialog({
+          fiscalYear: fiscalYear,
+          baseDate: currentState.baseDate,
+          target: target
+        });
+    }
+
+    function setDelta(value) {
+      document.getElementById('deltaSessionsInput').value = String(value);
+      updateDeltaHint();
     }
 
     function updateDeltaHint() {
@@ -871,186 +884,6 @@
           setStatus('実施差分の保存に失敗しました: ' + getErrorMessage(error));
         })
         .addModuleExceptionFromDialog(payload);
-    }
-
-    // ========================================
-    // プレビュー
-    // ========================================
-
-    function previewPlan() {
-      const fiscalYear = Number(document.getElementById('fiscalYearInput').value);
-      let planRows;
-
-      try {
-        planRows = collectPlanRows();
-      } catch (error) {
-        setStatus(getErrorMessage(error));
-        return;
-      }
-
-      setLoading(true);
-      setStatus('プレビューを生成中...');
-
-      google.script.run
-        .withSuccessHandler(function(result) {
-          setLoading(false);
-          setStatus('');
-          showPreview(result);
-        })
-        .withFailureHandler(function(error) {
-          setLoading(false);
-          setStatus('プレビュー生成に失敗しました: ' + getErrorMessage(error));
-        })
-        .previewModulePlan({
-          fiscalYear: fiscalYear,
-          baseDate: currentState.baseDate,
-          plans: planRows
-        });
-    }
-
-    function showPreview(result) {
-      const area = document.getElementById('previewArea');
-      area.classList.add('visible');
-
-      let html = '<strong>配分プレビュー</strong>（日次計画: ' + result.totalDailyPlanCount + '件）';
-
-      // 学年別合計テーブル
-      html += '<table class="preview-table"><thead><tr><th>学年</th><th>計画(コマ)</th><th>経過(コマ)</th><th>今週(コマ)</th></tr></thead><tbody>';
-      for (let grade = 1; grade <= 6; grade++) {
-        const t = result.totalsByGrade[grade] || {};
-        html += '<tr><td>' + grade + '年</td>' +
-          '<td>' + formatMixedFractionFromSessions(t.plannedSessions || 0) + '</td>' +
-          '<td>' + formatMixedFractionFromSessions(t.elapsedSessions || 0) + '</td>' +
-          '<td>' + formatMixedFractionFromSessions(t.thisWeekSessions || 0) + '</td></tr>';
-      }
-      html += '</tbody></table>';
-
-      // クール別配分テーブル
-      if (result.cycleSummaries && result.cycleSummaries.length > 0) {
-        html += '<div style="margin-top:8px"><strong>クール別配分日数</strong></div>';
-        html += '<table class="preview-table"><thead><tr><th>クール</th><th>期間</th>';
-        for (let g = 1; g <= 6; g++) {
-          html += '<th>' + g + '年</th>';
-        }
-        html += '</tr></thead><tbody>';
-
-        let hasNoSchoolDayCycle = false;
-        result.cycleSummaries.forEach(function(cycle) {
-          const allZeroSchoolDays = cycle.schoolDays && Object.keys(cycle.schoolDays).every(function(g) {
-            return cycle.schoolDays[g] === 0;
-          });
-          if (allZeroSchoolDays) {
-            hasNoSchoolDayCycle = true;
-          }
-          html += '<tr><td>' + cycle.cycleOrder + '</td><td>' + escapeHtml(cycle.label) + '</td>';
-          for (let gr = 1; gr <= 6; gr++) {
-            const days = (cycle.days && cycle.days[gr]) || 0;
-            const schoolDays = (cycle.schoolDays && cycle.schoolDays[gr]) || 0;
-            if (days === 0 && schoolDays === 0) {
-              html += '<td style="color:#999">- (データなし)</td>';
-            } else {
-              html += '<td>' + days + '日</td>';
-            }
-          }
-          html += '</tr>';
-        });
-
-        html += '</tbody></table>';
-        if (hasNoSchoolDayCycle) {
-          html += '<div style="margin-top:4px;color:#e65100;font-size:12px">' +
-            '※ 年間行事予定表に該当月の学校日データがないクールは配分できません。' +
-            '</div>';
-        }
-
-        let overflowDetails = [];
-        if (result.overflowByGrade) {
-          for (let gr = 1; gr <= 6; gr++) {
-            if ((result.overflowByGrade[gr] || 0) > 0) {
-              overflowDetails.push(gr + '年: ' + result.overflowByGrade[gr] + '回（' + (result.overflowByGrade[gr] * 15) + '分）');
-            }
-          }
-        }
-        if (overflowDetails.length > 0) {
-          html += '<div style="margin-top:6px;padding:8px;background:#fff3e0;border:1px solid #ffcc80;border-radius:4px;font-size:12px;color:#e65100">' +
-            '<strong>注意: 配分しきれないセッション</strong><br>' +
-            '配分曜日数に対してセッション数が多く、最終クールまでに配分しきれないセッションがあります。<br>' +
-            overflowDetails.join('、') + '<br>' +
-            '<span style="font-size:11px;color:#bf360c">→ コマ数を減らすか、配分曜日設定で曜日を追加すると解消できます。</span>' +
-            '</div>';
-        }
-      }
-
-      area.innerHTML = html;
-    }
-
-    // ========================================
-    // 状態管理
-    // ========================================
-
-    function applyState(state) {
-      currentState = state || {};
-      updateSummary(currentState);
-      renderPlanRows(currentState.cyclePlans || []);
-      renderRecentExceptions(currentState.recentExceptions || []);
-
-      document.getElementById('exceptionDate').value = currentState.baseDate || '';
-      populateGradeOptions();
-      updateDeltaHint();
-
-      if (Array.isArray(currentState.weekdayPriority) && currentState.weekdayPriority.length > 0) {
-        currentWeekdayOrder = currentState.weekdayPriority.slice();
-      }
-      renderWeekdayList();
-    }
-
-    function loadDialogState(keepStatus) {
-      if (!keepStatus) {
-        setStatus('現在の状態を読み込み中...');
-      }
-
-      google.script.run
-        .withSuccessHandler(function(state) {
-          applyState(state || {});
-          if (!keepStatus) {
-            setStatus('');
-          }
-        })
-        .withFailureHandler(function(error) {
-          setStatus('状態の取得に失敗しました: ' + getErrorMessage(error));
-        })
-        .getModulePlanningDialogState();
-    }
-
-    function savePlan() {
-      const fiscalYear = Number(document.getElementById('fiscalYearInput').value);
-      let planRows;
-
-      try {
-        planRows = collectPlanRows();
-      } catch (error) {
-        setStatus(getErrorMessage(error));
-        return;
-      }
-
-      setLoading(true);
-      setStatus('計画を保存して再集計しています...');
-
-      google.script.run
-        .withSuccessHandler(function(message) {
-          setLoading(false);
-          setStatus(message || '計画を保存しました。');
-          document.getElementById('previewArea').classList.remove('visible');
-          loadDialogState(true);
-        })
-        .withFailureHandler(function(error) {
-          setLoading(false);
-          setStatus('計画保存に失敗しました: ' + getErrorMessage(error));
-        })
-        .saveModuleCyclePlanFromDialog({
-          fiscalYear: fiscalYear,
-          baseDate: currentState.baseDate,
-          plans: planRows
-        });
     }
 
     function refreshPlanning() {

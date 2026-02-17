@@ -10,53 +10,49 @@
  * @return {Object} 集計結果
  */
 function syncModuleHoursWithCumulative(baseDate, options) {
-  return syncModuleHoursWithCumulativeInternal(baseDate, options || null);
-}
-
-/**
- * モジュール学習計画を集計し、累計時数シートへ統合出力（内部）
- * @param {Date|string} baseDate - 集計基準日
- * @param {?Object} options - 実行オプション
- * @return {Object} 集計結果
- */
-function syncModuleHoursWithCumulativeInternal(baseDate, options) {
-  const sheets = initializeModuleHoursSheetsIfNeeded();
+  const controlSheet = initializeModuleHoursSheetsIfNeeded();
   const normalizedBaseDate = normalizeToDate(baseDate) || normalizeToDate(new Date());
   const fiscalYear = getFiscalYear(normalizedBaseDate);
   const preservePlanningRange = options && options.preservePlanningRange ? options.preservePlanningRange : null;
 
-  ensureDefaultCyclePlanForFiscalYear(fiscalYear, sheets.controlSheet);
+  ensureDefaultAnnualTargetForFiscalYear(fiscalYear, controlSheet);
 
-  const buildResult = buildDailyPlanFromCyclePlanInternal(fiscalYear, normalizedBaseDate, {
-    controlSheet: sheets.controlSheet
+  const settingsMap = readModuleSettingsMap();
+  const enabledWeekdays = getEnabledWeekdays(settingsMap);
+  const planningRange = preservePlanningRange
+    ? { startDate: normalizeToDate(preservePlanningRange.startDate), endDate: normalizeToDate(preservePlanningRange.endDate) }
+    : getModulePlanningRangeFromSettings(normalizedBaseDate, settingsMap);
+
+  const buildResult = buildDailyPlanFromAnnualTarget(fiscalYear, normalizedBaseDate, {
+    controlSheet: controlSheet,
+    enabledWeekdays: enabledWeekdays,
+    startDate: planningRange.startDate,
+    endDate: planningRange.endDate
   });
-  const exceptionTotals = loadExceptionTotals(fiscalYear, normalizedBaseDate, sheets.controlSheet);
+  const exceptionTotals = loadExceptionTotals(fiscalYear, normalizedBaseDate, controlSheet);
   const gradeTotals = buildGradeTotalsFromDailyAndExceptions(buildResult.totalsByGrade, exceptionTotals);
 
-  writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate);
-  writeModulePlanSheet(buildResult, normalizedBaseDate);
+  writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate, buildResult.reserveByGrade);
 
-  const settingsUpdates = {
+  const annualTarget = loadAnnualTargetForFiscalYear(fiscalYear, controlSheet);
+  writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays, normalizedBaseDate);
+
+  upsertModuleSettingsValues({
     LAST_GENERATED_AT: new Date(),
-    LAST_DAILY_PLAN_COUNT: buildResult.dailyPlanCount
-  };
-  if (preservePlanningRange && preservePlanningRange.startDate && preservePlanningRange.endDate) {
-    settingsUpdates.PLAN_START_DATE = preservePlanningRange.startDate;
-    settingsUpdates.PLAN_END_DATE = preservePlanningRange.endDate;
-  } else {
-    settingsUpdates.PLAN_START_DATE = buildResult.startDate;
-    settingsUpdates.PLAN_END_DATE = buildResult.endDate;
-  }
-  upsertModuleSettingsValues(settingsUpdates);
+    LAST_DAILY_PLAN_COUNT: buildResult.dailyPlanCount,
+    PLAN_START_DATE: planningRange.startDate,
+    PLAN_END_DATE: planningRange.endDate
+  });
 
   Logger.log('[INFO] モジュール学習計画を累計時数へ統合しました（基準日: ' + formatInputDate(normalizedBaseDate) + '）');
 
   return {
     baseDate: normalizedBaseDate,
     fiscalYear: fiscalYear,
-    startDate: buildResult.startDate,
-    endDate: buildResult.endDate,
-    dailyPlanCount: buildResult.dailyPlanCount
+    startDate: planningRange.startDate,
+    endDate: planningRange.endDate,
+    dailyPlanCount: buildResult.dailyPlanCount,
+    reserveByGrade: buildResult.reserveByGrade
   };
 }
 
@@ -64,8 +60,9 @@ function syncModuleHoursWithCumulativeInternal(baseDate, options) {
  * 累計時数シートへモジュール累計を出力
  * @param {Object} gradeTotals - 学年別合計
  * @param {Date} baseDate - 基準日
+ * @param {Object=} reserveByGrade - 学年別予備セッション数
  */
-function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
+function writeModuleToCumulativeSheet(gradeTotals, baseDate, reserveByGrade) {
   const cumulativeSheet = getSheetByNameOrThrow(CUMULATIVE_SHEET.NAME);
   const displayColumn = MODULE_CUMULATIVE_COLUMNS.DISPLAY;
   const rowCount = MODULE_GRADE_MAX - MODULE_GRADE_MIN + 1;
@@ -92,7 +89,8 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
   cumulativeSheet.getRange(2, displayColumn).setValue(MODULE_DISPLAY_HEADER);
   const displayRows = [];
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-    displayRows.push([buildModuleDisplayValue(gradeTotals[grade])]);
+    const reserveSessions = reserveByGrade ? toNumberOrZero(reserveByGrade[grade]) : 0;
+    displayRows.push([buildModuleDisplayValue(gradeTotals[grade], reserveSessions)]);
   }
   cumulativeSheet.getRange(3, displayColumn, displayRows.length, 1).setValues(displayRows);
 
@@ -111,81 +109,246 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
 }
 
 /**
- * モジュール計画シートへ日次配分スケジュールを出力
- * dailyRows を日付単位に集約し、カレンダー形式で書き込む。
- * @param {Object} buildResult - buildDailyPlanFromCyclePlanInternal の結果
- * @param {Date} baseDate - 集計基準日
+ * モジュール学習計画シートへ年間実施計画を出力
+ * @param {Object} buildResult - buildDailyPlanFromAnnualTarget の返却値
+ * @param {Object} annualTarget - 年間目標 { gradeKoma }
+ * @param {Array<number>} enabledWeekdays - 有効曜日配列
+ * @param {Date} baseDate - 基準日
  */
-function writeModulePlanSheet(buildResult, baseDate) {
-  const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(MODULE_SHEET_NAMES.SCHEDULE);
-  if (!sheet) {
-    sheet = ss.insertSheet(MODULE_SHEET_NAMES.SCHEDULE);
-  }
-
-  const cutoffDate = normalizeToDate(baseDate);
-  const weekStart = getWeekStartMonday(cutoffDate);
-
-  const dateMap = {};
-  buildResult.dailyRows.forEach(function(row) {
-    const dateKey = formatInputDate(row[0]);
-    if (!dateMap[dateKey]) {
-      dateMap[dateKey] = {
-        date: row[0],
-        cycleLabel: row[3],
-        grades: {},
-        elapsedFlag: row[7]
-      };
+function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays, baseDate) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = getOrCreatePlanSummarySheet(ss);
+    if (!sheet) {
+      return;
     }
-    const grade = Number(row[5]);
-    dateMap[dateKey].grades[grade] = (dateMap[dateKey].grades[grade] || 0) + toNumberOrZero(row[6]);
-  });
 
-  const sortedKeys = Object.keys(dateMap).sort();
-  const HEADER = ['日付', '曜日', 'クール', '1年', '2年', '3年', '4年', '5年', '6年', '状態'];
-  const COL_COUNT = HEADER.length;
+    const fiscalYear = buildResult.fiscalYear;
+    const startMonth = MODULE_FISCAL_YEAR_START_MONTH;
 
-  const dataRows = sortedKeys.map(function(dateKey) {
-    const entry = dateMap[dateKey];
-    const date = entry.date;
-    let status = '';
-    if (entry.elapsedFlag === 1) {
-      status = (date >= weekStart && date <= cutoffDate) ? '今週' : '済';
+    // 月別×学年別セッション集計
+    const monthlyByGrade = {};
+    for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+      monthlyByGrade[grade] = {};
     }
-    return [
-      date,
-      WEEKDAY_LABELS[date.getDay()],
-      entry.cycleLabel,
-      entry.grades[1] || '',
-      entry.grades[2] || '',
-      entry.grades[3] || '',
-      entry.grades[4] || '',
-      entry.grades[5] || '',
-      entry.grades[6] || '',
-      status
-    ];
-  });
+    buildResult.dailyRows.forEach(function(row) {
+      const date = normalizeToDate(row[0]);
+      const grade = Number(row[5]);
+      const sessions = toNumberOrZero(row[6]);
+      if (!date || grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
+        return;
+      }
+      const monthKey = formatMonthKey(date);
+      monthlyByGrade[grade][monthKey] = toNumberOrZero(monthlyByGrade[grade][monthKey]) + sessions;
+    });
 
-  const allRows = [HEADER].concat(dataRows);
-  const totalRows = allRows.length;
+    // 年度月順（4月→3月）のキーリスト
+    const monthKeys = [];
+    for (let i = 0; i < 12; i++) {
+      const m = ((startMonth - 1 + i) % 12) + 1;
+      const y = m >= startMonth ? fiscalYear : fiscalYear + 1;
+      monthKeys.push(String(y) + '-' + String(m).padStart(2, '0'));
+    }
+    const monthLabels = monthKeys.map(function(key) {
+      return String(parseInt(key.split('-')[1], 10)) + '月';
+    });
 
-  sheet.clearContents();
-  sheet.clearFormats();
-  sheet.getRange(1, 1, totalRows, COL_COUNT).setValues(allRows);
+    // 曜日ラベル
+    const weekdayNames = enabledWeekdays
+      .slice().sort(function(a, b) { return a - b; })
+      .map(function(d) { return MODULE_WEEKDAY_LABELS[d] || String(d); })
+      .join('・');
 
-  sheet.getRange(1, 1, 1, COL_COUNT)
-    .setFontWeight('bold')
-    .setBackground('#f3f3f3')
-    .setHorizontalAlignment('center');
-  sheet.setFrozenRows(1);
+    // シートクリア・書式リセット
+    sheet.clear();
+    sheet.clearFormats();
 
-  if (dataRows.length > 0) {
-    sheet.getRange(2, 1, dataRows.length, 1).setNumberFormat('M/d');
-    sheet.getRange(2, 2, dataRows.length, COL_COUNT - 1).setHorizontalAlignment('center');
+    // 行1: タイトル
+    const titleRange = sheet.getRange(1, 1, 1, 16);
+    titleRange.merge();
+    sheet.getRange(1, 1).setValue('モジュール学習 年間実施計画');
+    sheet.getRange(1, 1).setFontSize(14).setFontWeight('bold');
+
+    // 行3: 年度・実施期間
+    sheet.getRange(3, 1).setValue(
+      '年度: ' + fiscalYear + '年度　　実施期間: ' +
+      formatInputDate(buildResult.startDate) + ' ～ ' + formatInputDate(buildResult.endDate)
+    );
+
+    // 行4: 実施曜日・形式
+    sheet.getRange(4, 1).setValue(
+      '実施曜日: ' + weekdayNames + '　　1回15分（3回で1単位時間 = 45分）'
+    );
+
+    // 行6: ヘッダー
+    const headerRow = 6;
+    const headers = ['学年'];
+    monthLabels.forEach(function(label) { headers.push(label); });
+    headers.push('合計');
+    headers.push('年間目標');
+    headers.push('予備/不足');
+
+    sheet.getRange(headerRow, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(headerRow, 1, 1, headers.length)
+      .setBackground('#f0f0f0')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center')
+      .setBorder(true, true, true, true, true, true);
+
+    // 行7-12: 学年データ
+    const dataStartRow = headerRow + 1;
+    const dataRows = [];
+    for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+      const row = [grade + '年'];
+      let totalSessions = 0;
+
+      monthKeys.forEach(function(monthKey) {
+        const sessions = toNumberOrZero(monthlyByGrade[grade][monthKey]);
+        totalSessions += sessions;
+        row.push(sessions > 0 ? formatSessionsAsMixedFraction(sessions) : '');
+      });
+
+      row.push(formatSessionsAsMixedFraction(totalSessions));
+      row.push(toNumberOrZero(annualTarget.gradeKoma[grade]));
+
+      const reserve = toNumberOrZero(buildResult.reserveByGrade[grade]);
+      if (reserve > 0) {
+        row.push(MODULE_RESERVE_LABEL + ' ' + formatSessionsAsMixedFraction(reserve) + 'コマ');
+      } else if (reserve < 0) {
+        row.push(MODULE_DEFICIT_LABEL + ' ' + formatSessionsAsMixedFraction(Math.abs(reserve)) + 'コマ');
+      } else {
+        row.push('-');
+      }
+
+      dataRows.push(row);
+    }
+
+    sheet.getRange(dataStartRow, 1, dataRows.length, headers.length).setValues(dataRows);
+
+    // データ行の書式
+    const dataRange = sheet.getRange(dataStartRow, 1, dataRows.length, headers.length);
+    dataRange.setBorder(true, true, true, true, true, true);
+    sheet.getRange(dataStartRow, 2, dataRows.length, 12).setHorizontalAlignment('center');
+    sheet.getRange(dataStartRow, 14, dataRows.length, 3).setHorizontalAlignment('center');
+
+    // 不足セルに赤背景
+    const reserveCol = headers.length;
+    for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+      const reserveVal = toNumberOrZero(buildResult.reserveByGrade[grade]);
+      const rowIndex = dataStartRow + grade - MODULE_GRADE_MIN;
+      if (reserveVal < 0) {
+        sheet.getRange(rowIndex, reserveCol).setBackground('#fef2f2').setFontColor('#991b1b').setFontWeight('bold');
+      }
+    }
+
+    // ── 日別実施計画セクション ──
+    const dailySectionStartRow = dataStartRow + dataRows.length + 2;
+    let lastContentRow = dataStartRow + dataRows.length;
+
+    const dailyByDate = {};
+    buildResult.dailyRows.forEach(function(row) {
+      const date = normalizeToDate(row[0]);
+      if (!date) {
+        return;
+      }
+      const dateKey = formatInputDate(date);
+      if (!dailyByDate[dateKey]) {
+        dailyByDate[dateKey] = { date: date, grades: {} };
+      }
+      dailyByDate[dateKey].grades[Number(row[5])] = toNumberOrZero(row[6]);
+    });
+
+    const sortedDateKeys = Object.keys(dailyByDate).sort();
+    if (sortedDateKeys.length > 0) {
+      sheet.getRange(dailySectionStartRow, 1).setValue('日別実施計画');
+      sheet.getRange(dailySectionStartRow, 1).setFontSize(12).setFontWeight('bold');
+
+      const dailyHeaderRow = dailySectionStartRow + 1;
+      const dailyHeaders = ['日付', '曜日'];
+      for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+        dailyHeaders.push(g + '年');
+      }
+      sheet.getRange(dailyHeaderRow, 1, 1, dailyHeaders.length).setValues([dailyHeaders]);
+      sheet.getRange(dailyHeaderRow, 1, 1, dailyHeaders.length)
+        .setBackground('#f0f0f0')
+        .setFontWeight('bold')
+        .setHorizontalAlignment('center')
+        .setBorder(true, true, true, true, true, true);
+
+      const dailyDataRows = [];
+      const monthBoundaryIndices = [];
+      let prevMonth = -1;
+      sortedDateKeys.forEach(function(dateKey) {
+        const entry = dailyByDate[dateKey];
+        const date = entry.date;
+        const month = date.getMonth() + 1;
+        if (prevMonth !== -1 && month !== prevMonth) {
+          monthBoundaryIndices.push(dailyDataRows.length);
+        }
+        prevMonth = month;
+
+        const dayOfWeek = date.getDay();
+        const weekdayLabel = MODULE_WEEKDAY_LABELS[dayOfWeek] || '';
+        const dailyRow = [String(month) + '/' + String(date.getDate()), weekdayLabel];
+        for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+          const sessions = entry.grades[g] || 0;
+          dailyRow.push(sessions > 0 ? sessions : '');
+        }
+        dailyDataRows.push(dailyRow);
+      });
+
+      if (dailyDataRows.length > 0) {
+        const dailyDataStartRow = dailyHeaderRow + 1;
+        sheet.getRange(dailyDataStartRow, 1, dailyDataRows.length, dailyHeaders.length).setValues(dailyDataRows);
+        sheet.getRange(dailyDataStartRow, 1, dailyDataRows.length, dailyHeaders.length)
+          .setBorder(true, true, true, true, true, true);
+        sheet.getRange(dailyDataStartRow, 2, dailyDataRows.length, dailyHeaders.length - 1)
+          .setHorizontalAlignment('center');
+
+        monthBoundaryIndices.forEach(function(rowIdx) {
+          if (rowIdx > 0) {
+            sheet.getRange(dailyDataStartRow + rowIdx - 1, 1, 1, dailyHeaders.length)
+              .setBorder(null, null, true, null, null, null, '#94a3b8', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+          }
+        });
+
+        lastContentRow = dailyDataStartRow + dailyDataRows.length - 1;
+      }
+    }
+
+    // フッター行
+    const footerRow = lastContentRow + 2;
+    sheet.getRange(footerRow, 1).setValue(
+      '更新日時: ' + formatDateTimeForDisplay(new Date()) + '　　※ 本シートは再集計時に自動更新されます'
+    );
+    sheet.getRange(footerRow, 1).setFontSize(9).setFontColor('#64748b');
+
+    // 列幅調整
+    sheet.setColumnWidth(1, 50);
+    for (let c = 2; c <= 13; c++) {
+      sheet.setColumnWidth(c, 45);
+    }
+    sheet.setColumnWidth(14, 55);
+    sheet.setColumnWidth(15, 55);
+    sheet.setColumnWidth(16, 75);
+
+    Logger.log('[INFO] モジュール学習計画シートを更新しました');
+  } catch (error) {
+    Logger.log('[WARNING] モジュール学習計画シートの更新に失敗: ' + error.toString());
   }
+}
 
-  Logger.log('[INFO] モジュール計画シートを更新しました（' + dataRows.length + '日分）');
+/**
+ * モジュール学習計画シートを取得または作成
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - スプレッドシート
+ * @return {GoogleAppsScript.Spreadsheet.Sheet} シート
+ */
+function getOrCreatePlanSummarySheet(ss) {
+  const sheet = ss.getSheetByName(MODULE_SHEET_NAMES.PLAN_SUMMARY);
+  if (sheet) {
+    return sheet;
+  }
+  return ss.insertSheet(MODULE_SHEET_NAMES.PLAN_SUMMARY);
 }
 
 /**
@@ -220,17 +383,17 @@ function cleanupStaleDisplayColumns(cumulativeSheet, displayColumn, rowCount) {
     return;
   }
 
-  const extraColCount = lastColumn - displayColumn;
-  const headers = cumulativeSheet.getRange(2, displayColumn + 1, 1, extraColCount).getValues()[0];
-  const allExtraData = cumulativeSheet.getRange(3, displayColumn + 1, rowCount, extraColCount).getValues();
+  const checkColCount = lastColumn - displayColumn;
+  const headers = cumulativeSheet.getRange(2, displayColumn + 1, 1, checkColCount).getValues()[0];
 
-  for (let col = displayColumn + 1; col <= lastColumn; col++) {
-    const colIndex = col - displayColumn - 1;
-    const header = String(headers[colIndex] || '').trim();
+  for (let i = 0; i < checkColCount; i++) {
+    const header = String(headers[i] || '').trim();
+    const col = displayColumn + 1 + i;
     if (header === MODULE_DISPLAY_HEADER || header === '') {
       let hasDisplayData = false;
-      for (let r = 0; r < allExtraData.length; r++) {
-        const cellValue = String(allExtraData[r][colIndex] || '').trim();
+      const values = cumulativeSheet.getRange(3, col, rowCount, 1).getValues();
+      for (let r = 0; r < values.length; r++) {
+        const cellValue = String(values[r][0] || '').trim();
         if (cellValue !== '' && cellValue.indexOf(MODULE_WEEKLY_LABEL) !== -1) {
           hasDisplayData = true;
           break;
@@ -247,11 +410,19 @@ function cleanupStaleDisplayColumns(cumulativeSheet, displayColumn, rowCount) {
 /**
  * 表示列セル文字列を組み立て
  * @param {Object} total - 学年別合計
+ * @param {number=} reserveSessions - 予備セッション数
  * @return {string} 表示文字列
  */
-function buildModuleDisplayValue(total) {
-  return formatSessionsAsMixedFraction(total.actualSessions) +
+function buildModuleDisplayValue(total, reserveSessions) {
+  let display = formatSessionsAsMixedFraction(total.actualSessions) +
     '（' + MODULE_WEEKLY_LABEL + ' ' + formatSignedSessionsAsMixedFraction(total.thisWeekSessions) + '）';
+
+  const reserve = toNumberOrZero(reserveSessions);
+  if (reserve > 0) {
+    display += MODULE_RESERVE_LABEL + ' ' + formatSessionsAsMixedFraction(reserve) + 'コマ';
+  }
+
+  return display;
 }
 
 /**
@@ -296,12 +467,7 @@ function formatSignedSessionsAsMixedFraction(sessions) {
 
 /**
  * セッション数を45分コマ数（小数）へ変換
- *
- * モジュール学習は15分単位（=1セッション）で記録される。
- * 累計時数シートは45分（=1コマ）単位のため、3セッション = 1コマで換算する。
- * 例: 21セッション = 7コマ、1セッション = 1/3コマ（≒0.333333）
- *
- * @param {number} sessions - セッション数（15分単位）
+ * @param {number} sessions - セッション数
  * @return {number} 45分換算値
  */
 function sessionsToUnits(sessions) {
@@ -323,7 +489,8 @@ function createGradeTotalsTemplate() {
       deltaSessions: 0,
       actualSessions: 0,
       diffSessions: 0,
-      thisWeekSessions: 0
+      thisWeekSessions: 0,
+      reserveSessions: 0
     };
   }
 
@@ -408,13 +575,8 @@ function getDefaultModulePlanningRange(baseDate) {
 
 /**
  * 年度（4月開始）を取得
- *
- * 日本の学校年度は4月開始・3月終了。
- * 例: 2025年4月〜2026年3月は「2025年度」。
- * 1〜3月の日付は前年が年度値となる（2026年1月 → 2025年度）。
- *
  * @param {Date|string} date - 対象日
- * @param {number} startMonth - 年度開始月（デフォルト4月）
+ * @param {number} startMonth - 年度開始月
  * @return {number} 年度
  */
 function getFiscalYear(date, startMonth) {
@@ -427,6 +589,26 @@ function getFiscalYear(date, startMonth) {
 
   const month = targetDate.getMonth() + 1;
   return month >= start ? targetDate.getFullYear() : targetDate.getFullYear() - 1;
+}
+
+/**
+ * monthKey(yyyy-MM) から年度を取得
+ * @param {string} monthKey - 月キー
+ * @return {number} 年度
+ */
+function getFiscalYearFromMonthKey(monthKey) {
+  const parts = String(monthKey).split('-');
+  if (parts.length !== 2) {
+    throw new Error('monthKey の形式が不正です: ' + monthKey);
+  }
+
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  if (!Number.isInteger(year) || !Number.isInteger(month)) {
+    throw new Error('monthKey の値が不正です: ' + monthKey);
+  }
+
+  return getFiscalYear(new Date(year, month - 1, 1));
 }
 
 /**
@@ -457,8 +639,8 @@ function formatDateTimeForDisplay(value) {
     return '未生成';
   }
 
-  const date = normalizeToDate(value);
-  if (!date) {
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
     return '未生成';
   }
 
@@ -468,18 +650,32 @@ function formatDateTimeForDisplay(value) {
 /**
  * 値を Date(00:00:00) へ正規化
  * @param {Date|string|number} value - 入力値
- *   - Date: そのままコピーして時刻を 00:00:00 にリセット
- *   - string "yyyy-MM-dd": 年月日をパースして Date を生成
- *   - string (その他): new Date(value) にフォールバック（ランタイム依存）
- *   - number: Epoch ミリ秒として new Date(value) で変換
- *   - null/undefined/空文字: null を返す
- * @return {Date|null} 正規化後の日付。パース不能時は null
+ * @return {Date|null} 正規化後の日付
  */
 function normalizeToDate(value) {
-  const date = parseDateValue_(value);
-  if (!date) {
+  if (value === null || value === undefined || value === '') {
     return null;
   }
+
+  let date = null;
+  if (value instanceof Date) {
+    date = new Date(value.getTime());
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim();
+    const ymd = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (ymd) {
+      date = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+    } else {
+      date = new Date(trimmed);
+    }
+  } else {
+    date = new Date(value);
+  }
+
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return null;
+  }
+
   date.setHours(0, 0, 0, 0);
   return date;
 }
