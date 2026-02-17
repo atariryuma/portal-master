@@ -85,6 +85,7 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
 
   cumulativeSheet.getRange(3, MODULE_CUMULATIVE_COLUMNS.PLAN, valueRows.length, 3).setValues(valueRows);
 
+  cumulativeSheet.getRange(1, displayColumn).clearContent();
   cumulativeSheet.getRange(2, displayColumn).setValue(MODULE_DISPLAY_HEADER);
   const displayRows = [];
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
