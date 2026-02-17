@@ -183,6 +183,12 @@ const CONFIG_CELLS = Object.freeze({
 });
 
 /**
+ * Portal Master 管理下カレンダー識別マーカー
+ * @const {string}
+ */
+const CALENDAR_MANAGED_DESCRIPTION_MARKER = '[PORTAL_MASTER_CALENDAR]';
+
+/**
  * 設定シート名
  * @const {string}
  */
@@ -353,6 +359,19 @@ function formatDateToJapanese(date) {
 }
 
 /**
+ * 日付を照合用キー（yyyy-MM-dd）へ正規化
+ * @param {Date|string|number|*} value - 入力値
+ * @return {string} yyyy-MM-dd形式のキー（無効時は空文字）
+ */
+function formatDateKey(value) {
+  const dateObj = parseDateValue_(value);
+  if (!dateObj) {
+    return '';
+  }
+  return Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+/**
  * 次の土曜日の日付を取得（今日が土曜日の場合は今日を返す）
  * @return {Date} 土曜日の日付
  */
@@ -492,19 +511,88 @@ function getOrCreateCalendarId(calendarType) {
 
   const sameNameCalendars = CalendarApp.getCalendarsByName(calendarName);
   if (sameNameCalendars && sameNameCalendars.length > 0) {
-    calendarId = sameNameCalendars[0].getId();
-    calendarIdCell.setValue(calendarId);
-    Logger.log('[INFO] 既存の' + calendarName + 'を再利用します。ID: ' + calendarId);
-    return calendarId;
+    const managedCalendars = sameNameCalendars.filter(function(calendar) {
+      return hasCalendarManagedMarker_(calendar);
+    });
+
+    if (managedCalendars.length === 1) {
+      calendarId = managedCalendars[0].getId();
+      calendarIdCell.setValue(calendarId);
+      Logger.log('[INFO] 管理マーカー付きの既存' + calendarName + 'を再利用します。ID: ' + calendarId);
+      return calendarId;
+    }
+
+    if (managedCalendars.length > 1) {
+      calendarId = managedCalendars[0].getId();
+      calendarIdCell.setValue(calendarId);
+      Logger.log('[WARNING] 管理マーカー付きの同名カレンダーが複数あるため先頭を再利用します。ID: ' + calendarId);
+      return calendarId;
+    }
+
+    if (sameNameCalendars.length === 1) {
+      calendarId = sameNameCalendars[0].getId();
+      calendarIdCell.setValue(calendarId);
+      markCalendarAsManaged_(sameNameCalendars[0], calendarName);
+      Logger.log('[INFO] 既存の' + calendarName + 'を再利用します。ID: ' + calendarId);
+      return calendarId;
+    }
+
+    Logger.log('[WARNING] 同名の' + calendarName + 'が複数存在するため、新規作成して明示的に管理します。');
   }
 
   Logger.log('[INFO] ' + calendarName + 'が見つからないため、新規作成します。');
   const newCalendar = CalendarApp.createCalendar(calendarName);
+  markCalendarAsManaged_(newCalendar, calendarName);
   calendarId = newCalendar.getId();
   calendarIdCell.setValue(calendarId);
   Logger.log('[INFO] 新規作成された' + calendarName + 'ID: ' + calendarId);
   
   return calendarId;
+}
+
+/**
+ * カレンダーが管理マーカーを持つか判定
+ * @param {GoogleAppsScript.Calendar.Calendar} calendar - カレンダー
+ * @return {boolean} 管理マーカーが含まれる場合true
+ */
+function hasCalendarManagedMarker_(calendar) {
+  if (!calendar || typeof calendar.getDescription !== 'function') {
+    return false;
+  }
+
+  try {
+    const description = String(calendar.getDescription() || '');
+    return description.indexOf(CALENDAR_MANAGED_DESCRIPTION_MARKER) !== -1;
+  } catch (error) {
+    Logger.log('[WARNING] カレンダー説明文の取得に失敗しました: ' + error.toString());
+    return false;
+  }
+}
+
+/**
+ * カレンダー説明文へ管理マーカーを付与
+ * @param {GoogleAppsScript.Calendar.Calendar} calendar - カレンダー
+ * @param {string} calendarName - カレンダー名（ログ用）
+ */
+function markCalendarAsManaged_(calendar, calendarName) {
+  if (!calendar || typeof calendar.getDescription !== 'function' || typeof calendar.setDescription !== 'function') {
+    return;
+  }
+
+  try {
+    const description = String(calendar.getDescription() || '');
+    if (description.indexOf(CALENDAR_MANAGED_DESCRIPTION_MARKER) !== -1) {
+      return;
+    }
+    calendar.setDescription(
+      description
+        ? description + '\n' + CALENDAR_MANAGED_DESCRIPTION_MARKER
+        : CALENDAR_MANAGED_DESCRIPTION_MARKER
+    );
+    Logger.log('[INFO] ' + calendarName + 'へ管理マーカーを設定しました。');
+  } catch (error) {
+    Logger.log('[WARNING] カレンダー管理マーカー設定に失敗: ' + error.toString());
+  }
 }
 
 /**
@@ -564,7 +652,7 @@ function showAlert(message, title = '通知') {
  * 日付をキーにしたマップを作成
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
  * @param {string} dateColumn - 日付列（'A', 'B'など）
- * @return {Object} 日付をキーとしたマップ（{"M月d日": 最初の行番号}）
+ * @return {Object} 日付をキーとしたマップ（{"yyyy-MM-dd": 最初の行番号}）
  */
 function createDateMap(sheet, dateColumn = ANNUAL_SCHEDULE.DATE_COLUMN) {
   const lastRow = sheet.getLastRow();
@@ -577,10 +665,10 @@ function createDateMap(sheet, dateColumn = ANNUAL_SCHEDULE.DATE_COLUMN) {
   
   const dateMap = {};
   dateValues.forEach(function(row, index) {
-    const date = formatDateToJapanese(row[0]);
-    if (date && !Object.prototype.hasOwnProperty.call(dateMap, date)) {
+    const dateKey = formatDateKey(row[0]);
+    if (dateKey && !Object.prototype.hasOwnProperty.call(dateMap, dateKey)) {
       // 同一日付が複数行に存在する場合は先頭行を採用する
-      dateMap[date] = index + 1; // 1-based index
+      dateMap[dateKey] = index + 1; // 1-based index
     }
   });
   

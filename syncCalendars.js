@@ -61,10 +61,10 @@ function syncCalendars() {
       if (!date) continue;
 
       const dateKey = formatInputDate(date);
-      processEventUpdates_(eventCalendar, eventColumns, row, date,
-        "行事予定", i + 1, eventEventsMap[dateKey] || [], holidayEventsMap[dateKey] || []);
-      processEventUpdates_(externalCalendar, externalColumns, row, date,
-        "対外行事", i + 1, externalEventsMap[dateKey] || [], holidayEventsMap[dateKey] || []);
+      eventEventsMap[dateKey] = processEventUpdates_(eventCalendar, eventColumns, row, date,
+        '行事予定', i + 1, eventEventsMap[dateKey] || [], holidayEventsMap[dateKey] || []);
+      externalEventsMap[dateKey] = processEventUpdates_(externalCalendar, externalColumns, row, date,
+        '対外行事', i + 1, externalEventsMap[dateKey] || [], holidayEventsMap[dateKey] || []);
     }
     Logger.log("[INFO] カレンダーの同期が完了しました。");
   } finally {
@@ -137,7 +137,7 @@ function processEventUpdates_(calendar, columns, row, date, eventType, rowIndex,
   try {
     if (!calendar) {
       Logger.log('[WARNING] ' + eventType + 'カレンダーが取得できないため、行 ' + rowIndex + ' をスキップしました。');
-      return;
+      return existingEvents;
     }
 
     const newEvents = [];
@@ -188,6 +188,7 @@ function processEventUpdates_(calendar, columns, row, date, eventType, rowIndex,
         managedExistingEventMap[key].deleteEvent();
         eventsChanged = true;
         Logger.log('[INFO] 削除された' + eventType + 'イベント: タイトル "' + managedExistingEventMap[key].getTitle() + '"');
+        delete existingEventMap[key];
       }
     });
 
@@ -203,6 +204,7 @@ function processEventUpdates_(calendar, columns, row, date, eventType, rowIndex,
 
         if (createdEvent) {
           markCalendarEventAsManaged_(createdEvent);
+          existingEventMap[key] = createdEvent;
         }
         eventsChanged = true;
         Logger.log('[INFO] 新規作成された' + eventType + 'イベント: タイトル "' + eventObj.title + '"、開始日時 ' + eventObj.startTime);
@@ -214,8 +216,13 @@ function processEventUpdates_(calendar, columns, row, date, eventType, rowIndex,
       Utilities.sleep(200);
       Logger.log('[INFO] ' + eventType + 'イベントの変更が完了しました。日付: ' + date);
     }
+
+    return Object.keys(existingEventMap).map(function(key) {
+      return existingEventMap[key];
+    });
   } catch (error) {
     Logger.log('[ERROR] ' + eventType + 'イベント処理中にエラー（行 ' + rowIndex + '）: ' + error.toString());
+    return existingEvents;
   }
 }
 

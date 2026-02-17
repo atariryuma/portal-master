@@ -29,7 +29,7 @@ function updateAnnualDuty() {
     let updateCount = 0;
 
     masterData.forEach(function(row) {
-      const date = formatDateToJapanese(row[0]);
+      const date = formatDateKey(row[0]);
       const duty = row[MASTER_SHEET.DUTY_SOURCE_INDEX];
 
       if (dateMap[date]) {

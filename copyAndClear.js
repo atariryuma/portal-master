@@ -80,9 +80,10 @@ function copyAndClear() {
     }
 
     const lastRow = sourceSheet.getLastRow();
-    if (lastRow >= 3) {
-      sourceSheet.getRange(ANNUAL_SCHEDULE.CLEAR_EVENT_RANGE + '3:' + ANNUAL_SCHEDULE.CLEAR_EVENT_END + lastRow).clearContent();
-      sourceSheet.getRange(ANNUAL_SCHEDULE.CLEAR_DATA_RANGE + '3:' + ANNUAL_SCHEDULE.CLEAR_DATA_END + lastRow).clearContent();
+    const clearStartRow = ANNUAL_SCHEDULE.DATA_START_ROW;
+    if (lastRow >= clearStartRow) {
+      sourceSheet.getRange(ANNUAL_SCHEDULE.CLEAR_EVENT_RANGE + clearStartRow + ':' + ANNUAL_SCHEDULE.CLEAR_EVENT_END + lastRow).clearContent();
+      sourceSheet.getRange(ANNUAL_SCHEDULE.CLEAR_DATA_RANGE + clearStartRow + ':' + ANNUAL_SCHEDULE.CLEAR_DATA_END + lastRow).clearContent();
     }
 
     ui.alert(

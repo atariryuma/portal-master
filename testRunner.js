@@ -128,17 +128,18 @@ function getFullTestPlan_() {
         { name: '3-1. 年間行事予定表シート取得', fn: testGetAnnualScheduleSheet },
         { name: '3-2. 日付マップ作成', fn: testCreateDateMap },
         { name: '3-3. 重複日付の先頭行マッピング', fn: testCreateDateMapKeepsFirstRow },
-        { name: '3-4. イベントカテゴリ定数確認', fn: testEventCategories },
-        { name: '3-5. 集計期間バリデーション（不正日付）', fn: testValidateAggregateDateRangeRejectsInvalidDate },
-        { name: '3-6. 集計期間バリデーション（日付順）', fn: testValidateAggregateDateRangeRejectsReverseRange },
-        { name: '3-7. 集計期間バリデーション（正常系）', fn: testValidateAggregateDateRangeAcceptsValidRange },
-        { name: '3-8. 月キー生成（年度跨ぎ）', fn: testListMonthKeysInRangeAcrossFiscalYear },
-        { name: '3-9. 月キー生成（単月）', fn: testListMonthKeysInRangeSingleMonth },
-        { name: '3-10. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
-        { name: '3-11. MOD実績取得関数', fn: testGetModuleActualUnitsForMonth },
-        { name: '3-12. モジュール計画オプション解決', fn: testResolveSchoolDayPlanMapOptions },
-        { name: '3-13. 例外日付範囲判定', fn: testIsExceptionDateInRange },
-        { name: '3-14. 校時36セルの学年行展開', fn: testApplyAttendanceForDateRows }
+        { name: '3-4. 日付マップの年度区別', fn: testCreateDateMapDistinguishesYear },
+        { name: '3-5. イベントカテゴリ定数確認', fn: testEventCategories },
+        { name: '3-6. 集計期間バリデーション（不正日付）', fn: testValidateAggregateDateRangeRejectsInvalidDate },
+        { name: '3-7. 集計期間バリデーション（日付順）', fn: testValidateAggregateDateRangeRejectsReverseRange },
+        { name: '3-8. 集計期間バリデーション（正常系）', fn: testValidateAggregateDateRangeAcceptsValidRange },
+        { name: '3-9. 月キー生成（年度跨ぎ）', fn: testListMonthKeysInRangeAcrossFiscalYear },
+        { name: '3-10. 月キー生成（単月）', fn: testListMonthKeysInRangeSingleMonth },
+        { name: '3-11. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
+        { name: '3-12. MOD実績取得関数', fn: testGetModuleActualUnitsForMonth },
+        { name: '3-13. モジュール計画オプション解決', fn: testResolveSchoolDayPlanMapOptions },
+        { name: '3-14. 例外日付範囲判定', fn: testIsExceptionDateInRange },
+        { name: '3-15. 校時36セルの学年行展開', fn: testApplyAttendanceForDateRows }
       ]
     },
     {
@@ -832,7 +833,7 @@ function testCreateDateMap() {
 }
 
 function testCreateDateMapKeepsFirstRow() {
-  if (typeof createDateMap !== 'function' || typeof formatDateToJapanese !== 'function') {
+  if (typeof createDateMap !== 'function' || typeof formatDateKey !== 'function') {
     return { success: false, message: '必要関数が見つかりません' };
   }
 
@@ -845,8 +846,8 @@ function testCreateDateMapKeepsFirstRow() {
     tempSheet.getRange(1, 2, 3, 1).setValues([[firstDate], [firstDate], [secondDate]]);
 
     const dateMap = createDateMap(tempSheet, 'B');
-    const firstKey = formatDateToJapanese(firstDate);
-    const secondKey = formatDateToJapanese(secondDate);
+    const firstKey = formatDateKey(firstDate);
+    const secondKey = formatDateKey(secondDate);
 
     if (dateMap[firstKey] !== 1) {
       return { success: false, message: '重複日付の先頭行を参照していません（期待:1, 実際:' + dateMap[firstKey] + '）' };
@@ -856,6 +857,41 @@ function testCreateDateMapKeepsFirstRow() {
     }
 
     return { success: true, message: '重複日付は先頭行に正しくマッピングされます' };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    ss.deleteSheet(tempSheet);
+  }
+}
+
+function testCreateDateMapDistinguishesYear() {
+  if (typeof createDateMap !== 'function' || typeof formatDateKey !== 'function') {
+    return { success: false, message: '必要関数が見つかりません' };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tempSheet = ss.insertSheet('tmp_date_year_test_' + Date.now());
+
+  try {
+    const date2025 = new Date(2025, 3, 1);
+    const date2026 = new Date(2026, 3, 1);
+    tempSheet.getRange(1, 2, 2, 1).setValues([[date2025], [date2026]]);
+
+    const dateMap = createDateMap(tempSheet, 'B');
+    const key2025 = formatDateKey(date2025);
+    const key2026 = formatDateKey(date2026);
+
+    if (key2025 === key2026) {
+      return { success: false, message: '日付キーが年度を区別できていません: ' + key2025 };
+    }
+    if (dateMap[key2025] !== 1) {
+      return { success: false, message: '2025年側の行マッピングが不正です: ' + dateMap[key2025] };
+    }
+    if (dateMap[key2026] !== 2) {
+      return { success: false, message: '2026年側の行マッピングが不正です: ' + dateMap[key2026] };
+    }
+
+    return { success: true, message: '同月同日でも年度を区別してマッピングします' };
   } catch (error) {
     return { success: false, message: error.toString() };
   } finally {
@@ -1116,7 +1152,8 @@ function testIsExceptionDateInRange() {
 
 function testApplyAttendanceForDateRows() {
   if (typeof buildDateRowIndicesMap_ !== 'function' ||
-      typeof applyAttendanceForDateRows_ !== 'function') {
+      typeof applyAttendanceForDateRows_ !== 'function' ||
+      typeof formatDateKey !== 'function') {
     return { success: false, message: '必要関数が見つかりません' };
   }
 
@@ -1128,7 +1165,7 @@ function testApplyAttendanceForDateRows() {
     [otherDate]
   ];
   const dateMap = buildDateRowIndicesMap_(dateValues);
-  const targetKey = formatDateToJapanese(targetDate);
+  const targetKey = formatDateKey(targetDate);
 
   if (!Array.isArray(dateMap[targetKey]) || dateMap[targetKey].length !== 6) {
     return { success: false, message: '日付行マップの構築が不正です: ' + JSON.stringify(dateMap[targetKey]) };
@@ -1244,7 +1281,8 @@ function testCopyAndClearTargetsActiveFileAfterCopy() {
     'makeCopy(',
     "getSheetByName('年間行事予定表')",
     'ANNUAL_SCHEDULE.CLEAR_EVENT_RANGE',
-    'ANNUAL_SCHEDULE.CLEAR_DATA_RANGE'
+    'ANNUAL_SCHEDULE.CLEAR_DATA_RANGE',
+    'ANNUAL_SCHEDULE.DATA_START_ROW'
   ];
   const missingFragments = requiredFragments.filter(function(fragment) {
     return source.indexOf(fragment) === -1;

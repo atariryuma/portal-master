@@ -53,8 +53,8 @@ function updateAnnualEvents() {
     let attendanceRowMismatchCount = 0;
 
     masterData.forEach(function(row) {
-      const date = formatDateToJapanese(row[0]);
-      const eventRowIndices = dateRowIndicesMap[date];
+      const dateKey = formatDateKey(row[0]);
+      const eventRowIndices = dateRowIndicesMap[dateKey];
       if (!Array.isArray(eventRowIndices) || eventRowIndices.length === 0) {
         return;
       }
@@ -117,7 +117,7 @@ function updateAnnualEvents() {
 function buildDateRowIndicesMap_(dateValues) {
   const map = {};
   for (let i = 0; i < dateValues.length; i++) {
-    const key = formatDateToJapanese(dateValues[i][0]);
+    const key = formatDateKey(dateValues[i][0]);
     if (!key) {
       continue;
     }
