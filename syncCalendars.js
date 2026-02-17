@@ -123,6 +123,26 @@ function buildEventsByDateMap_(events) {
 }
 
 /**
+ * 祝日との重複判定用にタイトルを正規化
+ * @param {*} value - タイトル文字列
+ * @return {string} 比較用タイトル
+ */
+function normalizeHolidayComparableTitle_(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  const text = String(value).trim();
+  if (text === '') {
+    return '';
+  }
+
+  return convertFullWidthToHalfWidth(text)
+    .replace(/[\s\u3000]+/g, ' ')
+    .trim();
+}
+
+/**
  * カレンダーイベントの差分更新を実行
  * @param {GoogleAppsScript.Calendar.Calendar} calendar - 対象カレンダー
  * @param {Array<Object>} columns - カラム定義配列
@@ -153,9 +173,13 @@ function processEventUpdates_(calendar, columns, row, date, eventType, rowIndex,
           .filter(function(t) { return t; });
 
         titles.forEach(function(title) {
+          const normalizedTitle = normalizeHolidayComparableTitle_(title);
+          if (!normalizedTitle) {
+            return;
+          }
           const isHoliday = holidays.some(function(holiday) {
-            return holiday.getTitle() === title ||
-              holiday.getTitle() === "振替休日";
+            const holidayTitle = normalizeHolidayComparableTitle_(holiday.getTitle());
+            return holidayTitle !== '' && holidayTitle === normalizedTitle;
           });
           if (!isHoliday) {
             const eventInfo = parseEventTimesAndDates_(title, date);

@@ -125,7 +125,7 @@ clasp open
 
 ## Testing
 
-Testing is executed from `testRunner.js`. The suite contains 56 tests across 7 groups.
+Testing is executed from `testRunner.js`. The suite contains 63 tests across 7 groups.
 
 ### Quick Test (daily development)
 

@@ -22,7 +22,7 @@ clasp open
 ### Testing (executed in Apps Script editor, not locally)
 
 - **Quick test** (daily development): Run `runQuickTest()` in the Apps Script editor
-- **Full test** (before release): Run `runAllTests()` in the Apps Script editor — currently 56 tests across 7 phases
+- **Full test** (before release): Run `runAllTests()` in the Apps Script editor — currently 63 tests across 7 phases
 - Tests cannot be run locally. They execute inside the GAS environment against live spreadsheet data.
 - If any test fails, check `【エラー詳細】` in the Apps Script execution log.
 

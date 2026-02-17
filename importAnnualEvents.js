@@ -106,6 +106,9 @@ function importAnnualEvents() {
     if (masterSheet.getMaxRows() < requiredRows) {
       masterSheet.insertRowsAfter(masterSheet.getMaxRows(), requiredRows - masterSheet.getMaxRows());
     }
+    if (masterSheet.getMaxColumns() < lastCol) {
+      masterSheet.insertColumnsAfter(masterSheet.getMaxColumns(), lastCol - masterSheet.getMaxColumns());
+    }
     const destRange = masterSheet.getRange(destStartRow, 1, numRowsToCopy, lastCol);
 
     destRange.setValues(dataValues);
