@@ -223,6 +223,9 @@
     .plan-table-wrap.monthly-hidden .monthly-col {
       display: none;
     }
+    .plan-table .monthly-col.inactive-month {
+      display: none;
+    }
     .plan-table th {
       background: #f8fafc;
       color: #334155;
@@ -457,8 +460,8 @@
   <div class="container">
     <h2>モジュール学習管理</h2>
     <p class="lead">
-      内部シートを直接編集せず、この画面で「年間目標」と「実施差分」を管理できます。<br>
-      保存時に再集計まで自動実行し、累計時数シートへ反映します。
+      内部シートを直接編集せず、この画面で「年間計画時数」と「実績調整」を管理できます。<br>
+      保存時に再計算まで自動実行し、累計時数シートへ反映します。
     </p>
 
     <div class="summary">
@@ -471,11 +474,11 @@
         <strong id="fiscalRange">-</strong>
       </div>
       <div class="summary-item">
-        <span>日次計画件数（再集計結果）</span>
+        <span>配分件数（再計算結果）</span>
         <strong id="dailyPlanCount">0件</strong>
       </div>
       <div class="summary-item">
-        <span>実施差分件数</span>
+        <span>実績調整件数</span>
         <strong id="exceptionCount">0件</strong>
       </div>
       <div class="summary-item">
@@ -486,15 +489,15 @@
 
     <div class="step-tabs" role="tablist" aria-label="入力ステップ">
       <button type="button" class="step-tab active" id="stepTabSettings" data-step="settings" role="tab" aria-selected="true">
-        <span class="tab-main">1. 実施設定</span>
+        <span class="tab-main">1. 実施条件</span>
         <span class="tab-meta" id="stepMetaSettings">未設定</span>
       </button>
       <button type="button" class="step-tab" id="stepTabPlan" data-step="plan" role="tab" aria-selected="false">
-        <span class="tab-main">2. 年間目標</span>
+        <span class="tab-main">2. 年間計画</span>
         <span class="tab-meta" id="stepMetaPlan">未入力</span>
       </button>
       <button type="button" class="step-tab" id="stepTabException" data-step="exception" role="tab" aria-selected="false">
-        <span class="tab-main">3. 実施差分</span>
+        <span class="tab-main">3. 実績調整</span>
         <span class="tab-meta" id="stepMetaException">0件</span>
       </button>
     </div>
@@ -502,8 +505,8 @@
     <div class="status top info" id="status" role="status" aria-live="polite">現在の状態を読み込み中...</div>
 
     <section class="section step-panel active" id="stepPanelSettings" data-step="settings" role="tabpanel" aria-labelledby="stepTabSettings">
-      <h3>実施設定</h3>
-      <p class="section-note">モジュール学習の実施曜日と実施期間を設定します。</p>
+      <h3>実施条件</h3>
+      <p class="section-note">モジュール学習（短時間学習）の実施曜日と実施期間を設定します。</p>
 
       <div class="toolbar tight">
         <label>実施曜日</label>
@@ -535,14 +538,14 @@
         <button type="button" class="sub" id="saveSettingsButton" onclick="saveSettings()">このステップを保存</button>
       </div>
       <div class="section-nav">
-        <span class="hint grow">保存後に「年間目標」へ進むと入力がスムーズです。</span>
-        <button type="button" class="sub" onclick="switchStep('plan')">次へ: 年間目標</button>
+        <span class="hint grow">保存後に「年間計画」へ進むと入力がスムーズです。</span>
+        <button type="button" class="sub" onclick="switchStep('plan')">次へ: 年間計画</button>
       </div>
     </section>
 
     <section class="section step-panel" id="stepPanelPlan" data-step="plan" role="tabpanel" aria-labelledby="stepTabPlan">
-      <h3>年間目標入力</h3>
-      <p class="section-note">各学年の年間目標コマ数（1コマ＝1単位時間＝45分）を入力してください。</p>
+      <h3>年間計画入力</h3>
+      <p class="section-note">各学年の年間計画時数（1単位時間＝45分、1コマ相当）を入力してください。</p>
       <div class="toolbar">
         <label for="fiscalYearInput">対象年度</label>
         <input id="fiscalYearInput" type="number" readonly>
@@ -552,24 +555,24 @@
         <button type="button" class="small-btn" id="toggleMonthlyColumnsButton" onclick="toggleMonthlyColumns()">月別列を非表示</button>
       </div>
       <div class="plan-table-wrap" id="planTableWrap">
-        <table class="plan-table" aria-label="年間目標">
+        <table class="plan-table" aria-label="年間計画時数">
           <thead>
             <tr>
               <th>学年</th>
               <th>モード</th>
-              <th>年間コマ</th>
-              <th class="monthly-col">4月</th>
-              <th class="monthly-col">5月</th>
-              <th class="monthly-col">6月</th>
-              <th class="monthly-col">7月</th>
-              <th class="monthly-col">8月</th>
-              <th class="monthly-col">9月</th>
-              <th class="monthly-col">10月</th>
-              <th class="monthly-col">11月</th>
-              <th class="monthly-col">12月</th>
-              <th class="monthly-col">1月</th>
-              <th class="monthly-col">2月</th>
-              <th class="monthly-col">3月</th>
+              <th>計画時数</th>
+              <th class="monthly-col" data-month-col="4">4月</th>
+              <th class="monthly-col" data-month-col="5">5月</th>
+              <th class="monthly-col" data-month-col="6">6月</th>
+              <th class="monthly-col" data-month-col="7">7月</th>
+              <th class="monthly-col" data-month-col="8">8月</th>
+              <th class="monthly-col" data-month-col="9">9月</th>
+              <th class="monthly-col" data-month-col="10">10月</th>
+              <th class="monthly-col" data-month-col="11">11月</th>
+              <th class="monthly-col" data-month-col="12">12月</th>
+              <th class="monthly-col" data-month-col="1">1月</th>
+              <th class="monthly-col" data-month-col="2">2月</th>
+              <th class="monthly-col" data-month-col="3">3月</th>
             </tr>
           </thead>
           <tbody id="planBody"></tbody>
@@ -584,15 +587,15 @@
         <button type="button" class="sub" id="savePlanButton" onclick="savePlan()">このステップを保存</button>
       </div>
       <div class="section-nav">
-        <button type="button" class="sub" onclick="switchStep('settings')">戻る: 実施設定</button>
-        <span class="hint grow">保存後に「実施差分」で当日運用を記録できます。</span>
-        <button type="button" class="sub" onclick="switchStep('exception')">次へ: 実施差分</button>
+        <button type="button" class="sub" onclick="switchStep('settings')">戻る: 実施条件</button>
+        <span class="hint grow">保存後に「実績調整」で当日運用を記録できます。</span>
+        <button type="button" class="sub" onclick="switchStep('exception')">次へ: 実績調整</button>
       </div>
     </section>
 
     <section class="section step-panel" id="stepPanelException" data-step="exception" role="tabpanel" aria-labelledby="stepTabException">
-      <h3>実施差分入力</h3>
-      <p class="section-note">実施に合わせて差分だけ入力します。差分値は15分単位で、+は追加・-は減算です（+3は+1コマ、-1は-15分）。</p>
+      <h3>実績調整入力</h3>
+      <p class="section-note">実績に合わせて調整量を入力します。調整量は15分単位で、+は追加・-は減算です（+3は+1コマ、-1は-15分）。</p>
 
       <div class="exception-form">
         <div class="field">
@@ -604,7 +607,7 @@
           <select id="exceptionGrade"></select>
         </div>
         <div class="field">
-          <label for="deltaSessionsInput">差分値（15分=1、1コマ=3）</label>
+          <label for="deltaSessionsInput">調整量（15分=1、1コマ=3）</label>
           <input id="deltaSessionsInput" type="number" step="1" value="3" oninput="updateDeltaHint()">
         </div>
         <div class="field">
@@ -629,12 +632,12 @@
         <button type="button" class="sub" id="addExceptionButton" onclick="addException()">このステップを保存</button>
       </div>
 
-      <table class="exception-list" aria-label="最近の差分">
+      <table class="exception-list" aria-label="最近の実績調整">
         <thead>
           <tr>
             <th>日付</th>
             <th>学年</th>
-            <th>差分値</th>
+            <th>調整量</th>
             <th>理由</th>
             <th>メモ</th>
           </tr>
@@ -642,7 +645,7 @@
         <tbody id="recentExceptionBody"></tbody>
       </table>
       <div class="section-nav">
-        <button type="button" class="sub" onclick="switchStep('plan')">戻る: 年間目標</button>
+        <button type="button" class="sub" onclick="switchStep('plan')">戻る: 年間計画</button>
         <span class="hint grow">日々の運用ではこの画面だけ開けば更新できます。</span>
       </div>
     </section>
@@ -650,7 +653,7 @@
     <div class="action-row global-actions">
       <span class="state-text" id="globalStateText">現在のステップを確認中です。</span>
       <button type="button" class="primary" id="globalSaveButton" onclick="handleGlobalSave()" disabled>変更を保存</button>
-      <button type="button" class="sub" id="refreshButton" onclick="refreshPlanning()">再集計のみ実行</button>
+      <button type="button" class="sub" id="refreshButton" onclick="refreshPlanning()">再計算のみ実行</button>
       <button type="button" class="close" id="closeButton" onclick="google.script.host.close()">閉じる</button>
     </div>
 
@@ -664,9 +667,9 @@
     const DEFAULT_ANNUAL_KOMA = 28;
     const STEP_KEYS = ['settings', 'plan', 'exception'];
     const STEP_LABELS = {
-      settings: '実施設定',
-      plan: '年間目標',
-      exception: '実施差分'
+      settings: '実施条件',
+      plan: '年間計画',
+      exception: '実績調整'
     };
     const stepDirty = {
       settings: false,
@@ -860,6 +863,77 @@
       setMonthlyColumnsHidden(!monthlyColumnsHidden);
     }
 
+    function parseDateInput(value) {
+      const text = String(value || '').trim();
+      if (!text) {
+        return null;
+      }
+      const parts = text.split('-');
+      if (parts.length !== 3) {
+        return null;
+      }
+      const year = Number(parts[0]);
+      const month = Number(parts[1]);
+      const day = Number(parts[2]);
+      if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+        return null;
+      }
+      const date = new Date(year, month - 1, day);
+      if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+        return null;
+      }
+      return date;
+    }
+
+    function getActiveMonthMapFromPeriod() {
+      const map = {};
+      MONTH_SEQUENCE.forEach(function(month) {
+        map[month] = true;
+      });
+
+      const startDate = parseDateInput(document.getElementById('planStartDate').value);
+      const endDate = parseDateInput(document.getElementById('planEndDate').value);
+      if (!startDate || !endDate || startDate > endDate) {
+        return map;
+      }
+
+      const activeMap = {};
+      const cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      const endMonth = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+      while (cursor <= endMonth) {
+        activeMap[cursor.getMonth() + 1] = true;
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+      return activeMap;
+    }
+
+    function getActiveMonthsInSequence() {
+      const activeMonthMap = getActiveMonthMapFromPeriod();
+      return MONTH_SEQUENCE.filter(function(month) {
+        return Boolean(activeMonthMap[month]);
+      });
+    }
+
+    function applyMonthlyRangeVisibility() {
+      const activeMonthMap = getActiveMonthMapFromPeriod();
+      const monthColumns = document.querySelectorAll('.monthly-col[data-month-col]');
+      monthColumns.forEach(function(column) {
+        const month = Number(column.getAttribute('data-month-col'));
+        const isActive = Boolean(activeMonthMap[month]);
+        column.classList.toggle('inactive-month', !isActive);
+      });
+
+      const monthInputs = document.querySelectorAll('.monthly-koma');
+      monthInputs.forEach(function(input) {
+        const month = Number(input.getAttribute('data-month'));
+        input.disabled = !Boolean(activeMonthMap[month]);
+      });
+
+      for (let grade = 1; grade <= 6; grade++) {
+        updateMonthlyTotal(grade);
+      }
+    }
+
     function bindDirtyTracking() {
       const settingsPanel = document.getElementById('stepPanelSettings');
       settingsPanel.addEventListener('input', function() {
@@ -883,6 +957,16 @@
       });
       exceptionPanel.addEventListener('change', function() {
         setStepDirty('exception', true);
+      });
+
+      const startDateInput = document.getElementById('planStartDate');
+      const endDateInput = document.getElementById('planEndDate');
+      [startDateInput, endDateInput].forEach(function(input) {
+        if (!input) {
+          return;
+        }
+        input.addEventListener('input', applyMonthlyRangeVisibility);
+        input.addEventListener('change', applyMonthlyRangeVisibility);
       });
     }
 
@@ -925,7 +1009,7 @@
 
         months.forEach(function(m) {
           const val = Number(monthlyKoma[m]) || 0;
-          html += '<td class="monthly-col">';
+          html += '<td class="monthly-col" data-month-col="' + m + '">';
           html += '<input type="number" class="monthly-koma" data-grade="' + grade + '" data-month="' + m + '" min="0" step="1" value="' + val + '" style="' + (isMonthly ? '' : 'display:none;') + '" oninput="updateMonthlyTotal(' + grade + ')">';
           html += '<span class="monthly-placeholder" data-grade="' + grade + '" style="' + (isMonthly ? 'display:none;' : '') + '">-</span>';
           html += '</td>';
@@ -936,6 +1020,7 @@
       }
 
       document.getElementById('planNote').value = t.note || '';
+      applyMonthlyRangeVisibility();
     }
 
     function toggleGradeMode(grade) {
@@ -952,18 +1037,31 @@
         }
         annualInput.style.display = 'none';
         autoKomaSpan.style.display = '';
+        const activeMonthMap = getActiveMonthMapFromPeriod();
         let hasNonZero = false;
         monthInputs.forEach(function(input) {
-          if (Number(input.value) > 0) { hasNonZero = true; }
+          const month = Number(input.getAttribute('data-month'));
+          if (activeMonthMap[month] && Number(input.value) > 0) { hasNonZero = true; }
         });
         if (!hasNonZero) {
           const totalKoma = Number(annualInput.value) || DEFAULT_ANNUAL_KOMA;
-          const perMonth = Math.floor(totalKoma / 12);
-          const remainder = totalKoma % 12;
-          let idx = 0;
+          const activeMonths = getActiveMonthsInSequence();
+          const targetMonths = activeMonths.length > 0 ? activeMonths : MONTH_SEQUENCE;
+          const perMonth = Math.floor(totalKoma / targetMonths.length);
+          const remainder = totalKoma % targetMonths.length;
+
           monthInputs.forEach(function(input) {
-            input.value = String(perMonth + (idx < remainder ? 1 : 0));
-            idx++;
+            const month = Number(input.getAttribute('data-month'));
+            if (activeMonthMap[month]) {
+              input.value = '0';
+            }
+          });
+
+          targetMonths.forEach(function(month, idx) {
+            const input = document.querySelector('.monthly-koma[data-grade="' + grade + '"][data-month="' + month + '"]');
+            if (input) {
+              input.value = String(perMonth + (idx < remainder ? 1 : 0));
+            }
           });
         }
         monthInputs.forEach(function(input) { input.style.display = ''; });
@@ -982,10 +1080,14 @@
     }
 
     function updateMonthlyTotal(grade) {
+      const activeMonthMap = getActiveMonthMapFromPeriod();
       const monthInputs = document.querySelectorAll('.monthly-koma[data-grade="' + grade + '"]');
       let total = 0;
       monthInputs.forEach(function(input) {
-        total += Math.max(0, Math.round(Number(input.value) || 0));
+        const month = Number(input.getAttribute('data-month'));
+        if (activeMonthMap[month]) {
+          total += Math.max(0, Math.round(Number(input.value) || 0));
+        }
       });
       const autoKomaSpan = document.querySelector('.auto-koma[data-grade="' + grade + '"]');
       if (autoKomaSpan) {
@@ -1017,6 +1119,7 @@
     function collectAnnualTarget() {
       const result = { grades: {}, note: '' };
       const months = MONTH_SEQUENCE;
+      const activeMonthMap = getActiveMonthMapFromPeriod();
 
       for (let grade = 1; grade <= 6; grade++) {
         const modeRadio = document.querySelector('input[name="mode_' + grade + '"]:checked');
@@ -1027,19 +1130,21 @@
           let total = 0;
           months.forEach(function(m) {
             const input = document.querySelector('.monthly-koma[data-grade="' + grade + '"][data-month="' + m + '"]');
-            const val = input ? Math.max(0, Math.round(Number(input.value) || 0)) : 0;
+            const val = activeMonthMap[m] && input
+              ? Math.max(0, Math.round(Number(input.value) || 0))
+              : 0;
             monthlyKoma[m] = val;
             total += val;
           });
           if (total <= 0) {
-            throw new Error(grade + '年: 月別モードの合計コマ数が0です。1つ以上の月に目標を設定してください。');
+            throw new Error(grade + '年: 月別配分の合計時数が0です。1つ以上の月に計画を設定してください。');
           }
           result.grades[grade] = { mode: 'monthly', annualKoma: total, monthlyKoma: monthlyKoma };
         } else {
           const input = document.querySelector('.annual-koma[data-grade="' + grade + '"]');
           const koma = input ? Math.round(Number(input.value) || 0) : DEFAULT_ANNUAL_KOMA;
           if (!Number.isFinite(koma) || koma < 0) {
-            throw new Error(grade + '年のコマ数を0以上の数値で入力してください。');
+            throw new Error(grade + '年の計画時数を0以上の数値で入力してください。');
           }
           result.grades[grade] = { mode: 'annual', annualKoma: koma, monthlyKoma: null };
         }
@@ -1080,13 +1185,13 @@
         const sessions = Number(reserveByGrade[grade]) || 0;
         if (sessions > 0) {
           const display = formatMixedFractionFromSessions(sessions);
-          items.push('<span class="reserve-item">' + grade + '年: 予備 ' + escapeHtml(display) + 'コマ</span>');
+          items.push('<span class="reserve-item">' + grade + '年: 予備時数 ' + escapeHtml(display) + 'コマ</span>');
         } else if (sessions < 0) {
           hasDeficit = true;
           const display = formatMixedFractionFromSessions(Math.abs(sessions));
-          items.push('<span class="deficit-item">' + grade + '年: 不足 ' + escapeHtml(display) + 'コマ</span>');
+          items.push('<span class="deficit-item">' + grade + '年: 不足時数 ' + escapeHtml(display) + 'コマ</span>');
         } else {
-          items.push('<span class="reserve-item">' + grade + '年: 予備なし</span>');
+          items.push('<span class="reserve-item">' + grade + '年: 予備時数なし</span>');
         }
       }
 
@@ -1101,7 +1206,7 @@
 
       if (!Array.isArray(rows) || rows.length === 0) {
         const emptyRow = document.createElement('tr');
-        emptyRow.innerHTML = '<td colspan="5">実施差分はまだありません。</td>';
+        emptyRow.innerHTML = '<td colspan="5">実績調整はまだありません。</td>';
         tbody.appendChild(emptyRow);
         return;
       }
@@ -1157,17 +1262,17 @@
       }
 
       setLoading(true);
-      setStatus('実施設定を保存して再集計しています...', 'info');
+      setStatus('実施条件を保存して再計算しています...', 'info');
 
       google.script.run
         .withSuccessHandler(function(message) {
           setLoading(false);
-          setStatus(message || '実施設定を保存しました。', 'success');
+          setStatus(message || '実施条件を保存しました。', 'success');
           loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
-          setStatus('実施設定の保存に失敗しました: ' + getErrorMessage(error), 'error');
+          setStatus('実施条件の保存に失敗しました: ' + getErrorMessage(error), 'error');
         })
         .saveModuleSettingsFromDialog({
           weekdays: weekdays,
@@ -1244,17 +1349,17 @@
       }
 
       setLoading(true);
-      setStatus('年間目標を保存して再集計しています...', 'info');
+      setStatus('年間計画を保存して再計算しています...', 'info');
 
       google.script.run
         .withSuccessHandler(function(message) {
           setLoading(false);
-          setStatus(message || '年間目標を保存しました。', 'success');
+          setStatus(message || '年間計画を保存しました。', 'success');
           loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
-          setStatus('年間目標の保存に失敗しました: ' + getErrorMessage(error), 'error');
+          setStatus('年間計画の保存に失敗しました: ' + getErrorMessage(error), 'error');
         })
         .saveModuleAnnualTargetFromDialog({
           fiscalYear: fiscalYear,
@@ -1276,7 +1381,7 @@
       const prefix = sessions > 0 ? '+' : '';
       const minutes = sessions * 15;
       const minutePrefix = minutes > 0 ? '+' : '';
-      document.getElementById('deltaHint').textContent = '現在の差分: ' + prefix + formatMixedFractionFromSessions(sessions) + 'コマ（' + minutePrefix + String(minutes) + '分）';
+      document.getElementById('deltaHint').textContent = '現在の調整量: ' + prefix + formatMixedFractionFromSessions(sessions) + 'コマ（' + minutePrefix + String(minutes) + '分）';
     }
 
     function addException() {
@@ -1294,40 +1399,40 @@
         return;
       }
       if (!payload.deltaSessions) {
-        setStatus('差分値は0以外で入力してください。', 'error');
+        setStatus('調整量は0以外で入力してください。', 'error');
         return;
       }
 
       setLoading(true);
-      setStatus('実施差分を保存して再集計しています...', 'info');
+      setStatus('実績調整を保存して再計算しています...', 'info');
 
       google.script.run
         .withSuccessHandler(function(message) {
           setLoading(false);
-          setStatus(message || '実施差分を追加しました。', 'success');
+          setStatus(message || '実績調整を追加しました。', 'success');
           document.getElementById('exceptionReason').value = '';
           document.getElementById('exceptionNote').value = '';
           loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
-          setStatus('実施差分の保存に失敗しました: ' + getErrorMessage(error), 'error');
+          setStatus('実績調整の保存に失敗しました: ' + getErrorMessage(error), 'error');
         })
         .addModuleExceptionFromDialog(payload);
     }
 
     function refreshPlanning() {
       setLoading(true);
-      setStatus('再集計を実行中...', 'info');
+      setStatus('再計算を実行中...', 'info');
       google.script.run
         .withSuccessHandler(function(message) {
           setLoading(false);
-          setStatus(message || '再集計が完了しました。', 'success');
+          setStatus(message || '再計算が完了しました。', 'success');
           loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
-          setStatus('再集計に失敗しました: ' + getErrorMessage(error), 'error');
+          setStatus('再計算に失敗しました: ' + getErrorMessage(error), 'error');
         })
         .refreshModulePlanning();
     }

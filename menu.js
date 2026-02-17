@@ -170,7 +170,7 @@ function showUserGuide() {
       '<ul>' +
       '<li><strong>累計時数を計算:</strong> 最新土曜日までの累計授業時数を更新</li>' +
       '<li><strong>学年別授業時数を集計:</strong> 低中高学年別の詳細な時数レポート作成</li>' +
-      '<li><strong>モジュール学習管理:</strong> 計画・実施差分を管理して再集計</li>' +
+      '<li><strong>モジュール学習管理:</strong> 年間計画時数・実績調整を管理して再計算</li>' +
       '</ul>' +
       '<h3>連携と年度更新</h3>' +
       '<ul>' +

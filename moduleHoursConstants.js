@@ -3,13 +3,13 @@
  * @description モジュール学習管理機能で使用する定数群を定義します。
  */
 
-/** 年間デフォルト目標コマ数（旧: 4クール × 7コマ = 28） */
+/** 年間デフォルト計画時数（旧: 4クール × 7コマ = 28） */
 const MODULE_DEFAULT_ANNUAL_KOMA = 28;
 
-const MODULE_DISPLAY_HEADER = 'MOD実施累計(表示)';
+const MODULE_DISPLAY_HEADER = 'MOD実績累計(表示)';
 const MODULE_WEEKLY_LABEL = '今週';
-const MODULE_RESERVE_LABEL = '予備';
-const MODULE_DEFICIT_LABEL = '不足';
+const MODULE_RESERVE_LABEL = '予備時数';
+const MODULE_DEFICIT_LABEL = '不足時数';
 const MODULE_GRADE_MIN = 1;
 const MODULE_GRADE_MAX = 6;
 const MODULE_SETTINGS_PREFIX = 'MODULE_';
@@ -49,7 +49,7 @@ const MODULE_CONTROL_DEFAULT_LAYOUT = Object.freeze({
 const MODULE_PLAN_MODE_ANNUAL = 'annual';
 const MODULE_PLAN_MODE_MONTHLY = 'monthly';
 
-/** 年間目標テーブルのヘッダー（V4: 学年行・月別目標対応） */
+/** 年間計画時数テーブルのヘッダー（V4: 学年行・月別配分対応） */
 const MODULE_CONTROL_PLAN_HEADERS = Object.freeze([
   'fiscal_year',
   'grade',
@@ -67,4 +67,3 @@ const MODULE_CONTROL_EXCEPTION_HEADERS = Object.freeze([
   'reason',
   'note'
 ]);
-

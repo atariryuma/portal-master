@@ -172,18 +172,24 @@ function getFullTestPlan_() {
       title: '【フェーズ7】最適化検証',
       tests: [
         { name: '7-1. マジックナンバー定数確認', fn: testMagicNumberConstants },
-        { name: '7-2. XSS安全性確認', fn: testOpenWeeklyReportFolderXssSafe },
-        { name: '7-3. 累計カテゴリ導出確認', fn: testCumulativeCategoriesDerivedFromEventCategories },
-        { name: '7-4. 日付変換ヘルパー', fn: testConvertCellValue },
-        { name: '7-5. 日付行検索', fn: testFindDateRow },
-        { name: '7-6. イベント時間解析', fn: testParseEventTimesAndDates },
-        { name: '7-7. 累計計算ロジック', fn: testCalculateResultsForGrade },
-        { name: '7-8. 月キー正規化', fn: testNormalizeAggregateMonthKey },
-        { name: '7-9. 名前結合関数', fn: testJoinNamesWithNewline },
-        { name: '7-10. 全角半角変換', fn: testConvertFullWidthToHalfWidth },
-        { name: '7-11. 分解析関数', fn: testParseMinute },
-        { name: '7-12. 公開関数定義確認', fn: testPublicFunctionDefinitions },
-        { name: '7-13. 不正時刻入力の拒否', fn: testSetEventTimeRejectsInvalidInput }
+        { name: '7-2. var宣言禁止', fn: testNoVarDeclarations },
+        { name: '7-3. ログプレフィックス標準', fn: testLogPrefixStandard },
+        { name: '7-4. 主要関数のエラーハンドリング', fn: testErrorHandlingPresence },
+        { name: '7-5. 日直割り当てのバッチ読み取り', fn: testAssignDutyBatchReads },
+        { name: '7-6. 日付フォーマッターの再利用確認', fn: testNoDuplicateDateFormatter },
+        { name: '7-7. モジュール分割構成確認', fn: testModuleHoursDecomposition },
+        { name: '7-8. XSS安全性確認', fn: testOpenWeeklyReportFolderXssSafe },
+        { name: '7-9. 累計カテゴリ導出確認', fn: testCumulativeCategoriesDerivedFromEventCategories },
+        { name: '7-10. 日付変換ヘルパー', fn: testConvertCellValue },
+        { name: '7-11. 日付行検索', fn: testFindDateRow },
+        { name: '7-12. イベント時間解析', fn: testParseEventTimesAndDates },
+        { name: '7-13. 累計計算ロジック', fn: testCalculateResultsForGrade },
+        { name: '7-14. 月キー正規化', fn: testNormalizeAggregateMonthKey },
+        { name: '7-15. 名前結合関数', fn: testJoinNamesWithNewline },
+        { name: '7-16. 全角半角変換', fn: testConvertFullWidthToHalfWidth },
+        { name: '7-17. 分解析関数', fn: testParseMinute },
+        { name: '7-18. 公開関数定義確認', fn: testPublicFunctionDefinitions },
+        { name: '7-19. 不正時刻入力の拒否', fn: testSetEventTimeRejectsInvalidInput }
       ]
     }
   ];
@@ -373,7 +379,7 @@ function testModuleCumulativeIntegration() {
     }
 
     const headers = cumulativeSheet.getRange(2, MODULE_CUMULATIVE_COLUMNS.PLAN, 1, 3).getValues()[0];
-    const expectedHeaders = ['MOD計画累計', 'MOD実施累計', 'MOD差分'];
+    const expectedHeaders = ['MOD計画累計', 'MOD実績累計', 'MOD調整累計'];
     const mismatch = expectedHeaders.filter(function(header, index) {
       return headers[index] !== header;
     });
@@ -383,8 +389,8 @@ function testModuleCumulativeIntegration() {
     }
 
     const displayHeaderRow = cumulativeSheet.getRange(2, 1, 1, cumulativeSheet.getLastColumn()).getValues()[0];
-    if (displayHeaderRow.indexOf('MOD実施累計(表示)') === -1) {
-      return { success: false, message: 'MOD実施累計(表示)列が作成されていません' };
+    if (displayHeaderRow.indexOf('MOD実績累計(表示)') === -1) {
+      return { success: false, message: 'MOD実績累計(表示)列が作成されていません' };
     }
 
     return { success: true, message: '累計時数シートへMOD列を統合' };
@@ -1257,7 +1263,9 @@ function testImportAnnualEventsDefinition() {
   const requiredFragments = [
     'getSettingsSheetOrThrow',
     'ANNUAL_UPDATE_CONFIG_CELLS.BASE_SUNDAY',
-    'SpreadsheetApp.openByUrl'
+    'SpreadsheetApp.openByUrl',
+    'getMaxColumns',
+    'insertColumnsAfter'
   ];
 
   const missingFragments = requiredFragments.filter(function(fragment) {

@@ -19,7 +19,7 @@ function invalidateModuleControlLayoutCache_() {
 }
 
 /**
- * module_control から指定年度の年間目標行を抽出
+ * module_control から指定年度の年間計画時数行を抽出
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 対象年度
  * @param {Array<Array<*>>=} allRows - 事前取得済みの計画行全件
@@ -34,7 +34,7 @@ function readAnnualTargetRowsByFiscalYear(controlSheet, fiscalYear, allRows, lay
 }
 
 /**
- * 年間目標行を全件取得
+ * 年間計画時数行を全件取得
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {Object=} layout - 事前取得済みレイアウト
  * @return {Array<Array<*>>} 行データ
@@ -191,7 +191,7 @@ function findMarkerRow(sheet, marker, useLast) {
 }
 
 /**
- * 年間目標行を例外セクション直前へ追加
+ * 年間計画時数行を例外セクション直前へ追加
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {Array<Array<*>>} rows - 追加行
  */
@@ -209,7 +209,7 @@ function appendAnnualTargetRows(controlSheet, rows) {
 }
 
 /**
- * 指定年度の年間目標行を置換
+ * 指定年度の年間計画時数行を置換
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 対象年度
  * @param {Array<Array<*>>} replacementRows - 置換行
@@ -327,7 +327,7 @@ function readExceptionRows(controlSheet, layout) {
 }
 
 /**
- * 年度別の年間目標行数をカウント
+ * 年度別の年間計画時数行数をカウント
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 年度
  * @param {Array<Array<*>>=} annualTargetRows - 事前取得済みの対象年度行
@@ -374,8 +374,8 @@ function ensureDataVersionIsLatest() {
  * @param {number} fiscalYear - 年度
  * @param {number} grade - 学年
  * @param {string} mode - 'annual' or 'monthly'
- * @param {number} annualKoma - 年間コマ数
- * @param {Object|null} monthlyKoma - 月別コマ数（monthlyモード時）
+ * @param {number} annualKoma - 年間計画時数
+ * @param {Object|null} monthlyKoma - 月別計画時数（monthlyモード時）
  * @param {string=} note - メモ
  * @return {Array<*>} MODULE_CONTROL_PLAN_HEADERS形式の行
  */

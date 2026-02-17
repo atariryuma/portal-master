@@ -133,11 +133,11 @@ function getDefaultExceptionDate(enabledWeekdays) {
 }
 
 /**
- * ダイアログ表示用の年間目標を取得（V4形式）
+ * ダイアログ表示用の年間計画時数を取得（V4形式）
  * @param {number} fiscalYear - 対象年度
  * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
- * @param {Array<Array<*>>=} annualTargetRows - 事前取得済み年間目標行（対象年度）
- * @return {Object} 年間目標（grades, note）
+ * @param {Array<Array<*>>=} annualTargetRows - 事前取得済み年間計画時数行（対象年度）
+ * @return {Object} 年間計画時数（grades, note）
  */
 function buildDialogAnnualTargetForFiscalYear(fiscalYear, controlSheet, annualTargetRows) {
   const target = Array.isArray(annualTargetRows) && annualTargetRows.length > 0
@@ -155,12 +155,12 @@ function buildDialogAnnualTargetForFiscalYear(fiscalYear, controlSheet, annualTa
 }
 
 /**
- * 対象年度の最近の実施差分を返却
+ * 対象年度の最近の実績調整を返却
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 対象年度
  * @param {number} limitCount - 取得件数
  * @param {Array<Object>=} exceptionRows - 事前取得済み例外行
- * @return {Array<Object>} 実施差分配列
+ * @return {Array<Object>} 実績調整配列
  */
 function listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, limitCount, exceptionRows) {
   const limit = Math.max(1, Number(limitCount) || 10);
@@ -212,15 +212,15 @@ function refreshModulePlanning() {
   const baseDate = getCurrentOrNextSaturday();
   const result = syncModuleHoursWithCumulative(baseDate);
   return [
-    'モジュール学習の再集計が完了しました。',
+    'モジュール学習の再計算が完了しました。',
     '基準日: ' + formatInputDate(result.baseDate),
     '対象年度: ' + result.fiscalYear + '年度',
-    '日次計画件数（再集計結果）: ' + result.dailyPlanCount + '件'
+    '配分件数（再計算結果）: ' + result.dailyPlanCount + '件'
   ].join('\n');
 }
 
 /**
- * ダイアログから受け取った年間目標を保存して再集計
+ * ダイアログから受け取った年間計画時数を保存して再計算
  * @param {Object} payload - 入力データ
  * @return {string} 完了メッセージ
  */
@@ -240,7 +240,7 @@ function saveModuleAnnualTargetFromDialog(payload) {
   const result = syncModuleHoursWithCumulative(baseDate);
 
   const lines = [
-    '年間目標を保存して再集計しました。',
+    '年間計画時数を保存して再計算しました。',
     '対象年度: ' + fiscalYear + '年度',
     '基準日: ' + formatInputDate(result.baseDate)
   ];
@@ -255,7 +255,7 @@ function saveModuleAnnualTargetFromDialog(payload) {
 }
 
 /**
- * ダイアログから実施差分を追加して再集計
+ * ダイアログから実績調整を追加して再計算
  * @param {Object} payload - 入力データ
  * @return {string} 完了メッセージ
  */
@@ -287,7 +287,7 @@ function addModuleExceptionFromDialog(payload) {
 
   const deltaSessions = Math.round(toNumberOrZero(payload && payload.deltaSessions));
   if (!Number.isFinite(deltaSessions) || deltaSessions === 0) {
-    throw new Error('差分値は0以外の数値を入力してください。');
+    throw new Error('調整量は0以外の数値を入力してください。');
   }
 
   const reason = String(payload && payload.reason ? payload.reason : '').trim();
@@ -301,7 +301,7 @@ function addModuleExceptionFromDialog(payload) {
 
   const minuteSign = deltaSessions > 0 ? '+' : '';
   return [
-    '実施差分を保存して再集計しました。',
+    '実績調整を保存して再計算しました。',
     '入力: ' + formatInputDate(exceptionDate) + ' / ' + grade + '年 / ' +
       formatSignedSessionsAsMixedFraction(deltaSessions) + 'コマ（' + minuteSign + (deltaSessions * 15) + '分）',
     '基準日: ' + formatInputDate(result.baseDate)
@@ -309,14 +309,14 @@ function addModuleExceptionFromDialog(payload) {
 }
 
 /**
- * ダイアログ入力値をV4形式の年間目標行群へ正規化
+ * ダイアログ入力値をV4形式の年間計画時数行群へ正規化
  * @param {number} fiscalYear - 対象年度
  * @param {Object} target - 入力目標 { grades: {grade: {mode, annualKoma, monthlyKoma}}, note }
  * @return {Array<Array<*>>} シート行群（MODULE_CONTROL_PLAN_HEADERS形式 × 学年数）
  */
 function normalizeAnnualTargetRowsFromDialog(fiscalYear, target) {
   if (!target || !target.grades) {
-    throw new Error('年間目標のデータがありません。');
+    throw new Error('年間計画時数のデータがありません。');
   }
 
   const note = String(target.note || '').trim();
@@ -340,13 +340,13 @@ function normalizeAnnualTargetRowsFromDialog(fiscalYear, target) {
         monthlyTotal += val;
       });
       if (monthlyTotal <= 0) {
-        throw new Error(grade + '年: 月別モードの合計コマ数が0です。');
+        throw new Error(grade + '年: 月別配分の合計時数が0です。');
       }
       annualKoma = monthlyTotal;
     } else {
       annualKoma = Math.round(toNumberOrZero(gradeData.annualKoma));
       if (annualKoma < 0) {
-        throw new Error(grade + '年のコマ数は0以上で入力してください。');
+        throw new Error(grade + '年の計画時数は0以上で入力してください。');
       }
     }
 
@@ -357,7 +357,7 @@ function normalizeAnnualTargetRowsFromDialog(fiscalYear, target) {
 }
 
 /**
- * ダイアログから実施設定（実施曜日・実施期間）を保存して再集計
+ * ダイアログから実施条件（実施曜日・実施期間）を保存して再計算
  * @param {Object} payload - { weekdays: [1,3,5], startDate: 'yyyy-MM-dd', endDate: 'yyyy-MM-dd', baseDate: ... }
  * @return {string} 完了メッセージ
  */
@@ -410,7 +410,7 @@ function saveModuleSettingsFromDialog(payload) {
     .join('・');
 
   const lines = [
-    '実施設定を保存して再集計しました。',
+    '実施条件を保存して再計算しました。',
     '実施曜日: ' + dayNames,
     '実施期間: ' + formatInputDate(startDate) + ' ～ ' + formatInputDate(endDate),
     '基準日: ' + formatInputDate(result.baseDate)
@@ -447,5 +447,5 @@ function buildDeficitWarningMessage(reserveByGrade) {
     return '';
   }
 
-  return '【注意】実施可能日数に対して目標コマ数が不足しています。\n' + deficits.join('、');
+  return '【注意】実施可能日数に対して計画時数が不足しています。\n' + deficits.join('、');
 }

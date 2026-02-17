@@ -1,6 +1,6 @@
 /**
  * @fileoverview モジュール学習管理 - 配分アルゴリズム
- * @description 年間目標から日次配分の構築、学校日マップ、例外集計を担当します。
+ * @description 年間計画時数から日次配分の構築、学校日マップ、例外集計を担当します。
  */
 
 /**
@@ -30,7 +30,7 @@ function buildGradeTotalsFromDailyAndExceptions(dailyTotalsByGrade, exceptionTot
 }
 
 /**
- * 指定年度のデフォルト年間目標を必要時に作成
+ * 指定年度のデフォルト年間計画時数を必要時に作成
  * @param {number} fiscalYear - 対象年度
  * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
  * @param {Array<Array<*>>=} existingRowsForFiscalYear - 事前取得済みの対象年度行
@@ -56,10 +56,10 @@ function ensureDefaultAnnualTargetForFiscalYear(fiscalYear, controlSheet, existi
 }
 
 /**
- * 指定年度の年間目標を読み込み
+ * 指定年度の年間計画時数を読み込み
  * @param {number} fiscalYear - 対象年度
  * @param {GoogleAppsScript.Spreadsheet.Sheet=} controlSheet - module_control
- * @return {Object} 年間目標 { fiscalYear, grades: {grade: {mode, annualKoma, monthlyKoma}}, gradeKoma: {grade: N} }
+ * @return {Object} 年間計画時数 { fiscalYear, grades: {grade: {mode, annualKoma, monthlyKoma}}, gradeKoma: {grade: N} }
  */
 function loadAnnualTargetForFiscalYear(fiscalYear, controlSheet) {
   const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded();
@@ -71,17 +71,17 @@ function loadAnnualTargetForFiscalYear(fiscalYear, controlSheet) {
   }
 
   if (rows.length === 0) {
-    throw new Error('年間目標が取得できません（年度: ' + fiscalYear + '）');
+    throw new Error('年間計画時数が取得できません（年度: ' + fiscalYear + '）');
   }
 
   return buildAnnualTargetFromRows(fiscalYear, rows);
 }
 
 /**
- * V4形式の複数行から年間目標オブジェクトを構築
+ * V4形式の複数行から年間計画時数オブジェクトを構築
  * @param {number} fiscalYear - 対象年度
  * @param {Array<Array<*>>} rows - 行データ（V4形式: 学年別行）
- * @return {Object} 年間目標
+ * @return {Object} 年間計画時数
  */
 function buildAnnualTargetFromRows(fiscalYear, rows) {
   const grades = {};
@@ -122,7 +122,7 @@ function buildAnnualTargetFromRows(fiscalYear, rows) {
 }
 
 /**
- * 年間目標から日次計画を構築（保存はしない）
+ * 年間計画時数から日次計画を構築（保存はしない）
  * 実施期間内の実施可能日に対してセッションを均等配分し、予備セッション数も算出する。
  * options.startDate/endDate で実施期間を指定可能（省略時は年度全体）。
  * @param {number} fiscalYear - 対象年度
@@ -178,7 +178,7 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
     }
     const allocatedDateKeys = Object.keys(allocations).sort();
 
-    // 予備/不足 = 実施可能日数 - 目標セッション数（正=予備、負=不足）
+    // 予備時数/不足時数 = 実施可能日数 - 目標セッション数（正=予備時数、負=不足時数）
     // 1日1回上限により配分できない分も不足として扱う。
     reserveByGrade[grade] = gradeDates.length - plannedSessions;
 
@@ -452,8 +452,8 @@ function allocateSessionsToDateKeys(totalSessions, weekMap) {
 }
 
 /**
- * 月別コマ目標からセッションを月ごとに配分
- * @param {Object} monthlyKoma - 月番号→コマ数マップ {4:3, 5:2, ...}
+ * 月別計画時数からセッションを月ごとに配分
+ * @param {Object} monthlyKoma - 月番号→計画時数マップ {4:3, 5:2, ...}
  * @param {Array<Date>} gradeDates - 学年の実施可能日リスト（ソート済み）
  * @return {Object} dateKey→セッション数マップ
  */
@@ -479,7 +479,7 @@ function allocateSessionsByMonth(monthlyKoma, gradeDates) {
     const sessions = Math.max(0, Math.round(koma * 3));
     const monthDates = datesByMonth[month] || [];
     if (monthDates.length === 0) {
-      Logger.log('[WARNING] ' + month + '月に実施可能日がありませんが、目標が' + koma + 'コマ設定されています');
+      Logger.log('[WARNING] ' + month + '月に実施可能日がありませんが、計画時数が' + koma + 'コマ設定されています');
       return;
     }
 

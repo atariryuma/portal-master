@@ -71,7 +71,7 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
 
   cumulativeSheet
     .getRange(2, MODULE_CUMULATIVE_COLUMNS.PLAN, 1, 3)
-    .setValues([['MOD計画累計', 'MOD実施累計', 'MOD差分']]);
+    .setValues([['MOD計画累計', 'MOD実績累計', 'MOD調整累計']]);
 
   const valueRows = [];
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
@@ -109,7 +109,7 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
 /**
  * モジュール学習計画シートへ年間実施計画を出力
  * @param {Object} buildResult - buildDailyPlanFromAnnualTarget の返却値
- * @param {Object} annualTarget - 年間目標 { gradeKoma }
+ * @param {Object} annualTarget - 年間計画時数 { gradeKoma }
  * @param {Array<number>} enabledWeekdays - 有効曜日配列
  * @param {Date} baseDate - 基準日
  */
@@ -183,8 +183,8 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     const headers = ['学年'];
     monthLabels.forEach(function(label) { headers.push(label); });
     headers.push('合計');
-    headers.push('年間目標');
-    headers.push('予備/不足');
+    headers.push('年間計画時数');
+    headers.push('予備時数/不足時数');
 
     sheet.getRange(headerRow, 1, 1, headers.length).setValues([headers]);
     sheet.getRange(headerRow, 1, 1, headers.length)
@@ -322,7 +322,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     // フッター行
     const footerRow = lastContentRow + 2;
     sheet.getRange(footerRow, 1).setValue(
-      '更新日時: ' + formatDateTimeForDisplay(new Date()) + '　　※ 本シートは再集計時に自動更新されます'
+      '更新日時: ' + formatDateTimeForDisplay(new Date()) + '　　※ 本シートは再計算時に自動更新されます'
     );
     sheet.getRange(footerRow, 1).setFontSize(9).setFontColor('#64748b');
 
@@ -461,7 +461,7 @@ function formatSignedSessionsAsMixedFraction(sessions) {
 }
 
 /**
- * セッション数を45分コマ数（小数）へ変換
+ * セッション数を45分単位時間数（小数）へ変換
  * @param {number} sessions - セッション数
  * @return {number} 45分換算値
  */
