@@ -10,7 +10,8 @@ const CALENDAR_SYNC_MANAGED_MARKER = '[PORTAL_MASTER_MANAGED]';
 function syncCalendars() {
   const lock = LockService.getDocumentLock();
   if (!lock.tryLock(10000)) {
-    throw new Error('別のユーザーがカレンダー同期を実行中です。しばらく待ってから再度お試しください。');
+    showAlert('別のユーザーがカレンダー同期を実行中です。しばらく待ってから再度お試しください。', 'エラー');
+    return;
   }
 
   try {
@@ -38,6 +39,7 @@ function syncCalendars() {
     const dateRange = extractDateRangeFromData_(data);
     if (!dateRange) {
       Logger.log('[INFO] 同期対象の日付データがありません。');
+      showAlert('同期対象の日付データがありません。', '通知');
       return;
     }
 
@@ -67,6 +69,9 @@ function syncCalendars() {
         '対外行事', i + 1, externalEventsMap[dateKey] || [], holidayEventsMap[dateKey] || []);
     }
     Logger.log("[INFO] カレンダーの同期が完了しました。");
+    showAlert('カレンダーの同期が完了しました。', '通知');
+  } catch (error) {
+    showAlert('カレンダー同期でエラーが発生しました: ' + error.toString(), 'エラー');
   } finally {
     lock.releaseLock();
   }

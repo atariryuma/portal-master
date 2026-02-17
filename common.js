@@ -256,14 +256,7 @@ const SCHEDULE_COLUMNS = Object.freeze({
  */
 const MODULE_SHEET_NAMES = Object.freeze({
   CONTROL: 'module_control',
-  PLAN_SUMMARY: 'モジュール学習計画',
-  // 旧シート名（移行用に保持）
-  SETTINGS: 'module_settings',
-  CYCLE_PLAN: 'module_cycle_plan',
-  DAILY_PLAN: 'module_daily_plan',
-  PLAN: 'module_plan',
-  EXCEPTIONS: 'module_exceptions',
-  SUMMARY: 'module_summary'
+  PLAN_SUMMARY: 'モジュール学習計画'
 });
 
 /**

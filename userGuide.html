@@ -284,7 +284,7 @@
 
                 <div class="info">
                     <h4>🎯 新しいメニューアクセス</h4>
-                    <p>スプレッドシートのメニューバーから<strong>「🎯 ポータルマスター」→「🚀 導入」</strong>を選択してください。</p>
+                    <p>スプレッドシートのメニューバーから<strong>「🎯 ポータルマスター」</strong>の各サブメニューを選択してください（手順ごとにメニューが異なります）。</p>
                 </div>
 
                 <div class="step-list">
@@ -292,7 +292,7 @@
                         <div class="step-content">
                             <h4>ステップ1: 年間行事計画をインポート</h4>
                             <p><span class="function-name">importAnnualEvents</span></p>
-                            <p>Googleスプレッドシート「【テンプレート】Excel小学校年間行事計画（編集用）」の「メインデータ」シートから行事予定をインポートします。</p>
+                            <p>Googleスプレッドシート「Excel小学校年間行事計画（編集用）」の「メインデータ」シートから行事予定をインポートします。</p>
                             <ul>
                                 <li><strong>🎯 ポータルマスター</strong> → <strong>🚀 導入</strong> → <strong>年間行事計画をインポート</strong></li>
                                 <li>ダイアログでGoogleスプレッドシートのURLを入力</li>
@@ -390,6 +390,18 @@
                 </div>
 
                 <div class="menu-item">
+                    <h4>🔗 今日の日付へ移動</h4>
+                    <p><span class="function-name">setDailyHyperlink</span></p>
+                    <p>B1セルに今日の日付へのハイパーリンクを設定し、素早くジャンプできます。</p>
+                    <ul>
+                        <li><strong>メニュー:</strong> 📅 日常業務 → 今日の日付へ移動</li>
+                        <li>自動で今日の日付を検索し、該当行へのリンクを作成</li>
+                        <li>日付が見つからない場合はエラーメッセージを表示</li>
+                        <li>毎日自動実行されるため、手動実行は不要</li>
+                    </ul>
+                </div>
+
+                <div class="menu-item">
                     <h4>📄 週報をPDF保存</h4>
                     <p><span class="function-name">saveToPDF</span></p>
                     <p>「週報（時数あり）」と「週報（時数あり）次週」シートを高品質PDF形式で保存します。</p>
@@ -411,18 +423,6 @@
                         <li>フォルダが存在しない場合は自動作成</li>
                         <li>フォルダIDは統一管理（C14セル）で整合性を保証</li>
                         <li>共通関数による安定したフォルダ管理</li>
-                    </ul>
-                </div>
-
-                <div class="menu-item">
-                    <h4>🔗 今日の日付へ移動</h4>
-                    <p><span class="function-name">setDailyHyperlink</span></p>
-                    <p>B1セルに今日の日付へのハイパーリンクを設定し、素早くジャンプできます。</p>
-                    <ul>
-                        <li><strong>メニュー:</strong> 📅 日常業務 → 今日の日付へ移動</li>
-                        <li>自動で今日の日付を検索し、該当行へのリンクを作成</li>
-                        <li>日付が見つからない場合はエラーメッセージを表示</li>
-                        <li>毎日自動実行されるため、手動実行は不要</li>
                     </ul>
                 </div>
             </section>
@@ -514,7 +514,7 @@
                             <td>1・2年</td>
                             <td rowspan="3">
                                 <strong>自動集計項目:</strong> 授業時数、儀式、文化、保健、遠足、勤労、欠時数、児童会、クラブ、委員会活動、補習<br>
-                                <strong>自動統合項目:</strong> MOD（モジュール学習）※累計時数シートM～O列
+                                <strong>自動統合項目:</strong> MOD（モジュール学習）※累計時数シートM～P列
                             </td>
                         </tr>
                         <tr>
@@ -578,7 +578,7 @@
                     <ul>
                         <li><strong>メニュー:</strong> 🔁 連携と年度更新 → 年度更新ファイル作成</li>
                         <li>「⚙️ 設定」→「年度更新設定」で保存したC5（ファイル名）とC7（フォルダID）に基づいて実行</li>
-                        <li>バックアップ作成後、現在のファイルの「年間行事予定表」D3:S と U3:AB のデータを自動クリア</li>
+                        <li>バックアップ作成後、現在のファイルの「年間行事予定表」D2:S と U2:AB のデータを自動クリア</li>
                         <li>ポータルマスターのURLは変わりません（同じファイルを継続利用）</li>
                     </ul>
                 </div>
@@ -660,9 +660,13 @@
                                 <li>マスター</li>
                                 <li>累計時数</li>
                                 <li>時数様式</li>
+                                <li>日直表</li>
+                                <li>module_control</li>
+                                <li>週報（時数あり）</li>
+                                <li>週報（時数あり）次週</li>
                             </ul>
                         </li>
-                        <li>app_config は通常非表示のため、「表示」→「非表示のシート」も確認</li>
+                        <li>app_config, module_control は通常非表示のため、「表示」→「非表示のシート」も確認</li>
                         <li>シート名に余分な空白やタブ文字がないことを確認</li>
                     </ul>
                 </div>
@@ -721,7 +725,7 @@
                         <li><strong>名前処理の標準化:</strong> `extractFirstName()` で全角・半角スペース統一処理</li>
                         <li><strong>フォルダ管理の統一:</strong> `getWeeklyReportFolderId()` で一元管理</li>
                         <li><strong>カレンダー管理の統一:</strong> `getOrCreateCalendarId()` で動的ID管理</li>
-                        <li><strong>エラー処理の統一:</strong> `showAlert()`, `safeExecute()` で堅牢性向上</li>
+                        <li><strong>エラー処理の統一:</strong> `showAlert()` で堅牢性向上</li>
                         <li><strong>定数管理:</strong> `EVENT_CATEGORIES`, `CONFIG_CELLS` で一元化</li>
                     </ul>
                 </div>
@@ -852,7 +856,7 @@
                     <p><strong>A:</strong> 以下を確認してください：</p>
                     <ul>
                         <li>「⚙️ 設定」→「自動トリガー設定」を実施済みか確認</li>
-                        <li>「app_config」シートC24セルが空白でないか確認（空白の場合は無効）</li>
+                        <li>「app_config」シートC21セルが空白でないか確認（空白の場合は無効）</li>
                         <li>設定ダイアログで累計時数計算がONになっているか確認</li>
                         <li>スクリプトエディタの「トリガー」メニューで実行ログを確認</li>
                     </ul>

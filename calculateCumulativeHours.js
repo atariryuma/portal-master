@@ -60,7 +60,7 @@ function calculateCumulativeHours() {
 
     syncModuleHoursWithCumulative(thisSaturday);
 
-    showAlert(formattedDate + 'を計算しました。モジュール学習計画も更新済みです。');
+    showAlert(formattedDate + 'を計算しました。モジュール学習計画も更新済みです。', '通知');
 
   } catch (error) {
     showAlert(error.message, 'エラー');

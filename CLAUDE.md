@@ -48,7 +48,7 @@ All spreadsheet structure (column indices, cell addresses, sheet names) is defin
 - `WEEKDAY_MAP` — day number to `ScriptApp.WeekDay` mapping
 - `EVENT_CATEGORIES` — category name → abbreviation mapping used in hour counting
 - `CUMULATIVE_EVENT_CATEGORIES` — derived from `EVENT_CATEGORIES` (excludes `補習`)
-- `MODULE_SHEET_NAMES` — module-related sheet names (control, plan summary, legacy names)
+- `MODULE_SHEET_NAMES` — module-related sheet names (control, plan summary)
 - `MODULE_SETTING_KEYS` — PropertiesService key names with `MODULE_` prefix
 - `MODULE_CUMULATIVE_COLUMNS` — column indices for module output in cumulative sheet
 - `CALENDAR_MANAGED_DESCRIPTION_MARKER` — managed calendar identification string
@@ -124,7 +124,7 @@ HTML dialogs (`*.html`) call server-side functions via `google.script.run`. Each
 3. `modulePlanningDialog.html` ↔ `moduleHoursDialog.js`
 4. `DateSelector.html` ↔ `aggregateSchoolEvents.js`
 
-For shared styles, render dialogs with `createTemplateFromFile(...).evaluate()` and include `<?!= include_('dialogStyles') ?>` (helper: `include_()` in `common.js`). This applies to trigger settings, annual update settings, and module planning dialogs. `DateSelector.html` does **not** use shared styles.
+For shared styles, render dialogs with `createTemplateFromFile(...).evaluate()` and include `<?!= include_('dialogStyles') ?>` (helper: `include_()` in `common.js`). This applies to trigger settings, annual update settings, and DateSelector dialogs. `modulePlanningDialog.html` does **not** use shared styles (it uses inline CSS).
 
 ### Per-Execution Caching
 

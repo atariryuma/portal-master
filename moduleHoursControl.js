@@ -167,30 +167,6 @@ function getModuleControlLayout(controlSheet) {
 }
 
 /**
- * 指定マーカー行を検索
- * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 対象シート
- * @param {string} marker - マーカー文字列
- * @param {boolean} useLast - 末尾一致を採用する場合 true
- * @return {number} 行番号（見つからない場合 -1）
- */
-function findMarkerRow(sheet, marker, useLast) {
-  const maxRows = Math.max(sheet.getLastRow(), 200);
-  const values = sheet.getRange(1, 1, maxRows, 1).getDisplayValues();
-  let found = -1;
-
-  for (let i = 0; i < values.length; i++) {
-    if (String(values[i][0] || '').trim() === marker) {
-      found = i + 1;
-      if (!useLast) {
-        break;
-      }
-    }
-  }
-
-  return found;
-}
-
-/**
  * 年間計画時数行を例外セクション直前へ追加
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {Array<Array<*>>} rows - 追加行

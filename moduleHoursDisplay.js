@@ -588,26 +588,6 @@ function getFiscalYear(date, startMonth) {
 }
 
 /**
- * monthKey(yyyy-MM) から年度を取得
- * @param {string} monthKey - 月キー
- * @return {number} 年度
- */
-function getFiscalYearFromMonthKey(monthKey) {
-  const parts = String(monthKey).split('-');
-  if (parts.length !== 2) {
-    throw new Error('monthKey の形式が不正です: ' + monthKey);
-  }
-
-  const year = Number(parts[0]);
-  const month = Number(parts[1]);
-  if (!Number.isInteger(year) || !Number.isInteger(month)) {
-    throw new Error('monthKey の値が不正です: ' + monthKey);
-  }
-
-  return getFiscalYear(new Date(year, month - 1, 1));
-}
-
-/**
  * 日付を yyyy-MM 形式に変換
  * @param {Date} date - 対象日
  * @return {string} 月キー
