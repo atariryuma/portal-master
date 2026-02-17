@@ -183,8 +183,8 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     const headers = ['学年'];
     monthLabels.forEach(function(label) { headers.push(label); });
     headers.push('合計');
-    headers.push('年間計画時数');
-    headers.push('予備時数/不足時数');
+    headers.push('計画');
+    headers.push('予備/不足');
 
     sheet.getRange(headerRow, 1, 1, headers.length).setValues([headers]);
     sheet.getRange(headerRow, 1, 1, headers.length)
