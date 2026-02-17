@@ -9,8 +9,8 @@
 function showModulePlanningDialog() {
   try {
     const htmlOutput = HtmlService.createTemplateFromFile('modulePlanningDialog').evaluate()
-      .setWidth(980)
-      .setHeight(800);
+      .setWidth(1100)
+      .setHeight(840);
     SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'モジュール学習管理');
   } catch (error) {
     showAlert('モジュール学習管理ダイアログの表示に失敗しました: ' + error.toString(), 'エラー');
@@ -449,4 +449,3 @@ function buildDeficitWarningMessage(reserveByGrade) {
 
   return '【注意】実施可能日数に対して目標コマ数が不足しています。\n' + deficits.join('、');
 }
-

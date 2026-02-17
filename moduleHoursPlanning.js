@@ -178,16 +178,9 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
     }
     const allocatedDateKeys = Object.keys(allocations).sort();
 
-    // 予備/不足 = 実施可能日数 - 計画セッション数（正=予備、負=不足）
-    // monthlyモードでは実施可能日0の月のセッションが失われるため、実配分数を使用
-    let effectiveSessions = plannedSessions;
-    if (gradeTarget.mode === MODULE_PLAN_MODE_MONTHLY) {
-      effectiveSessions = 0;
-      Object.keys(allocations).forEach(function(key) {
-        effectiveSessions += allocations[key];
-      });
-    }
-    reserveByGrade[grade] = gradeDates.length - effectiveSessions;
+    // 予備/不足 = 実施可能日数 - 目標セッション数（正=予備、負=不足）
+    // 1日1回上限により配分できない分も不足として扱う。
+    reserveByGrade[grade] = gradeDates.length - plannedSessions;
 
     allocatedDateKeys.forEach(function(dateKey) {
       const dateObj = normalizeToDate(dateKey);
@@ -361,7 +354,7 @@ function extractSchoolDayRows(startDate, endDate, enabledWeekdays) {
 }
 
 /**
- * セッションを学校週へ均等配分し、週内優先曜日で日付割当
+ * セッションを学校週へ均等配分し、週内優先曜日で日付割当（1日1回上限）
  * @param {number} totalSessions - 年間総セッション
  * @param {Object} weekMap - 週キーごとの学校日配列
  * @return {Object} dateKey別セッション数
@@ -374,24 +367,86 @@ function allocateSessionsToDateKeys(totalSessions, weekMap) {
     return allocations;
   }
 
-  const basePerWeek = Math.floor(totalSessions / weekKeys.length);
-  const remainder = totalSessions % weekKeys.length;
+  // 週ごとの候補日（重複除去済み）と容量を確定
+  const weekData = [];
+  let totalCapacity = 0;
+  weekKeys.forEach(function(weekKey) {
+    const orderedDatesRaw = sortWeekDatesByPriority(weekMap[weekKey] || []);
+    const uniqueMap = {};
+    const orderedDates = [];
 
-  weekKeys.forEach(function(weekKey, index) {
-    const extraCount = Math.floor((index + 1) * remainder / weekKeys.length) - Math.floor(index * remainder / weekKeys.length);
-    const weekSessions = basePerWeek + extraCount;
-    const orderedDates = sortWeekDatesByPriority(weekMap[weekKey]);
+    orderedDatesRaw.forEach(function(date) {
+      const dateKey = formatInputDate(date);
+      if (uniqueMap[dateKey]) {
+        return;
+      }
+      uniqueMap[dateKey] = true;
+      orderedDates.push(date);
+    });
 
-    if (weekSessions <= 0 || orderedDates.length === 0) {
-      return;
+    const capacity = orderedDates.length;
+    totalCapacity += capacity;
+    weekData.push({
+      weekKey: weekKey,
+      orderedDates: orderedDates,
+      capacity: capacity,
+      allocatedCount: 0
+    });
+  });
+
+  if (totalCapacity <= 0) {
+    return allocations;
+  }
+
+  // 1日1回上限により、割当可能数は実施可能日数総和まで
+  const assignableSessions = Math.min(Math.round(totalSessions), totalCapacity);
+  const basePerWeek = Math.floor(assignableSessions / weekData.length);
+  const remainder = assignableSessions % weekData.length;
+
+  // 第1段階: 既存ロジック同様に週へ均等配分し、週容量で上限適用
+  weekData.forEach(function(week, index) {
+    const extraCount = Math.floor((index + 1) * remainder / weekData.length) - Math.floor(index * remainder / weekData.length);
+    const target = basePerWeek + extraCount;
+    week.allocatedCount = Math.min(target, week.capacity);
+  });
+
+  // 第2段階: 祝日等で不足した分を、空きのある週へ再配分
+  let allocatedTotal = 0;
+  weekData.forEach(function(week) {
+    allocatedTotal += week.allocatedCount;
+  });
+
+  let remaining = assignableSessions - allocatedTotal;
+  while (remaining > 0) {
+    let progressed = false;
+    weekData.forEach(function(week) {
+      if (remaining <= 0) {
+        return;
+      }
+      if (week.allocatedCount < week.capacity) {
+        week.allocatedCount += 1;
+        remaining -= 1;
+        progressed = true;
+      }
+    });
+    if (!progressed) {
+      break;
     }
+  }
 
-    for (let i = 0; i < weekSessions; i++) {
-      const targetDate = orderedDates[i % orderedDates.length];
-      const dateKey = formatInputDate(targetDate);
-      allocations[dateKey] = toNumberOrZero(allocations[dateKey]) + 1;
+  // 週内優先曜日順の先頭日から割当（各日最大1）
+  weekData.forEach(function(week) {
+    for (let i = 0; i < week.allocatedCount; i++) {
+      const dateKey = formatInputDate(week.orderedDates[i]);
+      allocations[dateKey] = 1;
     }
   });
+
+  if (totalSessions > assignableSessions) {
+    Logger.log(
+      '[INFO] 1日1回上限により割当上限に到達: requested=' + totalSessions + ', assigned=' + assignableSessions
+    );
+  }
 
   return allocations;
 }

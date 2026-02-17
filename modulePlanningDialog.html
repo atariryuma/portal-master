@@ -9,33 +9,33 @@
      * 以下はこのダイアログ専用のオーバーライドと追加スタイルのみ。
      */
     body {
-      padding: 18px;
+      padding: 20px;
       background: #eef2f7;
       color: #1f2937;
     }
     .container {
       border: 1px solid #dbe3ee;
       border-radius: 12px;
-      padding: 16px;
+      padding: 20px;
       max-width: none;
       box-shadow: none;
     }
     h2 {
       text-align: left;
-      font-size: 20px;
+      font-size: 22px;
       color: inherit;
       margin: 0 0 8px 0;
     }
     h3 {
       margin: 0 0 10px 0;
-      font-size: 15px;
+      font-size: 17px;
       color: #0f172a;
     }
     .lead {
       margin: 0 0 12px 0;
       color: #475569;
-      line-height: 1.6;
-      font-size: 13px;
+      line-height: 1.7;
+      font-size: 15px;
     }
     .summary {
       display: grid;
@@ -51,12 +51,65 @@
       display: flex;
       justify-content: space-between;
       gap: 8px;
-      font-size: 12px;
+      font-size: 14px;
       color: #334155;
     }
     .summary-item strong {
       color: #0f172a;
       text-align: right;
+    }
+    .step-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .step-tab {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #334155;
+      padding: 10px 11px;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      align-items: center;
+      justify-content: center;
+      min-height: 50px;
+    }
+    .tab-main {
+      line-height: 1.2;
+    }
+    .tab-meta {
+      font-size: 11px;
+      font-weight: 500;
+      color: #64748b;
+      line-height: 1.2;
+    }
+    .step-tab:hover {
+      background: #f1f5f9;
+    }
+    .step-tab.active {
+      border-color: #2563eb;
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .step-tab.active .tab-meta {
+      color: #1d4ed8;
+    }
+    .step-tab:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+    .step-panel {
+      display: none;
+    }
+    .step-panel.active {
+      display: block;
     }
     .section {
       border: 1px solid #e2e8f0;
@@ -67,7 +120,7 @@
     }
     .section-note {
       margin: 0 0 8px 0;
-      font-size: 12px;
+      font-size: 13px;
       color: #64748b;
     }
     .toolbar {
@@ -80,7 +133,7 @@
     .toolbar label {
       display: inline;
       font-weight: normal;
-      font-size: 12px;
+      font-size: 14px;
       color: #475569;
     }
     label {
@@ -99,8 +152,8 @@
       width: auto;
       border: 1px solid #cbd5e1;
       border-radius: 6px;
-      padding: 6px 8px;
-      font-size: 12px;
+      padding: 8px 10px;
+      font-size: 14px;
       color: #0f172a;
       background: #fff;
       box-sizing: border-box;
@@ -118,18 +171,35 @@
       border-collapse: collapse;
       margin-bottom: 8px;
     }
+    .plan-table-wrap {
+      overflow-x: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .plan-table-wrap .plan-table {
+      margin-bottom: 0;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
     .plan-table th,
     .plan-table td {
       border: 1px solid #e2e8f0;
-      padding: 6px;
-      font-size: 11px;
+      padding: 8px;
+      font-size: 13px;
       text-align: center;
       vertical-align: middle;
+    }
+    .plan-table-wrap.monthly-hidden .monthly-col {
+      display: none;
     }
     .plan-table th {
       background: #f8fafc;
       color: #334155;
       font-weight: 700;
+      position: sticky;
+      top: 0;
+      z-index: 2;
     }
     .plan-table input[type="number"] {
       width: 58px;
@@ -144,8 +214,8 @@
       background: #f8fafc;
       color: #0f172a;
       border-radius: 6px;
-      padding: 6px 8px;
-      font-size: 12px;
+      padding: 7px 9px;
+      font-size: 13px;
       cursor: pointer;
     }
     .small-btn:hover {
@@ -160,7 +230,7 @@
       background: #f0fdf4;
       border: 1px solid #bbf7d0;
       border-radius: 6px;
-      font-size: 12px;
+      font-size: 13px;
       color: #166534;
     }
     .reserve-summary.has-deficit {
@@ -194,12 +264,12 @@
       gap: 4px;
     }
     .field label {
-      font-size: 11px;
+      font-size: 13px;
       color: #475569;
     }
     .hint {
       margin: 0;
-      font-size: 11px;
+      font-size: 13px;
       color: #64748b;
     }
     .exception-list {
@@ -210,8 +280,8 @@
     .exception-list th,
     .exception-list td {
       border: 1px solid #e2e8f0;
-      padding: 6px;
-      font-size: 11px;
+      padding: 7px;
+      font-size: 13px;
       text-align: left;
     }
     .exception-list th {
@@ -225,12 +295,44 @@
       flex-wrap: wrap;
       margin-top: 8px;
     }
+    .section-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .section-nav .grow {
+      flex: 1;
+    }
+    .section-nav .hint {
+      text-align: right;
+      margin-left: auto;
+    }
     button {
       border: none;
       border-radius: 6px;
-      padding: 9px 12px;
-      font-size: 13px;
+      padding: 10px 14px;
+      font-size: 14px;
       cursor: pointer;
+    }
+    .global-actions {
+      position: sticky;
+      bottom: 0;
+      z-index: 5;
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #dbe3ee;
+      border-radius: 8px;
+      background: rgba(248, 250, 252, 0.95);
+      backdrop-filter: blur(2px);
+      align-items: center;
+    }
+    .global-actions .state-text {
+      margin-right: auto;
+      color: #475569;
+      font-size: 13px;
+      white-space: nowrap;
     }
     .primary {
       background: #2563eb;
@@ -247,10 +349,33 @@
     }
     .status {
       margin-top: 10px;
-      min-height: 18px;
-      color: #475569;
-      font-size: 12px;
+      min-height: 22px;
+      font-size: 13px;
       white-space: pre-line;
+      border-radius: 6px;
+      padding: 7px 10px;
+      border: 1px solid transparent;
+      background: #f8fafc;
+      color: #475569;
+    }
+    .status.top {
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+    .status.info {
+      border-color: #cbd5e1;
+      background: #f8fafc;
+      color: #334155;
+    }
+    .status.success {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+      color: #166534;
+    }
+    .status.error {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
     }
     button:disabled,
     .small-btn:disabled {
@@ -261,13 +386,26 @@
       .summary {
         grid-template-columns: 1fr;
       }
+      .step-tabs {
+        grid-template-columns: 1fr;
+      }
       .exception-form {
         grid-template-columns: 1fr 1fr;
       }
-      .plan-table {
-        display: block;
-        overflow-x: auto;
-        white-space: nowrap;
+      .section-nav {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .section-nav .hint {
+        text-align: left;
+        margin-left: 0;
+      }
+      .global-actions {
+        position: static;
+      }
+      .global-actions .state-text {
+        white-space: normal;
+        width: 100%;
       }
     }
   </style>
@@ -303,8 +441,25 @@
       </div>
     </div>
 
-    <section class="section">
-      <h3>1. 実施設定</h3>
+    <div class="step-tabs" role="tablist" aria-label="入力ステップ">
+      <button type="button" class="step-tab active" id="stepTabSettings" data-step="settings" role="tab" aria-selected="true">
+        <span class="tab-main">1. 実施設定</span>
+        <span class="tab-meta" id="stepMetaSettings">未設定</span>
+      </button>
+      <button type="button" class="step-tab" id="stepTabPlan" data-step="plan" role="tab" aria-selected="false">
+        <span class="tab-main">2. 年間目標</span>
+        <span class="tab-meta" id="stepMetaPlan">未入力</span>
+      </button>
+      <button type="button" class="step-tab" id="stepTabException" data-step="exception" role="tab" aria-selected="false">
+        <span class="tab-main">3. 実施差分</span>
+        <span class="tab-meta" id="stepMetaException">0件</span>
+      </button>
+    </div>
+
+    <div class="status top info" id="status" role="status" aria-live="polite">現在の状態を読み込み中...</div>
+
+    <section class="section step-panel active" id="stepPanelSettings" data-step="settings" role="tabpanel" aria-labelledby="stepTabSettings">
+      <h3>実施設定</h3>
       <p class="section-note">モジュール学習の実施曜日と実施期間を設定します。</p>
 
       <div class="toolbar" style="margin-bottom: 12px;">
@@ -334,12 +489,16 @@
       </div>
 
       <div class="action-row">
-        <button type="button" class="primary" id="saveSettingsButton" onclick="saveSettings()">実施設定を保存して再集計</button>
+        <button type="button" class="sub" id="saveSettingsButton" onclick="saveSettings()">このステップを保存</button>
+      </div>
+      <div class="section-nav">
+        <span class="hint grow">保存後に「年間目標」へ進むと入力がスムーズです。</span>
+        <button type="button" class="sub" onclick="switchStep('plan')">次へ: 年間目標</button>
       </div>
     </section>
 
-    <section class="section">
-      <h3>2. 年間目標入力</h3>
+    <section class="section step-panel" id="stepPanelPlan" data-step="plan" role="tabpanel" aria-labelledby="stepTabPlan">
+      <h3>年間目標入力</h3>
       <p class="section-note">各学年の年間目標コマ数（1コマ＝1単位時間＝45分）を入力してください。</p>
       <div class="toolbar">
         <label for="fiscalYearInput">対象年度</label>
@@ -347,41 +506,49 @@
         <label for="bulkKomaInput">全学年一括</label>
         <input id="bulkKomaInput" type="number" min="0" step="1" value="28" style="width:68px">
         <button type="button" class="small-btn" onclick="setAllGradeKoma()">一括設定</button>
+        <button type="button" class="small-btn" id="toggleMonthlyColumnsButton" onclick="toggleMonthlyColumns()">月別列を非表示</button>
       </div>
-      <table class="plan-table" aria-label="年間目標">
-        <thead>
-          <tr>
-            <th>学年</th>
-            <th>モード</th>
-            <th>年間コマ</th>
-            <th>4月</th>
-            <th>5月</th>
-            <th>6月</th>
-            <th>7月</th>
-            <th>8月</th>
-            <th>9月</th>
-            <th>10月</th>
-            <th>11月</th>
-            <th>12月</th>
-            <th>1月</th>
-            <th>2月</th>
-            <th>3月</th>
-          </tr>
-        </thead>
-        <tbody id="planBody"></tbody>
-      </table>
+      <div class="plan-table-wrap" id="planTableWrap">
+        <table class="plan-table" aria-label="年間目標">
+          <thead>
+            <tr>
+              <th>学年</th>
+              <th>モード</th>
+              <th>年間コマ</th>
+              <th class="monthly-col">4月</th>
+              <th class="monthly-col">5月</th>
+              <th class="monthly-col">6月</th>
+              <th class="monthly-col">7月</th>
+              <th class="monthly-col">8月</th>
+              <th class="monthly-col">9月</th>
+              <th class="monthly-col">10月</th>
+              <th class="monthly-col">11月</th>
+              <th class="monthly-col">12月</th>
+              <th class="monthly-col">1月</th>
+              <th class="monthly-col">2月</th>
+              <th class="monthly-col">3月</th>
+            </tr>
+          </thead>
+          <tbody id="planBody"></tbody>
+        </table>
+      </div>
       <div style="margin-top:6px;">
         <label style="font-size:11px; color:#475569;">メモ</label>
         <input id="planNote" type="text" style="width:300px;" placeholder="備考">
       </div>
       <div id="reserveSummary" class="reserve-summary" style="display:none;"></div>
       <div class="action-row">
-        <button type="button" class="primary" id="savePlanButton" onclick="savePlan()">年間目標を保存して再集計</button>
+        <button type="button" class="sub" id="savePlanButton" onclick="savePlan()">このステップを保存</button>
+      </div>
+      <div class="section-nav">
+        <button type="button" class="sub" onclick="switchStep('settings')">戻る: 実施設定</button>
+        <span class="hint grow">保存後に「実施差分」で当日運用を記録できます。</span>
+        <button type="button" class="sub" onclick="switchStep('exception')">次へ: 実施差分</button>
       </div>
     </section>
 
-    <section class="section">
-      <h3>3. 実施差分入力</h3>
+    <section class="section step-panel" id="stepPanelException" data-step="exception" role="tabpanel" aria-labelledby="stepTabException">
+      <h3>実施差分入力</h3>
       <p class="section-note">実施に合わせて差分だけ入力します。差分値は15分単位で、+は追加・-は減算です（+3は+1コマ、-1は-15分）。</p>
 
       <div class="exception-form">
@@ -416,7 +583,7 @@
       </div>
 
       <div class="action-row">
-        <button type="button" class="primary" id="addExceptionButton" onclick="addException()">実施差分を保存して再集計</button>
+        <button type="button" class="sub" id="addExceptionButton" onclick="addException()">このステップを保存</button>
       </div>
 
       <table class="exception-list" aria-label="最近の差分">
@@ -431,31 +598,154 @@
         </thead>
         <tbody id="recentExceptionBody"></tbody>
       </table>
+      <div class="section-nav">
+        <button type="button" class="sub" onclick="switchStep('plan')">戻る: 年間目標</button>
+        <span class="hint grow">日々の運用ではこの画面だけ開けば更新できます。</span>
+      </div>
     </section>
 
-    <div class="action-row">
+    <div class="action-row global-actions">
+      <span class="state-text" id="globalStateText">現在のステップを確認中です。</span>
+      <button type="button" class="primary" id="globalSaveButton" onclick="handleGlobalSave()" disabled>変更を保存</button>
       <button type="button" class="sub" id="refreshButton" onclick="refreshPlanning()">再集計のみ実行</button>
       <button type="button" class="close" id="closeButton" onclick="google.script.host.close()">閉じる</button>
     </div>
 
-    <div class="status" id="status"></div>
   </div>
 
   <script>
     let currentState = {};
+    let activeStep = 'settings';
+    const STEP_KEYS = ['settings', 'plan', 'exception'];
+    const STEP_LABELS = {
+      settings: '実施設定',
+      plan: '年間目標',
+      exception: '実施差分'
+    };
+    const stepDirty = {
+      settings: false,
+      plan: false,
+      exception: false
+    };
+    let isLoading = false;
+    let monthlyColumnsHidden = false;
+    let monthlyColumnsInitialized = false;
 
-    function setStatus(text) {
-      document.getElementById('status').textContent = text || '';
+    function getStepLabel(stepKey) {
+      return STEP_LABELS[stepKey] || stepKey;
     }
 
-    function setLoading(isLoading) {
-      const ids = ['saveSettingsButton', 'savePlanButton', 'addExceptionButton', 'refreshButton', 'closeButton'];
+    function setStepDirty(stepKey, dirty) {
+      if (STEP_KEYS.indexOf(stepKey) === -1) {
+        return;
+      }
+      stepDirty[stepKey] = Boolean(dirty);
+      updateGlobalActionState();
+    }
+
+    function clearDirtyState() {
+      STEP_KEYS.forEach(function(stepKey) {
+        stepDirty[stepKey] = false;
+      });
+      updateGlobalActionState();
+    }
+
+    function updateGlobalActionState() {
+      const saveButton = document.getElementById('globalSaveButton');
+      const stateText = document.getElementById('globalStateText');
+      const dirty = Boolean(stepDirty[activeStep]);
+      const label = getStepLabel(activeStep);
+
+      if (stateText) {
+        stateText.textContent = dirty
+          ? label + 'に未保存の変更があります。'
+          : label + 'は保存済みです。';
+      }
+
+      if (saveButton) {
+        saveButton.disabled = isLoading || !dirty;
+        saveButton.textContent = '変更を保存';
+        saveButton.title = label + 'を保存';
+      }
+    }
+
+    function handleGlobalSave() {
+      if (isLoading) {
+        return;
+      }
+
+      if (!stepDirty[activeStep]) {
+        setStatus(getStepLabel(activeStep) + 'に未保存の変更はありません。', 'info');
+        return;
+      }
+
+      if (activeStep === 'settings') {
+        saveSettings();
+      } else if (activeStep === 'plan') {
+        savePlan();
+      } else if (activeStep === 'exception') {
+        addException();
+      }
+    }
+
+    function switchStep(stepKey) {
+      if (STEP_KEYS.indexOf(stepKey) === -1) {
+        return;
+      }
+      activeStep = stepKey;
+
+      const tabs = document.querySelectorAll('.step-tab');
+      tabs.forEach(function(tab) {
+        const isActive = tab.getAttribute('data-step') === stepKey;
+        tab.classList.toggle('active', isActive);
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+
+      const panels = document.querySelectorAll('.step-panel');
+      panels.forEach(function(panel) {
+        const isActive = panel.getAttribute('data-step') === stepKey;
+        panel.classList.toggle('active', isActive);
+      });
+
+      updateGlobalActionState();
+    }
+
+    function bindStepTabs() {
+      const tabs = document.querySelectorAll('.step-tab');
+      tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          const step = tab.getAttribute('data-step');
+          switchStep(step);
+        });
+      });
+    }
+
+    function setStatus(text, type) {
+      const status = document.getElementById('status');
+      if (!text) {
+        status.textContent = '';
+        status.className = 'status top info';
+        return;
+      }
+      const statusType = type || 'info';
+      status.textContent = text;
+      status.className = 'status top ' + statusType;
+    }
+
+    function setLoading(loading) {
+      isLoading = Boolean(loading);
+      const ids = ['saveSettingsButton', 'savePlanButton', 'addExceptionButton', 'refreshButton', 'closeButton', 'toggleMonthlyColumnsButton'];
       ids.forEach(function(id) {
         const el = document.getElementById(id);
         if (el) {
           el.disabled = isLoading;
         }
       });
+      const tabs = document.querySelectorAll('.step-tab');
+      tabs.forEach(function(tab) {
+        tab.disabled = isLoading;
+      });
+      updateGlobalActionState();
     }
 
     function getErrorMessage(error) {
@@ -471,6 +761,83 @@
       document.getElementById('exceptionCount').textContent = (state.exceptionRecordCount || 0) + '件';
       document.getElementById('lastGeneratedAt').textContent = state.lastGeneratedAt || '未生成';
       document.getElementById('fiscalYearInput').value = state.fiscalYear || '';
+    }
+
+    function updateStepMeta(state) {
+      const weekdays = Array.isArray(state.enabledWeekdays) ? state.enabledWeekdays : [];
+      const hasRange = Boolean(state.startDate && state.endDate);
+      const settingsMeta = hasRange && weekdays.length > 0
+        ? '設定済み（' + weekdays.length + '曜）'
+        : '未設定';
+
+      const grades = state.annualTarget && state.annualTarget.grades ? state.annualTarget.grades : {};
+      let configuredGrades = 0;
+      for (let grade = 1; grade <= 6; grade++) {
+        const item = grades[grade];
+        const koma = item && Number(item.annualKoma);
+        if (Number.isFinite(koma) && koma > 0) {
+          configuredGrades++;
+        }
+      }
+      const planMeta = configuredGrades + '/6学年';
+      const exceptionMeta = String(state.exceptionRecordCount || 0) + '件';
+
+      document.getElementById('stepMetaSettings').textContent = settingsMeta;
+      document.getElementById('stepMetaPlan').textContent = planMeta;
+      document.getElementById('stepMetaException').textContent = exceptionMeta;
+    }
+
+    function hasMonthlyMode(target) {
+      const grades = target && target.grades ? target.grades : {};
+      for (let grade = 1; grade <= 6; grade++) {
+        if (grades[grade] && grades[grade].mode === 'monthly') {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function setMonthlyColumnsHidden(hidden) {
+      monthlyColumnsHidden = Boolean(hidden);
+      const wrap = document.getElementById('planTableWrap');
+      const toggleButton = document.getElementById('toggleMonthlyColumnsButton');
+      if (wrap) {
+        wrap.classList.toggle('monthly-hidden', monthlyColumnsHidden);
+      }
+      if (toggleButton) {
+        toggleButton.textContent = monthlyColumnsHidden ? '月別列を表示' : '月別列を非表示';
+        toggleButton.setAttribute('aria-pressed', monthlyColumnsHidden ? 'true' : 'false');
+      }
+    }
+
+    function toggleMonthlyColumns() {
+      setMonthlyColumnsHidden(!monthlyColumnsHidden);
+    }
+
+    function bindDirtyTracking() {
+      const settingsPanel = document.getElementById('stepPanelSettings');
+      settingsPanel.addEventListener('input', function() {
+        setStepDirty('settings', true);
+      });
+      settingsPanel.addEventListener('change', function() {
+        setStepDirty('settings', true);
+      });
+
+      const planPanel = document.getElementById('stepPanelPlan');
+      planPanel.addEventListener('input', function() {
+        setStepDirty('plan', true);
+      });
+      planPanel.addEventListener('change', function() {
+        setStepDirty('plan', true);
+      });
+
+      const exceptionPanel = document.getElementById('stepPanelException');
+      exceptionPanel.addEventListener('input', function() {
+        setStepDirty('exception', true);
+      });
+      exceptionPanel.addEventListener('change', function() {
+        setStepDirty('exception', true);
+      });
     }
 
     function escapeHtml(value) {
@@ -499,22 +866,22 @@
         tr.setAttribute('data-grade', String(grade));
 
         let html = '<td>' + grade + '年</td>';
-        html += '<td style="white-space:nowrap; font-size:10px;">';
+        html += '<td style="white-space:nowrap;">';
         html += '<label><input type="radio" name="mode_' + grade + '" value="annual"' +
                 (!isMonthly ? ' checked' : '') + ' onchange="toggleGradeMode(' + grade + ')"> 年間</label> ';
         html += '<label><input type="radio" name="mode_' + grade + '" value="monthly"' +
                 (isMonthly ? ' checked' : '') + ' onchange="toggleGradeMode(' + grade + ')"> 月別</label>';
         html += '</td>';
         html += '<td>';
-        html += '<input type="number" class="annual-koma" data-grade="' + grade + '" min="0" step="1" value="' + escapeHtml(annualKoma) + '" style="width:50px;' + (isMonthly ? ' display:none;' : '') + '">';
-        html += '<span class="auto-koma" data-grade="' + grade + '" style="font-size:11px;' + (isMonthly ? '' : ' display:none;') + '">' + annualKoma + '</span>';
+        html += '<input type="number" class="annual-koma" data-grade="' + grade + '" min="0" step="1" value="' + escapeHtml(annualKoma) + '" style="width:58px;' + (isMonthly ? ' display:none;' : '') + '">';
+        html += '<span class="auto-koma" data-grade="' + grade + '" style="font-size:12px;' + (isMonthly ? '' : ' display:none;') + '">' + annualKoma + '</span>';
         html += '</td>';
 
         months.forEach(function(m) {
           const val = Number(monthlyKoma[m]) || 0;
-          html += '<td>';
-          html += '<input type="number" class="monthly-koma" data-grade="' + grade + '" data-month="' + m + '" min="0" step="1" value="' + val + '" style="width:36px;' + (isMonthly ? '' : ' display:none;') + '" oninput="updateMonthlyTotal(' + grade + ')">';
-          html += '<span class="monthly-placeholder" data-grade="' + grade + '" style="color:#94a3b8; font-size:10px;' + (isMonthly ? ' display:none;' : '') + '">-</span>';
+          html += '<td class="monthly-col">';
+          html += '<input type="number" class="monthly-koma" data-grade="' + grade + '" data-month="' + m + '" min="0" step="1" value="' + val + '" style="width:42px;' + (isMonthly ? '' : ' display:none;') + '" oninput="updateMonthlyTotal(' + grade + ')">';
+          html += '<span class="monthly-placeholder" data-grade="' + grade + '" style="color:#94a3b8; font-size:11px;' + (isMonthly ? ' display:none;' : '') + '">-</span>';
           html += '</td>';
         });
 
@@ -534,6 +901,9 @@
       const placeholders = document.querySelectorAll('.monthly-placeholder[data-grade="' + grade + '"]');
 
       if (isMonthly) {
+        if (monthlyColumnsHidden) {
+          setMonthlyColumnsHidden(false);
+        }
         annualInput.style.display = 'none';
         autoKomaSpan.style.display = '';
         let hasNonZero = false;
@@ -580,7 +950,7 @@
     function setAllGradeKoma() {
       const value = Number(document.getElementById('bulkKomaInput').value);
       if (!Number.isFinite(value) || value < 0) {
-        setStatus('全学年一括の値を0以上の数値で入力してください。');
+        setStatus('全学年一括の値を0以上の数値で入力してください。', 'error');
         return;
       }
       const rounded = Math.round(value);
@@ -595,6 +965,7 @@
           annualInput.value = String(rounded);
         }
       }
+      setStepDirty('plan', true);
     }
 
     function collectAnnualTarget() {
@@ -728,29 +1099,29 @@
     function saveSettings() {
       const weekdays = collectWeekdays();
       if (weekdays.length === 0) {
-        setStatus('実施曜日を1つ以上選択してください。');
+        setStatus('実施曜日を1つ以上選択してください。', 'error');
         return;
       }
 
       const startDate = document.getElementById('planStartDate').value;
       const endDate = document.getElementById('planEndDate').value;
       if (!startDate || !endDate) {
-        setStatus('実施期間の開始日と終了日を入力してください。');
+        setStatus('実施期間の開始日と終了日を入力してください。', 'error');
         return;
       }
 
       setLoading(true);
-      setStatus('実施設定を保存して再集計しています...');
+      setStatus('実施設定を保存して再集計しています...', 'info');
 
       google.script.run
         .withSuccessHandler(function(message) {
           setLoading(false);
-          setStatus(message || '実施設定を保存しました。');
+          setStatus(message || '実施設定を保存しました。', 'success');
           loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
-          setStatus('実施設定の保存に失敗しました: ' + getErrorMessage(error));
+          setStatus('実施設定の保存に失敗しました: ' + getErrorMessage(error), 'error');
         })
         .saveModuleSettingsFromDialog({
           weekdays: weekdays,
@@ -763,31 +1134,41 @@
     function applyState(state) {
       currentState = state || {};
       updateSummary(currentState);
+      updateStepMeta(currentState);
       renderWeekdayCheckboxes(currentState.enabledWeekdays || [1, 3, 5]);
       renderPeriodInputs(currentState);
       renderAnnualTarget(currentState.annualTarget || {});
+      if (hasMonthlyMode(currentState.annualTarget || {})) {
+        setMonthlyColumnsHidden(false);
+      } else if (!monthlyColumnsInitialized) {
+        setMonthlyColumnsHidden(true);
+      } else {
+        setMonthlyColumnsHidden(monthlyColumnsHidden);
+      }
+      monthlyColumnsInitialized = true;
       renderReserveSummary(currentState.reserveByGrade || null);
       renderRecentExceptions(currentState.recentExceptions || []);
 
       document.getElementById('exceptionDate').value = currentState.defaultExceptionDate || '';
       populateGradeOptions();
       updateDeltaHint();
+      clearDirtyState();
     }
 
     function loadDialogState(keepStatus) {
       if (!keepStatus) {
-        setStatus('現在の状態を読み込み中...');
+        setStatus('現在の状態を読み込み中...', 'info');
       }
 
       google.script.run
         .withSuccessHandler(function(state) {
           applyState(state || {});
           if (!keepStatus) {
-            setStatus('');
+            setStatus('入力内容を確認して保存してください。', 'info');
           }
         })
         .withFailureHandler(function(error) {
-          setStatus('状態の取得に失敗しました: ' + getErrorMessage(error));
+          setStatus('状態の取得に失敗しました: ' + getErrorMessage(error), 'error');
         })
         .getModulePlanningDialogState();
     }
@@ -812,22 +1193,22 @@
       try {
         target = collectAnnualTarget();
       } catch (error) {
-        setStatus(getErrorMessage(error));
+        setStatus(getErrorMessage(error), 'error');
         return;
       }
 
       setLoading(true);
-      setStatus('年間目標を保存して再集計しています...');
+      setStatus('年間目標を保存して再集計しています...', 'info');
 
       google.script.run
         .withSuccessHandler(function(message) {
           setLoading(false);
-          setStatus(message || '年間目標を保存しました。');
+          setStatus(message || '年間目標を保存しました。', 'success');
           loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
-          setStatus('年間目標の保存に失敗しました: ' + getErrorMessage(error));
+          setStatus('年間目標の保存に失敗しました: ' + getErrorMessage(error), 'error');
         })
         .saveModuleAnnualTargetFromDialog({
           fiscalYear: fiscalYear,
@@ -836,9 +1217,12 @@
         });
     }
 
-    function setDelta(value) {
+    function setDelta(value, markDirty) {
       document.getElementById('deltaSessionsInput').value = String(value);
       updateDeltaHint();
+      if (markDirty !== false) {
+        setStepDirty('exception', true);
+      }
     }
 
     function updateDeltaHint() {
@@ -860,51 +1244,55 @@
       };
 
       if (!payload.date) {
-        setStatus('日付を入力してください。');
+        setStatus('日付を入力してください。', 'error');
         return;
       }
       if (!payload.deltaSessions) {
-        setStatus('差分値は0以外で入力してください。');
+        setStatus('差分値は0以外で入力してください。', 'error');
         return;
       }
 
       setLoading(true);
-      setStatus('実施差分を保存して再集計しています...');
+      setStatus('実施差分を保存して再集計しています...', 'info');
 
       google.script.run
         .withSuccessHandler(function(message) {
           setLoading(false);
-          setStatus(message || '実施差分を追加しました。');
+          setStatus(message || '実施差分を追加しました。', 'success');
           document.getElementById('exceptionReason').value = '';
           document.getElementById('exceptionNote').value = '';
           loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
-          setStatus('実施差分の保存に失敗しました: ' + getErrorMessage(error));
+          setStatus('実施差分の保存に失敗しました: ' + getErrorMessage(error), 'error');
         })
         .addModuleExceptionFromDialog(payload);
     }
 
     function refreshPlanning() {
       setLoading(true);
-      setStatus('再集計を実行中...');
+      setStatus('再集計を実行中...', 'info');
       google.script.run
         .withSuccessHandler(function(message) {
           setLoading(false);
-          setStatus(message || '再集計が完了しました。');
+          setStatus(message || '再集計が完了しました。', 'success');
           loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
-          setStatus('再集計に失敗しました: ' + getErrorMessage(error));
+          setStatus('再集計に失敗しました: ' + getErrorMessage(error), 'error');
         })
         .refreshModulePlanning();
     }
 
     window.onload = function() {
+      bindStepTabs();
+      bindDirtyTracking();
+      switchStep('settings');
+      updateGlobalActionState();
       loadDialogState(false);
-      setDelta(3);
+      setDelta(3, false);
     };
   </script>
 </body>

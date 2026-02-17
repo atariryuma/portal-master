@@ -32,7 +32,7 @@ function syncModuleHoursWithCumulative(baseDate, options) {
   const exceptionTotals = loadExceptionTotals(fiscalYear, normalizedBaseDate, controlSheet);
   const gradeTotals = buildGradeTotalsFromDailyAndExceptions(buildResult.totalsByGrade, exceptionTotals);
 
-  writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate, buildResult.reserveByGrade);
+  writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate);
 
   const annualTarget = loadAnnualTargetForFiscalYear(fiscalYear, controlSheet);
   writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays, normalizedBaseDate);
@@ -60,9 +60,8 @@ function syncModuleHoursWithCumulative(baseDate, options) {
  * 累計時数シートへモジュール累計を出力
  * @param {Object} gradeTotals - 学年別合計
  * @param {Date} baseDate - 基準日
- * @param {Object=} reserveByGrade - 学年別予備セッション数
  */
-function writeModuleToCumulativeSheet(gradeTotals, baseDate, reserveByGrade) {
+function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
   const cumulativeSheet = getSheetByNameOrThrow(CUMULATIVE_SHEET.NAME);
   const displayColumn = MODULE_CUMULATIVE_COLUMNS.DISPLAY;
   const rowCount = MODULE_GRADE_MAX - MODULE_GRADE_MIN + 1;
@@ -89,8 +88,7 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate, reserveByGrade) {
   cumulativeSheet.getRange(2, displayColumn).setValue(MODULE_DISPLAY_HEADER);
   const displayRows = [];
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-    const reserveSessions = reserveByGrade ? toNumberOrZero(reserveByGrade[grade]) : 0;
-    displayRows.push([buildModuleDisplayValue(gradeTotals[grade], reserveSessions)]);
+    displayRows.push([buildModuleDisplayValue(gradeTotals[grade])]);
   }
   cumulativeSheet.getRange(3, displayColumn, displayRows.length, 1).setValues(displayRows);
 
@@ -410,19 +408,11 @@ function cleanupStaleDisplayColumns(cumulativeSheet, displayColumn, rowCount) {
 /**
  * 表示列セル文字列を組み立て
  * @param {Object} total - 学年別合計
- * @param {number=} reserveSessions - 予備セッション数
  * @return {string} 表示文字列
  */
-function buildModuleDisplayValue(total, reserveSessions) {
-  let display = formatSessionsAsMixedFraction(total.actualSessions) +
+function buildModuleDisplayValue(total) {
+  return formatSessionsAsMixedFraction(total.actualSessions) +
     '（' + MODULE_WEEKLY_LABEL + ' ' + formatSignedSessionsAsMixedFraction(total.thisWeekSessions) + '）';
-
-  const reserve = toNumberOrZero(reserveSessions);
-  if (reserve > 0) {
-    display += MODULE_RESERVE_LABEL + ' ' + formatSessionsAsMixedFraction(reserve) + 'コマ';
-  }
-
-  return display;
 }
 
 /**

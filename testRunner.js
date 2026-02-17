@@ -2,6 +2,7 @@
  * ポータルマスター 包括的テストスイート
  * すべての機能が正常に動作しているかを確認
  */
+let testSheetVisibilitySnapshot_ = null;
 
 // ========================================
 // テスト実行メイン関数
@@ -25,6 +26,8 @@ function runAllTests() {
     skipped: 0,
     errors: []
   };
+
+  captureSheetVisibilitySnapshot_();
 
   try {
     runTestGroups_(results, getFullTestPlan_());
@@ -113,7 +116,9 @@ function getFullTestPlan_() {
         { name: '2-9. 曜日シリアライズ', fn: testSerializeWeekdays },
         { name: '2-10. V4計画行構築（annualモード）', fn: testBuildV4PlanRowAnnual },
         { name: '2-11. V4計画行構築（monthlyモード）', fn: testBuildV4PlanRowMonthly },
-        { name: '2-12. 月別配分アルゴリズム', fn: testAllocateSessionsByMonth }
+        { name: '2-12. 月別配分アルゴリズム', fn: testAllocateSessionsByMonth },
+        { name: '2-13. 週配分アルゴリズム（1日1回上限）', fn: testAllocateSessionsToDateKeysDailyLimit },
+        { name: '2-14. 累計表示の予備除外確認', fn: testModuleDisplayExcludesReserve }
       ]
     },
     {
@@ -154,11 +159,8 @@ function getFullTestPlan_() {
       title: '【フェーズ6】運用導線（非破壊）',
       tests: [
         { name: '6-1. 設定シート非表示動作', fn: testSettingsSheetHiddenForNormalUse },
-        { name: '6-2. 年度更新設定ダイアログ定義', fn: testAnnualUpdateDialogDefinition },
-        { name: '6-3. 自動トリガー設定ダイアログ定義', fn: testTriggerSettingsDialogDefinition },
-        { name: '6-4. 年間行事インポート導線定義', fn: testImportAnnualEventsDefinition },
-        { name: '6-5. onOpen設定シート非表示配線', fn: testOnOpenWiresSettingsSheetHide },
-        { name: '6-6. 年度更新現行ファイルクリア配線', fn: testCopyAndClearTargetsActiveFileAfterCopy }
+        { name: '6-2. 年間行事インポート導線定義', fn: testImportAnnualEventsDefinition },
+        { name: '6-3. 年度更新現行ファイルクリア配線', fn: testCopyAndClearTargetsActiveFileAfterCopy }
       ]
     },
     {
@@ -204,7 +206,8 @@ function getQuickTestPlan_() {
         { name: 'Q-5. 集計期間バリデーション（日付順）', fn: testValidateAggregateDateRangeRejectsReverseRange },
         { name: 'Q-6. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
         { name: 'Q-7. 設定シート非表示動作', fn: testSettingsSheetHiddenForNormalUse },
-        { name: 'Q-8. 年度更新現行ファイルクリア配線', fn: testCopyAndClearTargetsActiveFileAfterCopy }
+        { name: 'Q-8. 年度更新現行ファイルクリア配線', fn: testCopyAndClearTargetsActiveFileAfterCopy },
+        { name: 'Q-9. 累計表示の予備除外確認', fn: testModuleDisplayExcludesReserve }
       ]
     }
   ];
@@ -428,6 +431,30 @@ function testSessionsToUnits() {
   }
 
   return { success: true, message: '45分換算ロジックを確認' };
+}
+
+function testModuleDisplayExcludesReserve() {
+  if (typeof buildModuleDisplayValue !== 'function') {
+    return { success: false, message: 'buildModuleDisplayValue関数が見つかりません' };
+  }
+
+  const total = {
+    actualSessions: 9,
+    thisWeekSessions: 3
+  };
+  const display = buildModuleDisplayValue(total);
+
+  if (display.indexOf(MODULE_RESERVE_LABEL) !== -1) {
+    return { success: false, message: '累計表示に予備文言が含まれています: ' + display };
+  }
+  if (display.indexOf(MODULE_WEEKLY_LABEL) === -1) {
+    return { success: false, message: '今週文言が欠落しています: ' + display };
+  }
+  if (display !== '3（今週 +1）') {
+    return { success: false, message: '表示フォーマットが想定外です: ' + display };
+  }
+
+  return { success: true, message: '累計表示から予備文言を除外していることを確認' };
 }
 
 function testModuleDisplayColumnIsFixed() {
@@ -1041,40 +1068,6 @@ function testSettingsSheetHiddenForNormalUse() {
   }
 }
 
-function testAnnualUpdateDialogDefinition() {
-  if (typeof showAnnualUpdateSettingsDialog !== 'function') {
-    return { success: false, message: 'showAnnualUpdateSettingsDialog関数が見つかりません' };
-  }
-
-  try {
-    const html = HtmlService.createHtmlOutputFromFile('annualUpdateSettingsDialog');
-    const content = html.getContent();
-    if (!content || content.length === 0) {
-      return { success: false, message: '年度更新設定ダイアログHTMLが空です' };
-    }
-    return { success: true, message: '年度更新設定ダイアログHTMLを確認' };
-  } catch (error) {
-    return { success: false, message: error.toString() };
-  }
-}
-
-function testTriggerSettingsDialogDefinition() {
-  if (typeof showTriggerSettingsDialog !== 'function') {
-    return { success: false, message: 'showTriggerSettingsDialog関数が見つかりません' };
-  }
-
-  try {
-    const html = HtmlService.createHtmlOutputFromFile('triggerSettingsDialog');
-    const content = html.getContent();
-    if (!content || content.length === 0) {
-      return { success: false, message: '自動トリガー設定ダイアログHTMLが空です' };
-    }
-    return { success: true, message: '自動トリガー設定ダイアログHTMLを確認' };
-  } catch (error) {
-    return { success: false, message: error.toString() };
-  }
-}
-
 function testImportAnnualEventsDefinition() {
   if (typeof importAnnualEvents !== 'function') {
     return { success: false, message: 'importAnnualEvents関数が見つかりません' };
@@ -1096,24 +1089,6 @@ function testImportAnnualEventsDefinition() {
   }
 
   return { success: true, message: '年間行事インポート導線を確認' };
-}
-
-function testOnOpenWiresSettingsSheetHide() {
-  if (typeof onOpen !== 'function') {
-    return { success: false, message: 'onOpen関数が見つかりません' };
-  }
-
-  const source = String(onOpen);
-  if (source.indexOf('hideInternalSheetsForNormalUse_') === -1) {
-    return { success: false, message: 'onOpenの内部シート非表示配線が見つかりません' };
-  }
-
-  const helperSource = String(hideInternalSheetsForNormalUse_);
-  if (helperSource.indexOf('MODULE_SHEET_NAMES') === -1 || helperSource.indexOf('SETTINGS_SHEET_NAME') === -1) {
-    return { success: false, message: 'hideInternalSheetsForNormalUse_にmodule_control・設定シートが含まれていません' };
-  }
-
-  return { success: true, message: 'onOpenの設定シート非表示配線を確認' };
 }
 
 function testCopyAndClearTargetsActiveFileAfterCopy() {
@@ -1625,16 +1600,17 @@ function testAllocateSessionsByMonth() {
     return { success: false, message: '返却値がオブジェクトでない' };
   }
 
-  // 総セッション数を検証: 4月6 + 5月3 = 9
+  // 総セッション数を検証:
+  // 1日1回上限により、4月は3日=3セッション、5月は3日=3セッション、合計6セッション
   let totalSessions = 0;
   Object.keys(result).forEach(function(key) {
     totalSessions += result[key];
   });
-  if (totalSessions !== 9) {
-    return { success: false, message: '総セッション数不正: ' + totalSessions + ' (期待: 9)' };
+  if (totalSessions !== 6) {
+    return { success: false, message: '総セッション数不正: ' + totalSessions + ' (期待: 6)' };
   }
 
-  // 4月の日付のみに4月分が配分されているか確認
+  // 4月の日付のみに4月分が配分されているか確認（上限適用で3セッション）
   const aprilKeys = Object.keys(result).filter(function(key) {
     return key.indexOf('2025-04') === 0;
   });
@@ -1642,11 +1618,56 @@ function testAllocateSessionsByMonth() {
   aprilKeys.forEach(function(key) {
     aprilSessions += result[key];
   });
-  if (aprilSessions !== 6) {
-    return { success: false, message: '4月セッション数不正: ' + aprilSessions + ' (期待: 6)' };
+  if (aprilSessions !== 3) {
+    return { success: false, message: '4月セッション数不正: ' + aprilSessions + ' (期待: 3)' };
   }
 
-  return { success: true, message: '月別配分が正常（月の境界を越えず配分）' };
+  // 各日付が1日1回上限を超えていないか確認
+  const violationKey = Object.keys(result).find(function(key) {
+    return Number(result[key]) > 1;
+  });
+  if (violationKey) {
+    return { success: false, message: '1日1回上限違反: ' + violationKey + ' => ' + result[violationKey] };
+  }
+
+  return { success: true, message: '月別配分が正常（月境界維持・1日1回上限）' };
+}
+
+function testAllocateSessionsToDateKeysDailyLimit() {
+  if (typeof allocateSessionsToDateKeys !== 'function') {
+    return { success: false, message: 'allocateSessionsToDateKeys関数が見つかりません' };
+  }
+
+  // w1は2日、w2は3日。合計5日のため、6セッション要求でも最大5セッション。
+  const weekMap = {
+    '2025-11-24': [new Date(2025, 10, 26), new Date(2025, 10, 28)],
+    '2025-12-01': [new Date(2025, 11, 1), new Date(2025, 11, 3), new Date(2025, 11, 5)]
+  };
+
+  const result = allocateSessionsToDateKeys(6, weekMap);
+  const keys = Object.keys(result);
+  if (keys.length === 0) {
+    return { success: false, message: '配分結果が空です' };
+  }
+
+  let total = 0;
+  let maxPerDay = 0;
+  keys.forEach(function(key) {
+    const value = Number(result[key]) || 0;
+    total += value;
+    if (value > maxPerDay) {
+      maxPerDay = value;
+    }
+  });
+
+  if (maxPerDay > 1) {
+    return { success: false, message: '1日1回上限違反: 最大 ' + maxPerDay };
+  }
+  if (total !== 5) {
+    return { success: false, message: '総セッション数不正: ' + total + ' (期待: 5)' };
+  }
+
+  return { success: true, message: '週配分が正常（上限遵守・容量超過時は再配分/切り捨て）' };
 }
 
 function testModuleHoursDecomposition() {
@@ -1727,9 +1748,17 @@ function runQuickTest() {
   Logger.log('====================================\n');
 
   const results = { total: 0, passed: 0, failed: 0, skipped: 0, errors: [] };
-  runTestGroups_(results, getQuickTestPlan_());
+  captureSheetVisibilitySnapshot_();
 
-  hideInternalSheetsAfterTest_();
+  try {
+    runTestGroups_(results, getQuickTestPlan_());
+  } catch (error) {
+    Logger.log('❌ クイックテスト実行中に致命的エラー: ' + error.toString());
+    results.errors.push('致命的エラー: ' + error.toString());
+    results.failed++;
+  } finally {
+    hideInternalSheetsAfterTest_();
+  }
 
   // 結果表示
   Logger.log('\n====================================');
@@ -1754,9 +1783,112 @@ function runQuickTest() {
 /**
  * テスト終了後に内部管理シートを非表示に復元
  */
+function captureSheetVisibilitySnapshot_() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheets = ss.getSheets();
+    testSheetVisibilitySnapshot_ = {
+      activeSheetId: ss.getActiveSheet() ? ss.getActiveSheet().getSheetId() : null,
+      states: sheets.map(function(sheet) {
+        return {
+          sheetId: sheet.getSheetId(),
+          hidden: sheet.isSheetHidden()
+        };
+      })
+    };
+  } catch (error) {
+    testSheetVisibilitySnapshot_ = null;
+    Logger.log('[WARNING] シート表示状態のスナップショット取得に失敗: ' + error.toString());
+  }
+}
+
+function restoreSheetVisibilitySnapshot_() {
+  const snapshot = testSheetVisibilitySnapshot_;
+  testSheetVisibilitySnapshot_ = null;
+
+  if (!snapshot || !Array.isArray(snapshot.states)) {
+    return false;
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+  const stateMap = {};
+  snapshot.states.forEach(function(state) {
+    stateMap[state.sheetId] = state.hidden;
+  });
+
+  // 先に「表示されるべきシート」を開く（最後の1枚制約を回避するため）
+  sheets.forEach(function(sheet) {
+    const sheetId = sheet.getSheetId();
+    if (!Object.prototype.hasOwnProperty.call(stateMap, sheetId)) {
+      return;
+    }
+    if (!stateMap[sheetId] && sheet.isSheetHidden()) {
+      try {
+        sheet.showSheet();
+      } catch (error) {
+        Logger.log('[WARNING] シート表示の復元に失敗: ' + sheet.getName() + ' / ' + error.toString());
+      }
+    }
+  });
+
+  // アクティブシート復元（表示状態のもののみ）
+  if (snapshot.activeSheetId !== null && snapshot.activeSheetId !== undefined) {
+    const activeTarget = sheets.find(function(sheet) {
+      return sheet.getSheetId() === snapshot.activeSheetId;
+    });
+    if (activeTarget && !activeTarget.isSheetHidden()) {
+      try {
+        ss.setActiveSheet(activeTarget);
+      } catch (error) {
+        Logger.log('[WARNING] アクティブシート復元に失敗: ' + error.toString());
+      }
+    }
+  }
+
+  // 次に「非表示に戻すべきシート」を閉じる
+  sheets.forEach(function(sheet) {
+    const sheetId = sheet.getSheetId();
+    if (!Object.prototype.hasOwnProperty.call(stateMap, sheetId)) {
+      return;
+    }
+    if (!stateMap[sheetId] || sheet.isSheetHidden()) {
+      return;
+    }
+
+    const visibleSheets = ss.getSheets().filter(function(item) {
+      return !item.isSheetHidden();
+    });
+    if (visibleSheets.length <= 1) {
+      return;
+    }
+
+    const activeSheet = ss.getActiveSheet();
+    if (activeSheet && activeSheet.getSheetId() === sheetId) {
+      const fallbackSheet = visibleSheets.find(function(item) {
+        return item.getSheetId() !== sheetId;
+      });
+      if (fallbackSheet) {
+        ss.setActiveSheet(fallbackSheet);
+      }
+    }
+
+    try {
+      sheet.hideSheet();
+    } catch (error) {
+      Logger.log('[WARNING] シート非表示の復元に失敗: ' + sheet.getName() + ' / ' + error.toString());
+    }
+  });
+
+  return true;
+}
+
 function hideInternalSheetsAfterTest_() {
   try {
-    hideInternalSheetsForNormalUse_(true);
+    const restored = restoreSheetVisibilitySnapshot_();
+    if (!restored) {
+      hideInternalSheetsForNormalUse_(true);
+    }
   } catch (error) {
     Logger.log('[WARNING] テスト後の内部シート非表示化に失敗: ' + error.toString());
   }

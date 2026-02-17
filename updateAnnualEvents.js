@@ -78,9 +78,16 @@ function updateAnnualEvents() {
       eventSheet.getRange(1, eventAttStartCol, eventLastRow, ANNUAL_SCHEDULE.ATTENDANCE_COLS).setValues(attendanceValues);
     }
 
-    masterSheet.hideSheet();
-
-    ui.alert('年間行事のインポート完了に伴い、マスターシートは非表示にしました。今後は「年間行事予定表」シートを直接編集してください。');
+    if (typeof hideSheetForNormalUse_ === 'function') {
+      hideSheetForNormalUse_(MASTER_SHEET.NAME);
+    } else if (!masterSheet.isSheetHidden()) {
+      masterSheet.hideSheet();
+    }
+    if (masterSheet.isSheetHidden()) {
+      ui.alert('年間行事のインポート完了に伴い、マスターシートは非表示にしました。今後は「年間行事予定表」シートを直接編集してください。');
+    } else {
+      ui.alert('年間行事のインポートは完了しました。マスターシートの非表示化はスキップされました（表示中シート制約）。');
+    }
   } catch (error) {
     showAlert(error.message || error.toString(), 'エラー');
   }
