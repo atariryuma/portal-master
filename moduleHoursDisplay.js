@@ -240,7 +240,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
       }
     }
 
-    // ── 日別実施計画セクション ──
+    // ── 日別実施計画セクション（2段組み） ──
     const dailySectionStartRow = dataStartRow + dataRows.length + 2;
     let lastContentRow = dataStartRow + dataRows.length;
 
@@ -260,21 +260,16 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     const sortedDateKeys = Object.keys(dailyByDate).sort();
     if (sortedDateKeys.length > 0) {
       sheet.getRange(dailySectionStartRow, 1).setValue('日別実施計画');
-      sheet.getRange(dailySectionStartRow, 1).setFontSize(12).setFontWeight('bold');
+      sheet.getRange(dailySectionStartRow, 1).setFontSize(11).setFontWeight('bold');
 
-      const dailyHeaderRow = dailySectionStartRow + 1;
+      const blockCols = 2 + (MODULE_GRADE_MAX - MODULE_GRADE_MIN + 1);
       const dailyHeaders = ['日付', '曜日'];
       for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
         dailyHeaders.push(g + '年');
       }
-      sheet.getRange(dailyHeaderRow, 1, 1, dailyHeaders.length).setValues([dailyHeaders]);
-      sheet.getRange(dailyHeaderRow, 1, 1, dailyHeaders.length)
-        .setBackground('#f0f0f0')
-        .setFontWeight('bold')
-        .setHorizontalAlignment('center')
-        .setBorder(true, true, true, true, true, true);
 
-      const dailyDataRows = [];
+      // 日別データ行を構築（○表記）
+      const allDailyRows = [];
       const monthBoundaryIndices = [];
       let prevMonth = -1;
       sortedDateKeys.forEach(function(dateKey) {
@@ -282,7 +277,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
         const date = entry.date;
         const month = date.getMonth() + 1;
         if (prevMonth !== -1 && month !== prevMonth) {
-          monthBoundaryIndices.push(dailyDataRows.length);
+          monthBoundaryIndices.push(allDailyRows.length);
         }
         prevMonth = month;
 
@@ -291,32 +286,99 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
         const dailyRow = [String(month) + '/' + String(date.getDate()), weekdayLabel];
         for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
           const sessions = entry.grades[g] || 0;
-          dailyRow.push(sessions > 0 ? sessions : '');
+          dailyRow.push(sessions > 0 ? '○' : '');
         }
-        dailyDataRows.push(dailyRow);
+        allDailyRows.push(dailyRow);
       });
 
-      if (dailyDataRows.length > 0) {
-        const dailyDataStartRow = dailyHeaderRow + 1;
-        const dailyGradeStartCol = 3;
-        const dailyGradeColCount = MODULE_GRADE_MAX - MODULE_GRADE_MIN + 1;
-        sheet.getRange(dailyDataStartRow, 1, dailyDataRows.length, dailyHeaders.length).setValues(dailyDataRows);
-        sheet.getRange(dailyDataStartRow, 1, dailyDataRows.length, dailyHeaders.length)
-          .setBorder(true, true, true, true, true, true);
-        sheet.getRange(dailyDataStartRow, 2, dailyDataRows.length, dailyHeaders.length - 1)
-          .setHorizontalAlignment('center');
-        // 学年列はセッション回数（整数）として固定表示する
-        sheet.getRange(dailyDataStartRow, dailyGradeStartCol, dailyDataRows.length, dailyGradeColCount)
-          .setNumberFormat('0');
+      if (allDailyRows.length > 0) {
+        // 月境界で中間点に最も近い位置で左右に分割
+        const midPoint = Math.ceil(allDailyRows.length / 2);
+        let splitIndex = midPoint;
+        if (monthBoundaryIndices.length > 0) {
+          let bestDist = allDailyRows.length;
+          monthBoundaryIndices.forEach(function(idx) {
+            const dist = Math.abs(idx - midPoint);
+            if (dist < bestDist) {
+              bestDist = dist;
+              splitIndex = idx;
+            }
+          });
+        }
 
-        monthBoundaryIndices.forEach(function(rowIdx) {
+        const leftRows = allDailyRows.slice(0, splitIndex);
+        const rightRows = allDailyRows.slice(splitIndex);
+        const maxBlockRows = Math.max(leftRows.length, rightRows.length);
+        const emptyBlock = ['', '', '', '', '', '', '', ''];
+
+        // 左右の月境界インデックスを再計算
+        const leftBoundaries = monthBoundaryIndices.filter(function(idx) { return idx < splitIndex; });
+        const rightBoundaries = monthBoundaryIndices
+          .filter(function(idx) { return idx > splitIndex; })
+          .map(function(idx) { return idx - splitIndex; });
+
+        // ヘッダー行（左右並列）
+        const dailyHeaderRow = dailySectionStartRow + 1;
+        sheet.getRange(dailyHeaderRow, 1, 1, blockCols).setValues([dailyHeaders]);
+        sheet.getRange(dailyHeaderRow, blockCols + 1, 1, blockCols).setValues([dailyHeaders]);
+        [1, blockCols + 1].forEach(function(startCol) {
+          sheet.getRange(dailyHeaderRow, startCol, 1, blockCols)
+            .setBackground('#f0f0f0')
+            .setFontWeight('bold')
+            .setHorizontalAlignment('center')
+            .setBorder(true, true, true, true, true, true);
+        });
+
+        // 結合データ行を構築（左右を横に並べる）
+        const combinedDataRows = [];
+        for (let i = 0; i < maxBlockRows; i++) {
+          const left = i < leftRows.length ? leftRows[i] : emptyBlock;
+          const right = i < rightRows.length ? rightRows[i] : emptyBlock;
+          combinedDataRows.push(left.concat(right));
+        }
+
+        const dailyDataStartRow = dailyHeaderRow + 1;
+        sheet.getRange(dailyDataStartRow, 1, combinedDataRows.length, blockCols * 2)
+          .setValues(combinedDataRows);
+
+        // 左ブロック罫線・中央揃え（曜日+学年列のみ、日付は左寄せ）
+        if (leftRows.length > 0) {
+          sheet.getRange(dailyDataStartRow, 1, leftRows.length, blockCols)
+            .setBorder(true, true, true, true, true, true);
+          sheet.getRange(dailyDataStartRow, 2, leftRows.length, blockCols - 1)
+            .setHorizontalAlignment('center');
+        }
+
+        // 右ブロック罫線・中央揃え
+        if (rightRows.length > 0) {
+          sheet.getRange(dailyDataStartRow, blockCols + 1, rightRows.length, blockCols)
+            .setBorder(true, true, true, true, true, true);
+          sheet.getRange(dailyDataStartRow, blockCols + 2, rightRows.length, blockCols - 1)
+            .setHorizontalAlignment('center');
+        }
+
+        // 左ブロック月境界の太罫線
+        leftBoundaries.forEach(function(rowIdx) {
           if (rowIdx > 0) {
-            sheet.getRange(dailyDataStartRow + rowIdx - 1, 1, 1, dailyHeaders.length)
+            sheet.getRange(dailyDataStartRow + rowIdx - 1, 1, 1, blockCols)
               .setBorder(null, null, true, null, null, null, '#94a3b8', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
           }
         });
 
-        lastContentRow = dailyDataStartRow + dailyDataRows.length - 1;
+        // 右ブロック月境界の太罫線
+        rightBoundaries.forEach(function(rowIdx) {
+          if (rowIdx > 0) {
+            sheet.getRange(dailyDataStartRow + rowIdx - 1, blockCols + 1, 1, blockCols)
+              .setBorder(null, null, true, null, null, null, '#94a3b8', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+          }
+        });
+
+        // 日別セクションのフォントサイズ・行高さ（印刷最適化）
+        sheet.getRange(dailyHeaderRow, 1, 1, blockCols * 2).setFontSize(9);
+        sheet.getRange(dailyDataStartRow, 1, maxBlockRows, blockCols * 2).setFontSize(9);
+        sheet.setRowHeights(dailyDataStartRow, maxBlockRows, 18);
+
+        lastContentRow = dailyDataStartRow + maxBlockRows - 1;
       }
     }
 
@@ -327,14 +389,18 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     );
     sheet.getRange(footerRow, 1).setFontSize(9).setFontColor('#64748b');
 
-    // 列幅調整
-    sheet.setColumnWidth(1, 50);
-    for (let c = 2; c <= 13; c++) {
-      sheet.setColumnWidth(c, 45);
+    // 列幅調整（月別サマリーと日別2段組みの共用）
+    sheet.setColumnWidth(1, 45);
+    for (let c = 2; c <= 8; c++) {
+      sheet.setColumnWidth(c, 40);
     }
-    sheet.setColumnWidth(14, 55);
-    sheet.setColumnWidth(15, 55);
-    sheet.setColumnWidth(16, 75);
+    sheet.setColumnWidth(9, 45);
+    for (let c = 10; c <= 13; c++) {
+      sheet.setColumnWidth(c, 40);
+    }
+    sheet.setColumnWidth(14, 50);
+    sheet.setColumnWidth(15, 50);
+    sheet.setColumnWidth(16, 70);
 
     Logger.log('[INFO] モジュール学習計画シートを更新しました');
   } catch (error) {
