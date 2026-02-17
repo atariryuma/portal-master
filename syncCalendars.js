@@ -238,8 +238,14 @@ function parseEventTimesAndDates_(title, date) {
 
   let timeMatch = trimmedTitle.match(timePatternRange);
   if (timeMatch) {
-    startTime = setEventTime_(startTime, timeMatch[1], timeMatch[2]);
-    endTime = setEventTime_(new Date(date.getTime()), timeMatch[3], timeMatch[4]);
+    const parsedStartTime = setEventTime_(startTime, timeMatch[1], timeMatch[2]);
+    const parsedEndTime = setEventTime_(new Date(date.getTime()), timeMatch[3], timeMatch[4]);
+    if (!parsedStartTime || !parsedEndTime) {
+      Logger.log('[WARNING] 時刻形式が不正なためイベントをスキップしました: "' + originalTitle + '"');
+      return null;
+    }
+    startTime = parsedStartTime;
+    endTime = parsedEndTime;
 
     if (endTime <= startTime) {
       endTime.setDate(endTime.getDate() + 1);
@@ -251,7 +257,12 @@ function parseEventTimesAndDates_(title, date) {
 
   timeMatch = trimmedTitle.match(timePatternSingle);
   if (timeMatch) {
-    startTime = setEventTime_(startTime, timeMatch[1], timeMatch[2]);
+    const parsedStartTime = setEventTime_(startTime, timeMatch[1], timeMatch[2]);
+    if (!parsedStartTime) {
+      Logger.log('[WARNING] 時刻形式が不正なためイベントをスキップしました: "' + originalTitle + '"');
+      return null;
+    }
+    startTime = parsedStartTime;
     endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
 
     isAllDay = false;
@@ -268,11 +279,17 @@ function parseEventTimesAndDates_(title, date) {
  * @param {Date} date - 対象日付
  * @param {string} hour - 時
  * @param {string} minute - 分（'半', '30分', 数字等）
- * @return {Date} 時刻設定済み日付
+ * @return {Date|null} 時刻設定済み日付（不正時はnull）
  */
 function setEventTime_(date, hour, minute) {
   const parsedHour = parseInt(hour, 10);
   const parsedMinute = parseMinute_(minute);
+  if (!Number.isInteger(parsedHour) || parsedHour < 0 || parsedHour > 23) {
+    return null;
+  }
+  if (!Number.isInteger(parsedMinute) || parsedMinute < 0 || parsedMinute > 59) {
+    return null;
+  }
   date.setHours(parsedHour, parsedMinute, 0, 0);
   return date;
 }
@@ -280,12 +297,30 @@ function setEventTime_(date, hour, minute) {
 /**
  * 分表記を数値に変換
  * @param {string|null} minute - 分表記（'半', '30分', 数字等）
- * @return {number} 分数値
+ * @return {number|null} 分数値（不正時はnull）
  */
 function parseMinute_(minute) {
-  if (!minute || minute === '') return 0;
-  if (minute === '半' || minute === '30分') return 30;
-  return parseInt(minute.replace('分', ''), 10) || 0;
+  if (minute === null || minute === undefined || minute === '') {
+    return 0;
+  }
+
+  const normalized = String(minute).trim();
+  if (normalized === '') {
+    return 0;
+  }
+  if (normalized === '半' || normalized === '30分') {
+    return 30;
+  }
+  if (/^\d{1,2}$/.test(normalized)) {
+    return parseInt(normalized, 10);
+  }
+
+  const minuteMatch = normalized.match(/^(\d{1,2})分$/);
+  if (minuteMatch) {
+    return parseInt(minuteMatch[1], 10);
+  }
+
+  return null;
 }
 
 /**

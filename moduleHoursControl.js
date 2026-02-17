@@ -11,6 +11,14 @@ let moduleSettingsMapCache_ = null;
 let moduleControlLayoutCache_ = null;
 
 /**
+ * module_control レイアウトキャッシュを無効化
+ * 行挿入などでセクション境界が変わった直後に呼び出す。
+ */
+function invalidateModuleControlLayoutCache_() {
+  moduleControlLayoutCache_ = null;
+}
+
+/**
  * module_control から指定年度の年間目標行を抽出
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 対象年度
@@ -107,8 +115,9 @@ function ensureModuleControlSheetLayout(controlSheet) {
  * @return {Object} レイアウト情報
  */
 function getModuleControlLayout(controlSheet) {
-  if (moduleControlLayoutCache_) {
-    return moduleControlLayoutCache_;
+  if (moduleControlLayoutCache_ &&
+      moduleControlLayoutCache_.sheetId === controlSheet.getSheetId()) {
+    return moduleControlLayoutCache_.layout;
   }
 
   const maxRows = Math.max(controlSheet.getLastRow(), 200);
@@ -150,7 +159,10 @@ function getModuleControlLayout(controlSheet) {
     exceptionsDataStartRow: exceptionsMarkerRow + 2
   };
 
-  moduleControlLayoutCache_ = layout;
+  moduleControlLayoutCache_ = {
+    sheetId: controlSheet.getSheetId(),
+    layout: layout
+  };
   return layout;
 }
 
@@ -192,6 +204,7 @@ function appendAnnualTargetRows(controlSheet, rows) {
   const insertRow = layout.exceptionsMarkerRow;
 
   controlSheet.insertRowsBefore(insertRow, rows.length);
+  invalidateModuleControlLayoutCache_();
   controlSheet.getRange(insertRow, 1, rows.length, MODULE_CONTROL_PLAN_HEADERS.length).setValues(rows);
 }
 
@@ -215,6 +228,7 @@ function replaceAnnualTargetRowsForFiscalYearInControl(controlSheet, fiscalYear,
   const currentCapacity = Math.max(layout.exceptionsMarkerRow - layout.planDataStartRow, 0);
   if (mergedRows.length > currentCapacity) {
     controlSheet.insertRowsBefore(layout.exceptionsMarkerRow, mergedRows.length - currentCapacity);
+    invalidateModuleControlLayoutCache_();
     layout = getModuleControlLayout(controlSheet);
   }
 
@@ -569,4 +583,3 @@ function serializeWeekdays(weekdays) {
   }
   return valid.join(',');
 }
-

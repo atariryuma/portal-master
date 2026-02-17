@@ -72,7 +72,7 @@ function assignDuty() {
     let dutyIndex = 0;
     for (let i = 0; i < masterData.length; i++) {
       const rowValues = masterData[i];
-      const hasText = rowValues.some(function(value) { return typeof value === 'string' && value !== ''; });
+      const hasText = rowValues.some(function(value) { return isNonEmptyCell(value); });
 
       if (!hasText) {
         outputData.push(['']);

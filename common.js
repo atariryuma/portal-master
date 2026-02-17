@@ -419,10 +419,17 @@ function getWeeklyReportFolderId() {
   const settingsSheet = getSettingsSheetOrThrow();
   
   // 設定シートからフォルダIDを取得
-  const folderId = settingsSheet.getRange(CONFIG_CELLS.WEEKLY_REPORT_FOLDER_ID).getValue();
+  const folderId = String(settingsSheet.getRange(CONFIG_CELLS.WEEKLY_REPORT_FOLDER_ID).getValue() || '').trim();
   
   if (folderId) {
-    return folderId;
+    try {
+      // 設定済みIDを盲信せず、実在確認してから返す
+      const folder = DriveApp.getFolderById(folderId);
+      folder.getId();
+      return folderId;
+    } catch (error) {
+      Logger.log('[WARNING] 保存済みの週報フォルダIDが無効です。再作成します: ' + folderId + ' / ' + error.toString());
+    }
   }
   
   // フォルダIDが空の場合、新規作成または既存フォルダを検索

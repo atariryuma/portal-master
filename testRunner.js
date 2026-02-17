@@ -118,7 +118,8 @@ function getFullTestPlan_() {
         { name: '2-11. V4計画行構築（monthlyモード）', fn: testBuildV4PlanRowMonthly },
         { name: '2-12. 月別配分アルゴリズム', fn: testAllocateSessionsByMonth },
         { name: '2-13. 週配分アルゴリズム（1日1回上限）', fn: testAllocateSessionsToDateKeysDailyLimit },
-        { name: '2-14. 累計表示の予備除外確認', fn: testModuleDisplayExcludesReserve }
+        { name: '2-14. 累計表示の予備除外確認', fn: testModuleDisplayExcludesReserve },
+        { name: '2-15. module_controlレイアウトキャッシュ無効化', fn: testModuleControlLayoutCacheInvalidationOnAppend }
       ]
     },
     {
@@ -136,7 +137,8 @@ function getFullTestPlan_() {
         { name: '3-10. 既存MOD値の月別退避', fn: testCaptureExistingModValuesByMonth },
         { name: '3-11. MOD実績取得関数', fn: testGetModuleActualUnitsForMonth },
         { name: '3-12. モジュール計画オプション解決', fn: testResolveSchoolDayPlanMapOptions },
-        { name: '3-13. 例外日付範囲判定', fn: testIsExceptionDateInRange }
+        { name: '3-13. 例外日付範囲判定', fn: testIsExceptionDateInRange },
+        { name: '3-14. 校時36セルの学年行展開', fn: testApplyAttendanceForDateRows }
       ]
     },
     {
@@ -179,7 +181,8 @@ function getFullTestPlan_() {
         { name: '7-9. 名前結合関数', fn: testJoinNamesWithNewline },
         { name: '7-10. 全角半角変換', fn: testConvertFullWidthToHalfWidth },
         { name: '7-11. 分解析関数', fn: testParseMinute },
-        { name: '7-12. 公開関数定義確認', fn: testPublicFunctionDefinitions }
+        { name: '7-12. 公開関数定義確認', fn: testPublicFunctionDefinitions },
+        { name: '7-13. 不正時刻入力の拒否', fn: testSetEventTimeRejectsInvalidInput }
       ]
     }
   ];
@@ -524,6 +527,46 @@ function testSerializeWeekdays() {
   }
 
   return { success: true, message: '曜日シリアライズを確認' };
+}
+
+function testModuleControlLayoutCacheInvalidationOnAppend() {
+  if (typeof ensureModuleControlSheetLayout !== 'function' ||
+      typeof getModuleControlLayout !== 'function' ||
+      typeof appendAnnualTargetRows !== 'function' ||
+      typeof buildV4PlanRow !== 'function') {
+    return { success: false, message: '必要関数が見つかりません' };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tempSheet = ss.insertSheet('tmp_module_layout_' + Date.now());
+
+  try {
+    ensureModuleControlSheetLayout(tempSheet);
+    const before = getModuleControlLayout(tempSheet);
+
+    appendAnnualTargetRows(tempSheet, [
+      buildV4PlanRow(2025, 1, MODULE_PLAN_MODE_ANNUAL, 28, null, 'cache-test-1'),
+      buildV4PlanRow(2025, 2, MODULE_PLAN_MODE_ANNUAL, 28, null, 'cache-test-2')
+    ]);
+
+    const after = getModuleControlLayout(tempSheet);
+    if (after.exceptionsMarkerRow !== before.exceptionsMarkerRow + 2) {
+      return {
+        success: false,
+        message: '例外セクション境界が更新されていません（期待: ' +
+          (before.exceptionsMarkerRow + 2) + ', 実際: ' + after.exceptionsMarkerRow + '）'
+      };
+    }
+
+    return { success: true, message: '行挿入後にmodule_controlレイアウトキャッシュが更新されます' };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    if (typeof invalidateModuleControlLayoutCache_ === 'function') {
+      invalidateModuleControlLayoutCache_();
+    }
+    ss.deleteSheet(tempSheet);
+  }
 }
 
 // ========================================
@@ -1071,6 +1114,54 @@ function testIsExceptionDateInRange() {
   return { success: true, message: '例外日付の範囲判定を確認' };
 }
 
+function testApplyAttendanceForDateRows() {
+  if (typeof buildDateRowIndicesMap_ !== 'function' ||
+      typeof applyAttendanceForDateRows_ !== 'function') {
+    return { success: false, message: '必要関数が見つかりません' };
+  }
+
+  const targetDate = new Date(2025, 3, 1);
+  const otherDate = new Date(2025, 3, 2);
+  const dateValues = [
+    [targetDate], [targetDate], [targetDate],
+    [targetDate], [targetDate], [targetDate],
+    [otherDate]
+  ];
+  const dateMap = buildDateRowIndicesMap_(dateValues);
+  const targetKey = formatDateToJapanese(targetDate);
+
+  if (!Array.isArray(dateMap[targetKey]) || dateMap[targetKey].length !== 6) {
+    return { success: false, message: '日付行マップの構築が不正です: ' + JSON.stringify(dateMap[targetKey]) };
+  }
+
+  const attendanceValues = [];
+  for (let i = 0; i < 7; i++) {
+    attendanceValues.push(['', '', '', '', '', '']);
+  }
+
+  const masterAttendance = [];
+  for (let grade = 1; grade <= 6; grade++) {
+    for (let col = 1; col <= 6; col++) {
+      masterAttendance.push('G' + grade + '-' + col);
+    }
+  }
+  masterAttendance[0] = '月１';
+
+  applyAttendanceForDateRows_(attendanceValues, dateMap[targetKey], masterAttendance, 6);
+
+  if (attendanceValues[0][0] !== '○') {
+    return { success: false, message: '曜日校時表記の○変換が不正です: ' + attendanceValues[0][0] };
+  }
+  if (attendanceValues[5][5] !== 'G6-6') {
+    return { success: false, message: '36セルの学年行展開が不正です: ' + attendanceValues[5][5] };
+  }
+  if (attendanceValues[6][0] !== '') {
+    return { success: false, message: '対象外の日付行が更新されています: ' + attendanceValues[6][0] };
+  }
+
+  return { success: true, message: '校時36セルを学年行へ正しく展開します' };
+}
+
 function testSettingsSheetHiddenForNormalUse() {
   if (typeof hideSheetForNormalUse_ !== 'function') {
     return { success: false, message: 'hideSheetForNormalUse_関数が見つかりません' };
@@ -1502,6 +1593,36 @@ function testParseMinute() {
   }
 
   return { success: true, message: cases.length + 'ケースの分解析を確認' };
+}
+
+function testSetEventTimeRejectsInvalidInput() {
+  if (typeof setEventTime_ !== 'function' || typeof parseEventTimesAndDates_ !== 'function') {
+    return { success: false, message: '必要関数が見つかりません' };
+  }
+
+  const baseDate = new Date(2025, 3, 1);
+
+  const invalidHour = setEventTime_(new Date(baseDate.getTime()), '25', '00');
+  if (invalidHour !== null) {
+    return { success: false, message: '範囲外の時刻(25時)を拒否できていません' };
+  }
+
+  const invalidMinute = setEventTime_(new Date(baseDate.getTime()), '10', '90');
+  if (invalidMinute !== null) {
+    return { success: false, message: '範囲外の分(90分)を拒否できていません' };
+  }
+
+  const invalidEvent = parseEventTimesAndDates_('会議 25:00', baseDate);
+  if (invalidEvent !== null) {
+    return { success: false, message: '不正時刻タイトルをイベント化しています' };
+  }
+
+  const validEvent = parseEventTimesAndDates_('会議 10:30', baseDate);
+  if (!validEvent || validEvent.isAllDay) {
+    return { success: false, message: '正常時刻タイトルの解析が不正です' };
+  }
+
+  return { success: true, message: '不正時刻入力を拒否し、正常時刻は受理します' };
 }
 
 function testPublicFunctionDefinitions() {

@@ -254,26 +254,57 @@ function replaceManagedProjectTriggers(settings) {
   try {
     createdTriggers = createTriggersFromSettings(settings);
   } catch (error) {
-    createdTriggers.forEach(function(trigger) {
-      ScriptApp.deleteTrigger(trigger);
-    });
+    rollbackCreatedTriggers_(createdTriggers);
     throw new Error('トリガーの再構築に失敗しました。既存トリガーは保持されます。詳細: ' + error.toString());
   }
 
   let removedCount = 0;
+  const deleteErrors = [];
   existingManagedTriggers.forEach(function(trigger) {
     try {
       ScriptApp.deleteTrigger(trigger);
       removedCount++;
     } catch (error) {
+      deleteErrors.push(error.toString());
       Logger.log('[WARNING] 旧トリガーの削除に失敗: ' + error.toString());
     }
   });
+
+  if (deleteErrors.length > 0) {
+    const rollbackResult = rollbackCreatedTriggers_(createdTriggers);
+    const details = [
+      '旧トリガー削除失敗: ' + deleteErrors.length + '件',
+      '新規トリガーロールバック: ' + rollbackResult.removedCount + '件'
+    ];
+    if (rollbackResult.errors.length > 0) {
+      details.push('ロールバック失敗: ' + rollbackResult.errors.length + '件');
+    }
+    throw new Error('旧トリガーの削除に失敗したため、重複実行を防ぐために新規トリガーをロールバックしました。' + details.join(' / '));
+  }
 
   return {
     createdCount: createdTriggers.length,
     removedCount: removedCount
   };
+}
+
+function rollbackCreatedTriggers_(triggers) {
+  const result = {
+    removedCount: 0,
+    errors: []
+  };
+
+  (triggers || []).forEach(function(trigger) {
+    try {
+      ScriptApp.deleteTrigger(trigger);
+      result.removedCount++;
+    } catch (error) {
+      result.errors.push(error.toString());
+      Logger.log('[WARNING] 新規トリガーのロールバック削除に失敗: ' + error.toString());
+    }
+  });
+
+  return result;
 }
 
 function getManagedProjectTriggers() {

@@ -72,7 +72,7 @@ At minimum, these sheets must exist:
 | File                       | Description                              |
 | -------------------------- | ---------------------------------------- |
 | `triggerSettings.js`       | Trigger settings and rebuild logic       |
-| `annualUpdate.js`          | Year-end rollover operations             |
+| `annualUpdateSettings.js`  | Annual update settings validation/save   |
 
 ### UI Dialogs (HTML)
 
@@ -125,7 +125,7 @@ clasp open
 
 ## Testing
 
-Testing is executed from `testRunner.js`. The suite contains 54 tests across 7 groups.
+Testing is executed from `testRunner.js`. The suite contains 56 tests across 7 groups.
 
 ### Quick Test (daily development)
 
