@@ -8,7 +8,8 @@ function onOpen() {
 
   const introductionMenu = ui.createMenu('🚀 導入')
     .addItem('年間行事計画をインポート', 'importAnnualEvents')
-    .addItem('行事予定表へ反映', 'updateAnnualEvents');
+    .addItem('行事予定表へ反映', 'updateAnnualEvents')
+    .addItem('行事予定表からマスターへ逆反映', 'reverseUpdateToMaster');
 
   const settingsMenu = ui.createMenu('⚙️ 設定')
     .addItem('年度更新設定', 'showAnnualUpdateSettingsDialog')

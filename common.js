@@ -50,6 +50,7 @@ const ANNUAL_SCHEDULE = Object.freeze({
   EXTERNAL_EVENT_COLUMN: 13,    // M列: 対外行事
   DUTY_COLUMN: 18,              // R列: 日直
   DUTY_COLUMN_LETTER: 'R',     // R列文字表記
+  WEEKDAY_COLUMN: 3,            // C列: 曜日（TEXT関数で算出）
   ATTENDANCE_START_COLUMN: 21,  // U列: 校時データ開始
   ATTENDANCE_COLS: 6,
   LUNCH_COLUMN: 27,             // AA列: 給食
