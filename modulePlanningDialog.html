@@ -1481,7 +1481,7 @@
           setLoading(false);
           setStatus('再計算に失敗しました: ' + getErrorMessage(error), 'error');
         })
-        .refreshModulePlanning();
+        .refreshModulePlanning(currentState.fiscalYear);
     }
 
     window.onload = function() {

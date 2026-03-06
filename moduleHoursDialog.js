@@ -212,11 +212,15 @@ function listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, limitCount,
 
 /**
  * モジュール学習集計を再実行
+ * @param {number=} requestedFiscalYear - 対象年度（省略時は自動判定）
  * @return {string} 完了メッセージ
  */
-function refreshModulePlanning() {
+function refreshModulePlanning(requestedFiscalYear) {
   const baseDate = getCurrentOrNextSaturday();
-  const result = syncModuleHoursWithCumulative(baseDate);
+  const fiscalYearOption = Number.isInteger(requestedFiscalYear) && requestedFiscalYear >= 2000 && requestedFiscalYear <= 2100
+    ? requestedFiscalYear
+    : null;
+  const result = syncModuleHoursWithCumulative(baseDate, fiscalYearOption !== null ? { fiscalYear: fiscalYearOption } : null);
   return [
     'モジュール学習の再計算が完了しました。',
     '基準日: ' + formatInputDate(result.baseDate),
@@ -243,7 +247,7 @@ function saveModuleAnnualTargetFromDialog(payload) {
   replaceAnnualTargetRowsForFiscalYearInControl(controlSheet, fiscalYear, rows);
 
   const baseDate = normalizeToDate(payload && payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
-  const result = syncModuleHoursWithCumulative(baseDate);
+  const result = syncModuleHoursWithCumulative(baseDate, { fiscalYear: fiscalYear });
 
   const lines = [
     '年間計画時数を保存して再計算しました。',
@@ -303,7 +307,8 @@ function addModuleExceptionFromDialog(payload) {
   appendExceptionRows(controlSheet, [[exceptionDate, grade, deltaSessions, reason, note]]);
 
   const baseDate = normalizeToDate(payload && payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
-  const result = syncModuleHoursWithCumulative(baseDate);
+  const exceptionFiscalYear = getFiscalYear(exceptionDate);
+  const result = syncModuleHoursWithCumulative(baseDate, { fiscalYear: exceptionFiscalYear });
 
   const minuteSign = deltaSessions > 0 ? '+' : '';
   return [
@@ -407,6 +412,7 @@ function saveModuleSettingsFromDialog(payload) {
   });
 
   const result = syncModuleHoursWithCumulative(baseDate, {
+    fiscalYear: fiscalYear,
     preservePlanningRange: {
       startDate: startDate,
       endDate: endDate

@@ -7,12 +7,15 @@
  * モジュール学習計画を集計し、累計時数シートへ統合出力
  * @param {Date|string} baseDate - 集計基準日
  * @param {?Object} options - 実行オプション（内部用）
+ * @param {number=} options.fiscalYear - 対象年度（省略時は baseDate から自動判定）
+ * @param {?Object=} options.preservePlanningRange - 実施期間の上書き
  * @return {Object} 集計結果
  */
 function syncModuleHoursWithCumulative(baseDate, options) {
   const controlSheet = initializeModuleHoursSheetsIfNeeded();
   const normalizedBaseDate = normalizeToDate(baseDate) || normalizeToDate(new Date());
-  const fiscalYear = getFiscalYear(normalizedBaseDate);
+  const requestedFiscalYear = options && Number.isInteger(options.fiscalYear) ? options.fiscalYear : null;
+  const fiscalYear = requestedFiscalYear !== null ? requestedFiscalYear : getFiscalYear(normalizedBaseDate);
   const preservePlanningRange = options && options.preservePlanningRange ? options.preservePlanningRange : null;
 
   ensureDefaultAnnualTargetForFiscalYear(fiscalYear, controlSheet);
