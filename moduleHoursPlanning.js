@@ -626,15 +626,18 @@ function loadExceptionTotals(fiscalYear, baseDate, controlSheet) {
     monthlyByGrade[grade] = {};
   }
 
+  const fiscalRange = getFiscalYearDateRange(fiscalYear);
+
   rows.forEach(function(item) {
     const exceptionDate = normalizeToDate(item.date);
     const grade = Number(item.grade);
     const delta = toNumberOrZero(item.deltaSessions);
 
-    if (!exceptionDate || exceptionDate > baseDate) {
+    if (!exceptionDate) {
       return;
     }
-    if (getFiscalYear(exceptionDate) !== fiscalYear) {
+    // 年度範囲でフィルタ（getFiscalYearは3月を前年度と判定するため使わない）
+    if (exceptionDate < fiscalRange.startDate || exceptionDate > fiscalRange.endDate) {
       return;
     }
     if (!Number.isInteger(grade) || grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
@@ -642,13 +645,18 @@ function loadExceptionTotals(fiscalYear, baseDate, controlSheet) {
       return;
     }
 
+    // 月別集計（計画シート用: 全期間）
+    const monthKey = formatMonthKey(exceptionDate);
+    monthlyByGrade[grade][monthKey] = toNumberOrZero(monthlyByGrade[grade][monthKey]) + delta;
+
+    // 累計時数用: 基準日までの実績のみ
+    if (exceptionDate > baseDate) {
+      return;
+    }
     totals.byGrade[grade] += delta;
     if (exceptionDate >= weekStart && exceptionDate <= baseDate) {
       totals.thisWeekByGrade[grade] += delta;
     }
-
-    const monthKey = formatMonthKey(exceptionDate);
-    monthlyByGrade[grade][monthKey] = toNumberOrZero(monthlyByGrade[grade][monthKey]) + delta;
   });
 
   totals.monthlyByGrade = monthlyByGrade;
