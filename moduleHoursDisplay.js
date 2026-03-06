@@ -273,6 +273,19 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
       dailyByDate[dateKey].grades[Number(row[5])] = toNumberOrZero(row[6]);
     });
 
+    // 実績調整の日別データをマージ（実施期間外の追加分も含む）
+    const exDaily = exceptionTotals && exceptionTotals.dailyByGrade ? exceptionTotals.dailyByGrade : {};
+    Object.keys(exDaily).forEach(function(dateKey) {
+      const entry = exDaily[dateKey];
+      if (!dailyByDate[dateKey]) {
+        dailyByDate[dateKey] = { date: entry.date, grades: {} };
+      }
+      Object.keys(entry.grades).forEach(function(gradeStr) {
+        const grade = Number(gradeStr);
+        dailyByDate[dateKey].grades[grade] = toNumberOrZero(dailyByDate[dateKey].grades[grade]) + toNumberOrZero(entry.grades[grade]);
+      });
+    });
+
     const sortedDateKeys = Object.keys(dailyByDate).sort();
     if (sortedDateKeys.length > 0) {
       sheet.getRange(dailySectionStartRow, 1).setValue('日別実施計画');

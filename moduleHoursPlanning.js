@@ -622,6 +622,7 @@ function loadExceptionTotals(fiscalYear, baseDate, controlSheet) {
   const rows = readExceptionRows(sheet);
 
   const monthlyByGrade = {};
+  const dailyByGrade = {};
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
     monthlyByGrade[grade] = {};
   }
@@ -645,9 +646,15 @@ function loadExceptionTotals(fiscalYear, baseDate, controlSheet) {
       return;
     }
 
-    // 月別集計（計画シート用: 全期間）
+    // 月別・日別集計（計画シート用: 全期間）
     const monthKey = formatMonthKey(exceptionDate);
     monthlyByGrade[grade][monthKey] = toNumberOrZero(monthlyByGrade[grade][monthKey]) + delta;
+
+    const dateKey = formatInputDate(exceptionDate);
+    if (!dailyByGrade[dateKey]) {
+      dailyByGrade[dateKey] = { date: exceptionDate, grades: {} };
+    }
+    dailyByGrade[dateKey].grades[grade] = toNumberOrZero(dailyByGrade[dateKey].grades[grade]) + delta;
 
     // 累計時数用: 基準日までの実績のみ
     if (exceptionDate > baseDate) {
@@ -660,6 +667,7 @@ function loadExceptionTotals(fiscalYear, baseDate, controlSheet) {
   });
 
   totals.monthlyByGrade = monthlyByGrade;
+  totals.dailyByGrade = dailyByGrade;
   return totals;
 }
 
