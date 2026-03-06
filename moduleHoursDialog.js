@@ -19,9 +19,10 @@ function showModulePlanningDialog() {
 
 /**
  * ダイアログ表示用の状態を返却
+ * @param {number=} requestedFiscalYear - 指定年度（省略時は自動判定）
  * @return {Object} ダイアログ状態
  */
-function getModulePlanningDialogState() {
+function getModulePlanningDialogState(requestedFiscalYear) {
   const startedAt = new Date().getTime();
   let initElapsedMs = 0;
   let dataElapsedMs = 0;
@@ -31,7 +32,10 @@ function getModulePlanningDialogState() {
   const controlSheet = initializeModuleHoursSheetsIfNeeded();
   initElapsedMs = new Date().getTime() - initStartedAt;
   const baseDate = normalizeToDate(getCurrentOrNextSaturday());
-  const fiscalYear = getFiscalYear(baseDate);
+  const autoFiscalYear = getFiscalYear(baseDate);
+  const fiscalYear = Number.isInteger(requestedFiscalYear) && requestedFiscalYear >= 2000 && requestedFiscalYear <= 2100
+    ? requestedFiscalYear
+    : autoFiscalYear;
   const fiscalRange = getFiscalYearDateRange(fiscalYear);
 
   const dataStartedAt = new Date().getTime();
@@ -80,6 +84,8 @@ function getModulePlanningDialogState() {
     baseDate: formatInputDate(baseDate),
     defaultExceptionDate: formatInputDate(getDefaultExceptionDate(enabledWeekdays)),
     fiscalYear: fiscalYear,
+    autoFiscalYear: autoFiscalYear,
+    selectableFiscalYears: [autoFiscalYear, autoFiscalYear + 1],
     fiscalYearStartDate: formatInputDate(fiscalRange.startDate),
     fiscalYearEndDate: formatInputDate(fiscalRange.endDate),
     startDate: formatInputDate(savedRange.startDate),
@@ -385,7 +391,10 @@ function saveModuleSettingsFromDialog(payload) {
   }
 
   const baseDate = normalizeToDate(payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
-  const fiscalYear = getFiscalYear(baseDate);
+  const requestedFiscalYear = Number(payload.fiscalYear);
+  const fiscalYear = Number.isInteger(requestedFiscalYear) && requestedFiscalYear >= 2000 && requestedFiscalYear <= 2100
+    ? requestedFiscalYear
+    : getFiscalYear(baseDate);
   const fiscalRange = getFiscalYearDateRange(fiscalYear);
   if (startDate < fiscalRange.startDate || endDate > fiscalRange.endDate) {
     throw new Error('実施期間は年度範囲内（' + formatInputDate(fiscalRange.startDate) + ' ～ ' + formatInputDate(fiscalRange.endDate) + '）で指定してください。');

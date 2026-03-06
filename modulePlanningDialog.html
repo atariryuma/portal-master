@@ -59,6 +59,23 @@
       color: #0f172a;
       text-align: right;
     }
+    .fiscal-year-select {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 1px 4px;
+      cursor: pointer;
+    }
+    .fiscal-year-select:hover {
+      border-color: #2563eb;
+    }
+    .fiscal-year-select:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .step-tabs {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -467,7 +484,11 @@
     <div class="summary">
       <div class="summary-item">
         <span>対象年度</span>
-        <strong id="fiscalYear">-</strong>
+        <strong id="fiscalYear">
+          <select id="fiscalYearSelect" class="fiscal-year-select">
+            <option value="">-</option>
+          </select>
+        </strong>
       </div>
       <div class="summary-item">
         <span>年度範囲</span>
@@ -783,7 +804,7 @@
 
     function setLoading(loading) {
       isLoading = Boolean(loading);
-      const ids = ['saveSettingsButton', 'savePlanButton', 'addExceptionButton', 'refreshButton', 'closeButton', 'toggleMonthlyColumnsButton'];
+      const ids = ['saveSettingsButton', 'savePlanButton', 'addExceptionButton', 'refreshButton', 'closeButton', 'toggleMonthlyColumnsButton', 'fiscalYearSelect'];
       ids.forEach(function(id) {
         const el = document.getElementById(id);
         if (el) {
@@ -804,7 +825,18 @@
 
     function updateSummary(state) {
       const range = (state.fiscalYearStartDate || '-') + ' ～ ' + (state.fiscalYearEndDate || '-');
-      document.getElementById('fiscalYear').textContent = (state.fiscalYear || '-') + '年度';
+      const select = document.getElementById('fiscalYearSelect');
+      const years = Array.isArray(state.selectableFiscalYears) ? state.selectableFiscalYears : [];
+      if (years.length > 0 && select.options.length <= 1) {
+        select.innerHTML = '';
+        years.forEach(function(y) {
+          const opt = document.createElement('option');
+          opt.value = String(y);
+          opt.textContent = y + '年度';
+          select.appendChild(opt);
+        });
+      }
+      select.value = String(state.fiscalYear || '');
       document.getElementById('fiscalRange').textContent = range;
       document.getElementById('dailyPlanCount').textContent = (state.dailyPlanRecordCount || 0) + '件';
       document.getElementById('exceptionCount').textContent = (state.exceptionRecordCount || 0) + '件';
@@ -1268,7 +1300,7 @@
         .withSuccessHandler(function(message) {
           setLoading(false);
           setStatus(message || '実施条件を保存しました。', 'success');
-          loadDialogState(true);
+          loadDialogState(true, currentState.fiscalYear);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
@@ -1278,7 +1310,8 @@
           weekdays: weekdays,
           startDate: startDate,
           endDate: endDate,
-          baseDate: currentState.baseDate
+          baseDate: currentState.baseDate,
+          fiscalYear: currentState.fiscalYear
         });
     }
 
@@ -1306,22 +1339,36 @@
       clearDirtyState();
     }
 
-    function loadDialogState(keepStatus) {
+    function loadDialogState(keepStatus, fiscalYear) {
       if (!keepStatus) {
         setStatus('現在の状態を読み込み中...', 'info');
       }
 
+      const requestedYear = Number.isInteger(fiscalYear) ? fiscalYear : null;
       google.script.run
         .withSuccessHandler(function(state) {
+          setLoading(false);
           applyState(state || {});
           if (!keepStatus) {
             setStatus('入力内容を確認して保存してください。', 'info');
           }
         })
         .withFailureHandler(function(error) {
+          setLoading(false);
           setStatus('状態の取得に失敗しました: ' + getErrorMessage(error), 'error');
         })
-        .getModulePlanningDialogState();
+        .getModulePlanningDialogState(requestedYear);
+    }
+
+    function onFiscalYearChange() {
+      const select = document.getElementById('fiscalYearSelect');
+      const year = parseInt(select.value, 10);
+      if (!Number.isInteger(year)) {
+        return;
+      }
+      setLoading(true);
+      setStatus(year + '年度のデータを読み込み中...', 'info');
+      loadDialogState(false, year);
     }
 
     function populateGradeOptions() {
@@ -1355,7 +1402,7 @@
         .withSuccessHandler(function(message) {
           setLoading(false);
           setStatus(message || '年間計画を保存しました。', 'success');
-          loadDialogState(true);
+          loadDialogState(true, currentState.fiscalYear);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
@@ -1412,7 +1459,7 @@
           setStatus(message || '実績調整を追加しました。', 'success');
           document.getElementById('exceptionReason').value = '';
           document.getElementById('exceptionNote').value = '';
-          loadDialogState(true);
+          loadDialogState(true, currentState.fiscalYear);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
@@ -1428,7 +1475,7 @@
         .withSuccessHandler(function(message) {
           setLoading(false);
           setStatus(message || '再計算が完了しました。', 'success');
-          loadDialogState(true);
+          loadDialogState(true, currentState.fiscalYear);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
@@ -1444,6 +1491,7 @@
       updateGlobalActionState();
       loadDialogState(false);
       setDelta(3, false);
+      document.getElementById('fiscalYearSelect').addEventListener('change', onFiscalYearChange);
     };
   </script>
 </body>

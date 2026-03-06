@@ -46,8 +46,8 @@ function updateAnnualEvents() {
     const attendanceValues = eventSheet.getRange(1, eventAttStartCol, eventLastRow, ANNUAL_SCHEDULE.ATTENDANCE_COLS).getValues();
     // 日付列(B)を一括取得（1日あたり複数学年行の対応で使用）
     const eventDateValues = eventSheet.getRange(1, eventDateCol, eventLastRow, 1).getValues();
-    const dateRowIndicesMap = buildDateRowIndicesMap_(eventDateValues);
     const expectedGradeRowsPerDate = Math.floor(MASTER_SHEET.DATA_COLUMN_COUNT / ANNUAL_SCHEDULE.ATTENDANCE_COLS);
+    const dateRowIndicesMap = buildDateRowIndicesMapExpanded_(eventDateValues, expectedGradeRowsPerDate, eventLastRow);
 
     let updateCount = 0;
     let attendanceRowMismatchCount = 0;
