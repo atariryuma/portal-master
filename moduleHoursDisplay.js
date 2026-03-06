@@ -320,17 +320,14 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
           .filter(function(idx) { return idx > splitIndex; })
           .map(function(idx) { return idx - splitIndex; });
 
-        // ヘッダー行（左右並列）
+        // ヘッダー行（左右並列）— 1回のsetValuesと1回の書式設定で処理
         const dailyHeaderRow = dailySectionStartRow + 1;
-        sheet.getRange(dailyHeaderRow, 1, 1, blockCols).setValues([dailyHeaders]);
-        sheet.getRange(dailyHeaderRow, blockCols + 1, 1, blockCols).setValues([dailyHeaders]);
-        [1, blockCols + 1].forEach(function(startCol) {
-          sheet.getRange(dailyHeaderRow, startCol, 1, blockCols)
-            .setBackground('#f0f0f0')
-            .setFontWeight('bold')
-            .setHorizontalAlignment('center')
-            .setBorder(true, true, true, true, true, true);
-        });
+        sheet.getRange(dailyHeaderRow, 1, 1, blockCols * 2).setValues([dailyHeaders.concat(dailyHeaders)]);
+        sheet.getRange(dailyHeaderRow, 1, 1, blockCols * 2)
+          .setBackground('#f0f0f0')
+          .setFontWeight('bold')
+          .setHorizontalAlignment('center')
+          .setBorder(true, true, true, true, true, true);
 
         // 結合データ行を構築（左右を横に並べる）
         const combinedDataRows = [];
@@ -344,18 +341,16 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
         sheet.getRange(dailyDataStartRow, 1, combinedDataRows.length, blockCols * 2)
           .setValues(combinedDataRows);
 
-        // 左ブロック罫線・中央揃え（曜日+学年列のみ、日付は左寄せ）
+        // 左右ブロック罫線（全体を1回で設定）
+        sheet.getRange(dailyDataStartRow, 1, maxBlockRows, blockCols * 2)
+          .setBorder(true, true, true, true, true, true);
+
+        // 中央揃え（曜日+学年列：左ブロック2列目〜、右ブロック2列目〜）
         if (leftRows.length > 0) {
-          sheet.getRange(dailyDataStartRow, 1, leftRows.length, blockCols)
-            .setBorder(true, true, true, true, true, true);
           sheet.getRange(dailyDataStartRow, 2, leftRows.length, blockCols - 1)
             .setHorizontalAlignment('center');
         }
-
-        // 右ブロック罫線・中央揃え
         if (rightRows.length > 0) {
-          sheet.getRange(dailyDataStartRow, blockCols + 1, rightRows.length, blockCols)
-            .setBorder(true, true, true, true, true, true);
           sheet.getRange(dailyDataStartRow, blockCols + 2, rightRows.length, blockCols - 1)
             .setHorizontalAlignment('center');
         }
@@ -380,9 +375,8 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
         sheet.getRange(dailyHeaderRow, blockCols, maxBlockRows + 1, 1)
           .setBorder(null, null, null, true, null, null, '#334155', SpreadsheetApp.BorderStyle.SOLID_THICK);
 
-        // 日別セクションのフォントサイズ・行高さ（印刷最適化）
-        sheet.getRange(dailyHeaderRow, 1, 1, blockCols * 2).setFontSize(9);
-        sheet.getRange(dailyDataStartRow, 1, maxBlockRows, blockCols * 2).setFontSize(9);
+        // 日別セクションのフォントサイズ・行高さ（印刷最適化）— ヘッダー+データを1回で設定
+        sheet.getRange(dailyHeaderRow, 1, maxBlockRows + 1, blockCols * 2).setFontSize(9);
         sheet.setRowHeights(dailyDataStartRow, maxBlockRows, 18);
 
         lastContentRow = dailyDataStartRow + maxBlockRows - 1;
@@ -397,9 +391,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     sheet.getRange(footerRow, 1).setFontSize(9).setFontColor('#64748b');
 
     // 列幅調整（全列均等幅で日別2段組みの左右対称を確保）
-    for (let c = 1; c <= 16; c++) {
-      sheet.setColumnWidth(c, 45);
-    }
+    sheet.setColumnWidths(1, 16, 45);
 
     Logger.log('[INFO] モジュール学習計画シートを更新しました');
   } catch (error) {
@@ -632,6 +624,63 @@ function getModulePlanningRangeFromSettings(fallbackDate, settingsMap) {
 function getDefaultModulePlanningRange(baseDate) {
   const date = normalizeToDate(baseDate) || normalizeToDate(new Date());
   return getFiscalYearDateRange(getFiscalYear(date));
+}
+
+/**
+ * 年間行事予定表の日付データから年度を自動判定
+ * データに含まれる最も多い年度を返す。データがない場合は baseDate から判定。
+ * @param {Date=} baseDate - フォールバック基準日
+ * @return {Object} { fiscalYear: number, allFiscalYears: Array<number> }
+ */
+function detectFiscalYearFromAnnualSchedule(baseDate) {
+  try {
+    let values = null;
+    try {
+      values = typeof getAnnualScheduleDataCached_ === 'function'
+        ? getAnnualScheduleDataCached_()
+        : null;
+    } catch (e) {
+      // シートが見つからない場合はフォールバック
+    }
+    if (!values || values.length <= 1) {
+      const fallback = getFiscalYear(baseDate || new Date());
+      return { fiscalYear: fallback, allFiscalYears: [fallback] };
+    }
+    const yearCounts = {};
+    const allYears = {};
+
+    for (let i = 1; i < values.length; i++) {
+      const date = normalizeToDate(values[i][SCHEDULE_COLUMNS.DATE]);
+      if (!date) {
+        continue;
+      }
+      const fy = getFiscalYear(date);
+      yearCounts[fy] = (yearCounts[fy] || 0) + 1;
+      allYears[fy] = true;
+    }
+
+    const years = Object.keys(allYears).map(function(k) { return Number(k); }).sort();
+    if (years.length === 0) {
+      const fallback = getFiscalYear(baseDate || new Date());
+      return { fiscalYear: fallback, allFiscalYears: [fallback] };
+    }
+
+    // 最も行数が多い年度を選択
+    let bestYear = years[0];
+    let bestCount = 0;
+    Object.keys(yearCounts).forEach(function(fy) {
+      if (yearCounts[fy] > bestCount) {
+        bestCount = yearCounts[fy];
+        bestYear = Number(fy);
+      }
+    });
+
+    return { fiscalYear: bestYear, allFiscalYears: years };
+  } catch (error) {
+    Logger.log('[WARNING] 年度自動判定に失敗: ' + error.toString());
+    const fallback = getFiscalYear(baseDate || new Date());
+    return { fiscalYear: fallback, allFiscalYears: [fallback] };
+  }
 }
 
 /**

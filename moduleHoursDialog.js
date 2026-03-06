@@ -32,7 +32,8 @@ function getModulePlanningDialogState(requestedFiscalYear) {
   const controlSheet = initializeModuleHoursSheetsIfNeeded();
   initElapsedMs = new Date().getTime() - initStartedAt;
   const baseDate = normalizeToDate(getCurrentOrNextSaturday());
-  const autoFiscalYear = getFiscalYear(baseDate);
+  const detected = detectFiscalYearFromAnnualSchedule(baseDate);
+  const autoFiscalYear = detected.fiscalYear;
   const fiscalYear = Number.isInteger(requestedFiscalYear) && requestedFiscalYear >= 2000 && requestedFiscalYear <= 2100
     ? requestedFiscalYear
     : autoFiscalYear;
@@ -68,24 +69,15 @@ function getModulePlanningDialogState(requestedFiscalYear) {
   const reserveByGrade = buildResult.reserveByGrade;
   const dailyPlanCount = buildResult.dailyPlanCount;
 
-  const cumulativeStartedAt = new Date().getTime();
-  try {
-    const cumulativeSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CUMULATIVE_SHEET.NAME);
-    if (cumulativeSheet) {
-      cumulativeSheet.hideColumns(MODULE_CUMULATIVE_COLUMNS.PLAN, 3);
-      cumulativeSheet.showColumns(MODULE_CUMULATIVE_COLUMNS.DISPLAY, 1);
-    }
-  } catch (error) {
-    Logger.log('[WARNING] 累計時数の列表示制御に失敗: ' + error.toString());
-  }
-  cumulativeElapsedMs = new Date().getTime() - cumulativeStartedAt;
+  // 列表示制御は syncModuleHoursWithCumulative 内で実施済みのためスキップ
+  cumulativeElapsedMs = 0;
 
   const state = {
     baseDate: formatInputDate(baseDate),
     defaultExceptionDate: formatInputDate(getDefaultExceptionDate(enabledWeekdays)),
     fiscalYear: fiscalYear,
     autoFiscalYear: autoFiscalYear,
-    selectableFiscalYears: [autoFiscalYear, autoFiscalYear + 1],
+    selectableFiscalYears: buildSelectableFiscalYears(detected),
     fiscalYearStartDate: formatInputDate(fiscalRange.startDate),
     fiscalYearEndDate: formatInputDate(fiscalRange.endDate),
     startDate: formatInputDate(savedRange.startDate),
@@ -111,6 +103,19 @@ function getModulePlanningDialogState(requestedFiscalYear) {
   }
 
   return state;
+}
+
+/**
+ * 選択可能年度リストを構築（スケジュールデータの年度＋次年度）
+ * @param {Object} detected - detectFiscalYearFromAnnualSchedule の結果
+ * @return {Array<number>} ソート済み年度リスト
+ */
+function buildSelectableFiscalYears(detected) {
+  const years = {};
+  detected.allFiscalYears.forEach(function(fy) { years[fy] = true; });
+  // 常に次年度も選択可能にする
+  years[detected.fiscalYear + 1] = true;
+  return Object.keys(years).map(function(k) { return Number(k); }).sort(function(a, b) { return a - b; });
 }
 
 /**
@@ -361,7 +366,9 @@ function normalizeAnnualTargetRowsFromDialog(fiscalYear, target) {
       }
     }
 
-    rows.push(buildV4PlanRow(fiscalYear, grade, mode, annualKoma, monthlyKoma, note));
+    const rawStartMonth = Number(gradeData.startMonth);
+    const validStartMonth = isValidStartMonth(rawStartMonth) ? rawStartMonth : MODULE_FISCAL_YEAR_START_MONTH;
+    rows.push(buildV4PlanRow(fiscalYear, grade, mode, annualKoma, monthlyKoma, note, validStartMonth));
   }
 
   return rows;

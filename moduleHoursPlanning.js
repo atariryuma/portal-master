@@ -88,7 +88,7 @@ function buildAnnualTargetFromRows(fiscalYear, rows) {
   const gradeKoma = {};
 
   for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
-    grades[g] = { mode: MODULE_PLAN_MODE_ANNUAL, annualKoma: MODULE_DEFAULT_ANNUAL_KOMA, monthlyKoma: null };
+    grades[g] = { mode: MODULE_PLAN_MODE_ANNUAL, annualKoma: MODULE_DEFAULT_ANNUAL_KOMA, monthlyKoma: null, startMonth: MODULE_FISCAL_YEAR_START_MONTH };
     gradeKoma[g] = MODULE_DEFAULT_ANNUAL_KOMA;
   }
 
@@ -101,15 +101,17 @@ function buildAnnualTargetFromRows(fiscalYear, rows) {
       ? MODULE_PLAN_MODE_MONTHLY
       : MODULE_PLAN_MODE_ANNUAL;
     const annualKoma = Math.max(0, Math.round(toNumberOrZero(row[15])));
+    const rawStartMonth = Number(row[17]);
+    const startMonth = isValidStartMonth(rawStartMonth) ? rawStartMonth : MODULE_FISCAL_YEAR_START_MONTH;
 
     if (mode === MODULE_PLAN_MODE_MONTHLY) {
       const monthlyKoma = {};
       [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3].forEach(function(m, i) {
         monthlyKoma[m] = Math.max(0, Math.round(toNumberOrZero(row[3 + i])));
       });
-      grades[grade] = { mode: MODULE_PLAN_MODE_MONTHLY, annualKoma: annualKoma, monthlyKoma: monthlyKoma };
+      grades[grade] = { mode: MODULE_PLAN_MODE_MONTHLY, annualKoma: annualKoma, monthlyKoma: monthlyKoma, startMonth: startMonth };
     } else {
-      grades[grade] = { mode: MODULE_PLAN_MODE_ANNUAL, annualKoma: annualKoma, monthlyKoma: null };
+      grades[grade] = { mode: MODULE_PLAN_MODE_ANNUAL, annualKoma: annualKoma, monthlyKoma: null, startMonth: startMonth };
     }
     gradeKoma[grade] = annualKoma;
   });
@@ -147,7 +149,15 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
     : getEnabledWeekdays();
   const planStartDate = options && options.startDate ? normalizeToDate(options.startDate) : null;
   const planEndDate = options && options.endDate ? normalizeToDate(options.endDate) : null;
-  const schoolDayMap = buildSchoolDayMapByGradeForFiscalYear(normalizedFiscalYear, enabledWeekdays, planStartDate, planEndDate);
+  // 学年別の開始月マップを構築
+  const gradeStartMonths = {};
+  for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
+    const gradeTarget = annualTarget.grades[g];
+    if (gradeTarget && gradeTarget.startMonth && gradeTarget.startMonth !== MODULE_FISCAL_YEAR_START_MONTH) {
+      gradeStartMonths[g] = gradeTarget.startMonth;
+    }
+  }
+  const schoolDayMap = buildSchoolDayMapByGradeForFiscalYear(normalizedFiscalYear, enabledWeekdays, planStartDate, planEndDate, gradeStartMonths);
 
   const dailyEntries = [];
   const planRows = [];
@@ -263,16 +273,26 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
  * @param {Array<number>=} enabledWeekdays - 有効曜日配列（省略時はデフォルト）
  * @param {Date=} startDate - 実施期間の開始日（省略時は年度開始日）
  * @param {Date=} endDate - 実施期間の終了日（省略時は年度終了日）
+ * @param {Object=} gradeStartMonths - 学年別開始月 {1: 4, 2: 6, ...}（省略時は全学年startDate）
  * @return {Object} 学年別日付配列
  */
-function buildSchoolDayMapByGradeForFiscalYear(fiscalYear, enabledWeekdays, startDate, endDate) {
+function buildSchoolDayMapByGradeForFiscalYear(fiscalYear, enabledWeekdays, startDate, endDate, gradeStartMonths) {
   const fiscalRange = getFiscalYearDateRange(fiscalYear);
   const rangeStart = startDate && startDate >= fiscalRange.startDate ? startDate : fiscalRange.startDate;
   const rangeEnd = endDate && endDate <= fiscalRange.endDate ? endDate : fiscalRange.endDate;
   const result = {};
 
+  // 学年別の実効開始日を算出
+  const gradeStartDates = {};
   for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
     result[grade] = [];
+    const sm = gradeStartMonths && gradeStartMonths[grade];
+    if (sm && sm !== MODULE_FISCAL_YEAR_START_MONTH) {
+      const gradeStartDate = fiscalMonthToDate(fiscalYear, sm);
+      gradeStartDates[grade] = gradeStartDate > rangeStart ? gradeStartDate : rangeStart;
+    } else {
+      gradeStartDates[grade] = rangeStart;
+    }
   }
 
   const rows = extractSchoolDayRows(rangeStart, rangeEnd, enabledWeekdays);
@@ -281,6 +301,12 @@ function buildSchoolDayMapByGradeForFiscalYear(fiscalYear, enabledWeekdays, star
   rows.forEach(function(row) {
     const date = row.date;
     const grade = row.grade;
+
+    // 学年別開始日より前の日付はスキップ
+    if (date < gradeStartDates[grade]) {
+      return;
+    }
+
     const dateKey = formatInputDate(date);
     const key = dateKey + '_' + grade;
 
@@ -301,6 +327,35 @@ function buildSchoolDayMapByGradeForFiscalYear(fiscalYear, enabledWeekdays, star
 }
 
 /**
+ * 年度内の月番号を実日付に変換（月の1日）
+ * @param {number} fiscalYear - 年度
+ * @param {number} month - 月（1〜12）
+ * @return {Date} 対象月の1日
+ */
+function fiscalMonthToDate(fiscalYear, month) {
+  const year = month >= MODULE_FISCAL_YEAR_START_MONTH ? fiscalYear : fiscalYear + 1;
+  const date = new Date(year, month - 1, 1);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+// ── Per-execution cache for annual schedule data ──
+let annualScheduleDataCache_ = null;
+
+/**
+ * 年間行事予定表の全データを取得（キャッシュ付き）
+ * @return {Array<Array<*>>} シートデータ
+ */
+function getAnnualScheduleDataCached_() {
+  if (annualScheduleDataCache_) {
+    return annualScheduleDataCache_;
+  }
+  const sheet = getAnnualScheduleSheetOrThrow();
+  annualScheduleDataCache_ = sheet.getDataRange().getValues();
+  return annualScheduleDataCache_;
+}
+
+/**
  * 年間行事予定表から学校日候補を抽出
  * @param {Date} startDate - 開始日
  * @param {Date} endDate - 終了日
@@ -308,8 +363,7 @@ function buildSchoolDayMapByGradeForFiscalYear(fiscalYear, enabledWeekdays, star
  * @return {Array<Object>} 日付・学年配列
  */
 function extractSchoolDayRows(startDate, endDate, enabledWeekdays) {
-  const sheet = getAnnualScheduleSheetOrThrow();
-  const values = sheet.getDataRange().getValues();
+  const values = getAnnualScheduleDataCached_();
   const rows = [];
   const allowedDays = Array.isArray(enabledWeekdays) && enabledWeekdays.length > 0
     ? enabledWeekdays

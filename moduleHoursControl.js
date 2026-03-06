@@ -353,9 +353,10 @@ function ensureDataVersionIsLatest() {
  * @param {number} annualKoma - 年間計画時数
  * @param {Object|null} monthlyKoma - 月別計画時数（monthlyモード時）
  * @param {string=} note - メモ
+ * @param {number=} startMonth - 開始月（4〜3、省略時は年度開始月）
  * @return {Array<*>} MODULE_CONTROL_PLAN_HEADERS形式の行
  */
-function buildV4PlanRow(fiscalYear, grade, mode, annualKoma, monthlyKoma, note) {
+function buildV4PlanRow(fiscalYear, grade, mode, annualKoma, monthlyKoma, note, startMonth) {
   const row = new Array(MODULE_CONTROL_PLAN_HEADERS.length).fill('');
   row[0] = Number(fiscalYear);
   row[1] = Number(grade);
@@ -367,7 +368,18 @@ function buildV4PlanRow(fiscalYear, grade, mode, annualKoma, monthlyKoma, note) 
   }
   row[15] = toNumberOrZero(annualKoma);
   row[16] = note || '';
+  row[17] = isValidStartMonth(startMonth) ? Number(startMonth) : '';
   return row;
+}
+
+/**
+ * 開始月が有効な値（4〜12, 1〜3）かチェック
+ * @param {*} month - 月の値
+ * @return {boolean} 有効であればtrue
+ */
+function isValidStartMonth(month) {
+  const m = Number(month);
+  return Number.isInteger(m) && m >= 1 && m <= 12;
 }
 
 /**
