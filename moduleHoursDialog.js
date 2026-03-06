@@ -366,9 +366,7 @@ function normalizeAnnualTargetRowsFromDialog(fiscalYear, target) {
       }
     }
 
-    const rawStartMonth = Number(gradeData.startMonth);
-    const validStartMonth = isValidStartMonth(rawStartMonth) ? rawStartMonth : MODULE_FISCAL_YEAR_START_MONTH;
-    rows.push(buildV4PlanRow(fiscalYear, grade, mode, annualKoma, monthlyKoma, note, validStartMonth));
+    rows.push(buildV4PlanRow(fiscalYear, grade, mode, annualKoma, monthlyKoma, note));
   }
 
   return rows;
