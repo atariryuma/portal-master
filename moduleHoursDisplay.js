@@ -15,7 +15,7 @@ function syncModuleHoursWithCumulative(baseDate, options) {
   const controlSheet = initializeModuleHoursSheetsIfNeeded();
   const normalizedBaseDate = normalizeToDate(baseDate) || normalizeToDate(new Date());
   const requestedFiscalYear = options && Number.isInteger(options.fiscalYear) ? options.fiscalYear : null;
-  const fiscalYear = requestedFiscalYear !== null ? requestedFiscalYear : getFiscalYear(normalizedBaseDate);
+  const fiscalYear = requestedFiscalYear !== null ? requestedFiscalYear : detectFiscalYearFromAnnualSchedule(normalizedBaseDate);
   const preservePlanningRange = options && options.preservePlanningRange ? options.preservePlanningRange : null;
 
   ensureDefaultAnnualTargetForFiscalYear(fiscalYear, controlSheet);
