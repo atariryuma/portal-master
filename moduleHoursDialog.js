@@ -19,10 +19,9 @@ function showModulePlanningDialog() {
 
 /**
  * ダイアログ表示用の状態を返却
- * @param {number=} requestedFiscalYear - 指定年度（省略時は自動判定）
  * @return {Object} ダイアログ状態
  */
-function getModulePlanningDialogState(requestedFiscalYear) {
+function getModulePlanningDialogState() {
   const startedAt = new Date().getTime();
   let initElapsedMs = 0;
   let dataElapsedMs = 0;
@@ -32,11 +31,7 @@ function getModulePlanningDialogState(requestedFiscalYear) {
   const controlSheet = initializeModuleHoursSheetsIfNeeded();
   initElapsedMs = new Date().getTime() - initStartedAt;
   const baseDate = normalizeToDate(getCurrentOrNextSaturday());
-  const detected = detectFiscalYearFromAnnualSchedule(baseDate);
-  const autoFiscalYear = detected.fiscalYear;
-  const fiscalYear = Number.isInteger(requestedFiscalYear) && requestedFiscalYear >= 2000 && requestedFiscalYear <= 2100
-    ? requestedFiscalYear
-    : autoFiscalYear;
+  const fiscalYear = detectFiscalYearFromAnnualSchedule(baseDate);
   const fiscalRange = getFiscalYearDateRange(fiscalYear);
 
   const dataStartedAt = new Date().getTime();
@@ -76,8 +71,6 @@ function getModulePlanningDialogState(requestedFiscalYear) {
     baseDate: formatInputDate(baseDate),
     defaultExceptionDate: formatInputDate(getDefaultExceptionDate(enabledWeekdays)),
     fiscalYear: fiscalYear,
-    autoFiscalYear: autoFiscalYear,
-    selectableFiscalYears: buildSelectableFiscalYears(detected),
     fiscalYearStartDate: formatInputDate(fiscalRange.startDate),
     fiscalYearEndDate: formatInputDate(fiscalRange.endDate),
     startDate: formatInputDate(savedRange.startDate),
@@ -105,18 +98,6 @@ function getModulePlanningDialogState(requestedFiscalYear) {
   return state;
 }
 
-/**
- * 選択可能年度リストを構築（スケジュールデータの年度＋次年度）
- * @param {Object} detected - detectFiscalYearFromAnnualSchedule の結果
- * @return {Array<number>} ソート済み年度リスト
- */
-function buildSelectableFiscalYears(detected) {
-  const years = {};
-  detected.allFiscalYears.forEach(function(fy) { years[fy] = true; });
-  // 常に次年度も選択可能にする
-  years[detected.fiscalYear + 1] = true;
-  return Object.keys(years).map(function(k) { return Number(k); }).sort(function(a, b) { return a - b; });
-}
 
 /**
  * 差分入力のデフォルト日付を取得（直近の実施曜日）
@@ -217,15 +198,11 @@ function listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, limitCount,
 
 /**
  * モジュール学習集計を再実行
- * @param {number=} requestedFiscalYear - 対象年度（省略時は自動判定）
  * @return {string} 完了メッセージ
  */
-function refreshModulePlanning(requestedFiscalYear) {
+function refreshModulePlanning() {
   const baseDate = getCurrentOrNextSaturday();
-  const fiscalYearOption = Number.isInteger(requestedFiscalYear) && requestedFiscalYear >= 2000 && requestedFiscalYear <= 2100
-    ? requestedFiscalYear
-    : null;
-  const result = syncModuleHoursWithCumulative(baseDate, fiscalYearOption !== null ? { fiscalYear: fiscalYearOption } : null);
+  const result = syncModuleHoursWithCumulative(baseDate);
   return [
     'モジュール学習の再計算が完了しました。',
     '基準日: ' + formatInputDate(result.baseDate),

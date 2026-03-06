@@ -630,12 +630,13 @@ function getDefaultModulePlanningRange(baseDate) {
  * 年間行事予定表の日付データから年度を自動判定
  * データに含まれる最も多い年度を返す。データがない場合は baseDate から判定。
  * @param {Date=} baseDate - フォールバック基準日
- * @return {Object} { fiscalYear: number, allFiscalYears: Array<number> }
+ * @return {number} 年度
  */
 function detectFiscalYearFromAnnualSchedule(baseDate) {
   try {
     let values = null;
     try {
+      // GAS load-order guard: getAnnualScheduleDataCached_ は moduleHoursPlanning.js で定義
       values = typeof getAnnualScheduleDataCached_ === 'function'
         ? getAnnualScheduleDataCached_()
         : null;
@@ -643,11 +644,9 @@ function detectFiscalYearFromAnnualSchedule(baseDate) {
       // シートが見つからない場合はフォールバック
     }
     if (!values || values.length <= 1) {
-      const fallback = getFiscalYear(baseDate || new Date());
-      return { fiscalYear: fallback, allFiscalYears: [fallback] };
+      return getFiscalYear(baseDate || new Date());
     }
     const yearCounts = {};
-    const allYears = {};
 
     for (let i = 1; i < values.length; i++) {
       const date = normalizeToDate(values[i][SCHEDULE_COLUMNS.DATE]);
@@ -656,17 +655,10 @@ function detectFiscalYearFromAnnualSchedule(baseDate) {
       }
       const fy = getFiscalYear(date);
       yearCounts[fy] = (yearCounts[fy] || 0) + 1;
-      allYears[fy] = true;
-    }
-
-    const years = Object.keys(allYears).map(function(k) { return Number(k); }).sort();
-    if (years.length === 0) {
-      const fallback = getFiscalYear(baseDate || new Date());
-      return { fiscalYear: fallback, allFiscalYears: [fallback] };
     }
 
     // 最も行数が多い年度を選択
-    let bestYear = years[0];
+    let bestYear = 0;
     let bestCount = 0;
     Object.keys(yearCounts).forEach(function(fy) {
       if (yearCounts[fy] > bestCount) {
@@ -675,11 +667,10 @@ function detectFiscalYearFromAnnualSchedule(baseDate) {
       }
     });
 
-    return { fiscalYear: bestYear, allFiscalYears: years };
+    return bestYear || getFiscalYear(baseDate || new Date());
   } catch (error) {
     Logger.log('[WARNING] 年度自動判定に失敗: ' + error.toString());
-    const fallback = getFiscalYear(baseDate || new Date());
-    return { fiscalYear: fallback, allFiscalYears: [fallback] };
+    return getFiscalYear(baseDate || new Date());
   }
 }
 

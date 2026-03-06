@@ -59,23 +59,6 @@
       color: #0f172a;
       text-align: right;
     }
-    .fiscal-year-select {
-      font-size: 14px;
-      font-weight: 700;
-      color: #0f172a;
-      background: #fff;
-      border: 1px solid #cbd5e1;
-      border-radius: 4px;
-      padding: 1px 4px;
-      cursor: pointer;
-    }
-    .fiscal-year-select:hover {
-      border-color: #2563eb;
-    }
-    .fiscal-year-select:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
     .step-tabs {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -484,11 +467,7 @@
     <div class="summary">
       <div class="summary-item">
         <span>対象年度</span>
-        <strong id="fiscalYear">
-          <select id="fiscalYearSelect" class="fiscal-year-select">
-            <option value="">-</option>
-          </select>
-        </strong>
+        <strong id="fiscalYearLabel">-</strong>
       </div>
       <div class="summary-item">
         <span>年度範囲</span>
@@ -568,8 +547,6 @@
       <h3>年間計画入力</h3>
       <p class="section-note">各学年の年間計画時数（1単位時間＝45分、1コマ相当）を入力してください。</p>
       <div class="toolbar">
-        <label for="fiscalYearInput">対象年度</label>
-        <input id="fiscalYearInput" type="number" readonly>
         <label for="bulkKomaInput">全学年一括</label>
         <input id="bulkKomaInput" type="number" min="0" step="1" value="28" class="bulk-koma-input">
         <button type="button" class="small-btn" onclick="setAllGradeKoma()">一括設定</button>
@@ -804,7 +781,7 @@
 
     function setLoading(loading) {
       isLoading = Boolean(loading);
-      const ids = ['saveSettingsButton', 'savePlanButton', 'addExceptionButton', 'refreshButton', 'closeButton', 'toggleMonthlyColumnsButton', 'fiscalYearSelect'];
+      const ids = ['saveSettingsButton', 'savePlanButton', 'addExceptionButton', 'refreshButton', 'closeButton', 'toggleMonthlyColumnsButton'];
       ids.forEach(function(id) {
         const el = document.getElementById(id);
         if (el) {
@@ -825,23 +802,11 @@
 
     function updateSummary(state) {
       const range = (state.fiscalYearStartDate || '-') + ' ～ ' + (state.fiscalYearEndDate || '-');
-      const select = document.getElementById('fiscalYearSelect');
-      const years = Array.isArray(state.selectableFiscalYears) ? state.selectableFiscalYears : [];
-      if (years.length > 0 && select.options.length <= 1) {
-        select.innerHTML = '';
-        years.forEach(function(y) {
-          const opt = document.createElement('option');
-          opt.value = String(y);
-          opt.textContent = y + '年度';
-          select.appendChild(opt);
-        });
-      }
-      select.value = String(state.fiscalYear || '');
+      document.getElementById('fiscalYearLabel').textContent = state.fiscalYear ? state.fiscalYear + '年度' : '-';
       document.getElementById('fiscalRange').textContent = range;
       document.getElementById('dailyPlanCount').textContent = (state.dailyPlanRecordCount || 0) + '件';
       document.getElementById('exceptionCount').textContent = (state.exceptionRecordCount || 0) + '件';
       document.getElementById('lastGeneratedAt').textContent = state.lastGeneratedAt || '未生成';
-      document.getElementById('fiscalYearInput').value = state.fiscalYear || '';
     }
 
     function updateStepMeta(state) {
@@ -1300,7 +1265,7 @@
         .withSuccessHandler(function(message) {
           setLoading(false);
           setStatus(message || '実施条件を保存しました。', 'success');
-          loadDialogState(true, currentState.fiscalYear);
+          loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
@@ -1339,12 +1304,11 @@
       clearDirtyState();
     }
 
-    function loadDialogState(keepStatus, fiscalYear) {
+    function loadDialogState(keepStatus) {
       if (!keepStatus) {
         setStatus('現在の状態を読み込み中...', 'info');
       }
 
-      const requestedYear = Number.isInteger(fiscalYear) ? fiscalYear : null;
       google.script.run
         .withSuccessHandler(function(state) {
           setLoading(false);
@@ -1357,18 +1321,7 @@
           setLoading(false);
           setStatus('状態の取得に失敗しました: ' + getErrorMessage(error), 'error');
         })
-        .getModulePlanningDialogState(requestedYear);
-    }
-
-    function onFiscalYearChange() {
-      const select = document.getElementById('fiscalYearSelect');
-      const year = parseInt(select.value, 10);
-      if (!Number.isInteger(year)) {
-        return;
-      }
-      setLoading(true);
-      setStatus(year + '年度のデータを読み込み中...', 'info');
-      loadDialogState(false, year);
+        .getModulePlanningDialogState();
     }
 
     function populateGradeOptions() {
@@ -1385,7 +1338,7 @@
     }
 
     function savePlan() {
-      const fiscalYear = Number(document.getElementById('fiscalYearInput').value);
+      const fiscalYear = currentState.fiscalYear;
       let target;
 
       try {
@@ -1402,7 +1355,7 @@
         .withSuccessHandler(function(message) {
           setLoading(false);
           setStatus(message || '年間計画を保存しました。', 'success');
-          loadDialogState(true, currentState.fiscalYear);
+          loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
@@ -1459,7 +1412,7 @@
           setStatus(message || '実績調整を追加しました。', 'success');
           document.getElementById('exceptionReason').value = '';
           document.getElementById('exceptionNote').value = '';
-          loadDialogState(true, currentState.fiscalYear);
+          loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
@@ -1475,13 +1428,13 @@
         .withSuccessHandler(function(message) {
           setLoading(false);
           setStatus(message || '再計算が完了しました。', 'success');
-          loadDialogState(true, currentState.fiscalYear);
+          loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
           setStatus('再計算に失敗しました: ' + getErrorMessage(error), 'error');
         })
-        .refreshModulePlanning(currentState.fiscalYear);
+        .refreshModulePlanning();
     }
 
     window.onload = function() {
@@ -1491,7 +1444,6 @@
       updateGlobalActionState();
       loadDialogState(false);
       setDelta(3, false);
-      document.getElementById('fiscalYearSelect').addEventListener('change', onFiscalYearChange);
     };
   </script>
 </body>
