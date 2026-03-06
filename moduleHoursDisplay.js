@@ -38,7 +38,7 @@ function syncModuleHoursWithCumulative(baseDate, options) {
   writeModuleToCumulativeSheet(gradeTotals, normalizedBaseDate);
 
   const annualTarget = loadAnnualTargetForFiscalYear(fiscalYear, controlSheet);
-  writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays, normalizedBaseDate);
+  writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays, normalizedBaseDate, exceptionTotals);
 
   upsertModuleSettingsValues({
     LAST_GENERATED_AT: new Date(),
@@ -116,8 +116,9 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
  * @param {Object} annualTarget - 年間計画時数 { gradeKoma }
  * @param {Array<number>} enabledWeekdays - 有効曜日配列
  * @param {Date} baseDate - 基準日
+ * @param {Object=} exceptionTotals - loadExceptionTotals の返却値（実績調整）
  */
-function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays, baseDate) {
+function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays, baseDate, exceptionTotals) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = getOrCreatePlanSummarySheet(ss);
@@ -143,6 +144,18 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
       const monthKey = formatMonthKey(date);
       monthlyByGrade[grade][monthKey] = toNumberOrZero(monthlyByGrade[grade][monthKey]) + sessions;
     });
+
+    // 実績調整を月別集計に加算
+    const exMonthly = exceptionTotals && exceptionTotals.monthlyByGrade ? exceptionTotals.monthlyByGrade : {};
+    for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+      const gradeEx = exMonthly[grade];
+      if (!gradeEx) {
+        continue;
+      }
+      Object.keys(gradeEx).forEach(function(monthKey) {
+        monthlyByGrade[grade][monthKey] = toNumberOrZero(monthlyByGrade[grade][monthKey]) + toNumberOrZero(gradeEx[monthKey]);
+      });
+    }
 
     // 年度月順（4月→3月）のキーリスト
     const monthKeys = [];

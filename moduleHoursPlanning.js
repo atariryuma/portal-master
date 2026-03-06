@@ -147,9 +147,10 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
     : getEnabledWeekdays();
   const planStartDate = options && options.startDate ? normalizeToDate(options.startDate) : null;
   const planEndDate = options && options.endDate ? normalizeToDate(options.endDate) : null;
+  const skipDailyRows = options && options.skipDailyRows === true;
   const schoolDayMap = buildSchoolDayMapByGradeForFiscalYear(normalizedFiscalYear, enabledWeekdays, planStartDate, planEndDate);
 
-  const dailyEntries = [];
+  const dailyEntries = skipDailyRows ? null : [];
   const planRows = [];
   const totalsByGrade = {};
   const reserveByGrade = {};
@@ -182,29 +183,31 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
     // 1日1回上限により配分できない分も不足として扱う。
     reserveByGrade[grade] = gradeDates.length - plannedSessions;
 
-    allocatedDateKeys.forEach(function(dateKey) {
-      const dateObj = normalizeToDate(dateKey);
-      const sessions = allocations[dateKey];
-      const elapsedFlag = dateObj <= cutoffDate ? 1 : 0;
+    if (dailyEntries) {
+      allocatedDateKeys.forEach(function(dateKey) {
+        const dateObj = normalizeToDate(dateKey);
+        const sessions = allocations[dateKey];
+        const elapsedFlag = dateObj <= cutoffDate ? 1 : 0;
 
-      dailyEntries.push({
-        date: dateObj,
-        fiscalYear: normalizedFiscalYear,
-        weekKey: getWeekKey(dateObj),
-        grade: grade,
-        plannedSessions: sessions,
-        elapsedFlag: elapsedFlag,
-        generatedAt: generatedAt
-      });
+        dailyEntries.push({
+          date: dateObj,
+          fiscalYear: normalizedFiscalYear,
+          weekKey: getWeekKey(dateObj),
+          grade: grade,
+          plannedSessions: sessions,
+          elapsedFlag: elapsedFlag,
+          generatedAt: generatedAt
+        });
 
-      totalsByGrade[grade].plannedSessions += sessions;
-      if (elapsedFlag === 1) {
-        totalsByGrade[grade].elapsedSessions += sessions;
-        if (dateObj >= weekStart && dateObj <= cutoffDate) {
-          totalsByGrade[grade].thisWeekSessions += sessions;
+        totalsByGrade[grade].plannedSessions += sessions;
+        if (elapsedFlag === 1) {
+          totalsByGrade[grade].elapsedSessions += sessions;
+          if (dateObj >= weekStart && dateObj <= cutoffDate) {
+            totalsByGrade[grade].thisWeekSessions += sessions;
+          }
         }
-      }
-    });
+      });
+    }
 
     if (plannedSessions > 0 && allocatedDateKeys.length === 0) {
       Logger.log('[WARNING] 学校週が存在しないため割当をスキップしました: FY' + normalizedFiscalYear + ', grade=' + grade);
@@ -222,34 +225,45 @@ function buildDailyPlanFromAnnualTarget(fiscalYear, baseDate, options) {
     ]);
   }
 
-  dailyEntries.sort(function(a, b) {
-    if (a.date.getTime() !== b.date.getTime()) {
-      return a.date.getTime() - b.date.getTime();
-    }
-    return a.grade - b.grade;
-  });
+  let dailyRows = [];
+  let dailyPlanCount = 0;
 
-  // dailyRows: 後方互換のため列配置を維持（cycleOrder/cycleLabel は空値）
-  const dailyRows = dailyEntries.map(function(entry) {
-    return [
-      entry.date,
-      entry.fiscalYear,
-      0,
-      '',
-      entry.weekKey,
-      entry.grade,
-      entry.plannedSessions,
-      entry.elapsedFlag,
-      entry.generatedAt
-    ];
-  });
+  if (dailyEntries) {
+    dailyEntries.sort(function(a, b) {
+      if (a.date.getTime() !== b.date.getTime()) {
+        return a.date.getTime() - b.date.getTime();
+      }
+      return a.grade - b.grade;
+    });
+
+    // dailyRows: 後方互換のため列配置を維持（cycleOrder/cycleLabel は空値）
+    dailyRows = dailyEntries.map(function(entry) {
+      return [
+        entry.date,
+        entry.fiscalYear,
+        0,
+        '',
+        entry.weekKey,
+        entry.grade,
+        entry.plannedSessions,
+        entry.elapsedFlag,
+        entry.generatedAt
+      ];
+    });
+    dailyPlanCount = dailyRows.length;
+  } else {
+    // skipDailyRows: 件数のみカウント
+    planRows.forEach(function(row) {
+      dailyPlanCount += toNumberOrZero(row[6]);
+    });
+  }
 
   return {
     fiscalYear: normalizedFiscalYear,
     startDate: planStartDate || fiscalRange.startDate,
     endDate: planEndDate || fiscalRange.endDate,
     generatedAt: generatedAt,
-    dailyPlanCount: dailyRows.length,
+    dailyPlanCount: dailyPlanCount,
     dailyRows: dailyRows,
     planRows: planRows,
     totalsByGrade: totalsByGrade,
@@ -607,6 +621,11 @@ function loadExceptionTotals(fiscalYear, baseDate, controlSheet) {
   const sheet = controlSheet || initializeModuleHoursSheetsIfNeeded();
   const rows = readExceptionRows(sheet);
 
+  const monthlyByGrade = {};
+  for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+    monthlyByGrade[grade] = {};
+  }
+
   rows.forEach(function(item) {
     const exceptionDate = normalizeToDate(item.date);
     const grade = Number(item.grade);
@@ -627,8 +646,12 @@ function loadExceptionTotals(fiscalYear, baseDate, controlSheet) {
     if (exceptionDate >= weekStart && exceptionDate <= baseDate) {
       totals.thisWeekByGrade[grade] += delta;
     }
+
+    const monthKey = formatMonthKey(exceptionDate);
+    monthlyByGrade[grade][monthKey] = toNumberOrZero(monthlyByGrade[grade][monthKey]) + delta;
   });
 
+  totals.monthlyByGrade = monthlyByGrade;
   return totals;
 }
 

@@ -59,7 +59,8 @@ function getModulePlanningDialogState() {
     controlSheet: controlSheet,
     enabledWeekdays: enabledWeekdays,
     startDate: savedRange.startDate,
-    endDate: savedRange.endDate
+    endDate: savedRange.endDate,
+    skipDailyRows: true
   });
   const reserveByGrade = buildResult.reserveByGrade;
   const dailyPlanCount = buildResult.dailyPlanCount;
