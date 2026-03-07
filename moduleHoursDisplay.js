@@ -182,24 +182,26 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     sheet.clear();
     sheet.clearFormats();
 
-    // 行1: タイトル（左）+ 更新日時（右）
-    sheet.getRange(1, 1, 1, 13).merge();
+    // 行1: タイトル
+    sheet.getRange(1, 1, 1, 16).merge();
     sheet.getRange(1, 1).setValue('モジュール学習 年間実施計画');
-    sheet.getRange(1, 1).setFontSize(12).setFontWeight('bold');
-    sheet.getRange(1, 14, 1, 3).merge();
-    sheet.getRange(1, 14).setValue('更新: ' + formatDateTimeForDisplay(new Date()));
-    sheet.getRange(1, 14).setFontSize(8).setFontColor('#64748b').setHorizontalAlignment('right');
+    sheet.getRange(1, 1).setFontSize(14).setFontWeight('bold');
 
-    // 行2: 年度・期間・曜日（1行にまとめる）
-    sheet.getRange(2, 1).setValue(
-      fiscalYear + '年度　' +
-      formatInputDate(buildResult.startDate) + '～' + formatInputDate(buildResult.endDate) +
-      '　' + weekdayNames + '　1回15分（3回で1単位時間）'
+    // 行3: 年度・実施期間
+    sheet.getRange(3, 1).setValue(
+      '年度: ' + fiscalYear + '年度　　実施期間: ' +
+      formatInputDate(buildResult.startDate) + ' ～ ' + formatInputDate(buildResult.endDate)
     );
-    sheet.getRange(2, 1).setFontSize(9);
+    sheet.getRange(3, 1).setFontSize(10);
 
-    // 行4: ヘッダー（行3は空白セパレーター）
-    const headerRow = 4;
+    // 行4: 実施曜日・形式
+    sheet.getRange(4, 1).setValue(
+      '実施曜日: ' + weekdayNames + '　　1回15分（3回で1単位時間 = 45分）'
+    );
+    sheet.getRange(4, 1).setFontSize(10);
+
+    // 行6: ヘッダー
+    const headerRow = 6;
     const headers = ['学年'];
     monthLabels.forEach(function(label) { headers.push(label); });
     headers.push('合計');
@@ -213,7 +215,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
       .setHorizontalAlignment('center')
       .setBorder(true, true, true, true, true, true);
 
-    // 行5-10: 学年データ
+    // 行7-12: 学年データ
     const dataStartRow = headerRow + 1;
     const dataRows = [];
     const reserveByGradeAdjusted = {};
@@ -249,8 +251,8 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     // データ行の書式
     const dataRange = sheet.getRange(dataStartRow, 1, dataRows.length, headers.length);
     dataRange.setBorder(true, true, true, true, true, true);
-    // ヘッダー+データ行をA4向けに9ptに設定
-    sheet.getRange(headerRow, 1, dataRows.length + 1, headers.length).setFontSize(9);
+    // ヘッダー+データ行を10ptに設定
+    sheet.getRange(headerRow, 1, dataRows.length + 1, headers.length).setFontSize(10);
     sheet.getRange(dataStartRow, 2, dataRows.length, 12).setHorizontalAlignment('center');
     sheet.getRange(dataStartRow, 14, dataRows.length, 3).setHorizontalAlignment('center');
 
@@ -264,7 +266,8 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     }
 
     // ── 日別実施計画セクション（2段組み） ──
-    const dailySectionStartRow = dataStartRow + dataRows.length + 1;
+    const dailySectionStartRow = dataStartRow + dataRows.length + 2;
+    let lastContentRow = dataStartRow + dataRows.length;
 
     const dailyByDate = {};
     buildResult.dailyRows.forEach(function(row) {
@@ -294,6 +297,9 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
 
     const sortedDateKeys = Object.keys(dailyByDate).sort();
     if (sortedDateKeys.length > 0) {
+      sheet.getRange(dailySectionStartRow, 1).setValue('日別実施計画');
+      sheet.getRange(dailySectionStartRow, 1).setFontSize(12).setFontWeight('bold');
+
       const blockCols = 2 + (MODULE_GRADE_MAX - MODULE_GRADE_MIN + 1);
       const dailyHeaders = ['日付', '曜日'];
       for (let g = MODULE_GRADE_MIN; g <= MODULE_GRADE_MAX; g++) {
@@ -350,7 +356,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
           .map(function(idx) { return idx - splitIndex; });
 
         // ヘッダー行（左右並列）— 1回のsetValuesと1回の書式設定で処理
-        const dailyHeaderRow = dailySectionStartRow;
+        const dailyHeaderRow = dailySectionStartRow + 1;
         sheet.getRange(dailyHeaderRow, 1, 1, blockCols * 2).setValues([dailyHeaders.concat(dailyHeaders)]);
         sheet.getRange(dailyHeaderRow, 1, 1, blockCols * 2)
           .setBackground('#f0f0f0')
@@ -406,10 +412,18 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
 
         // 日別セクションのフォントサイズ・行高さ（印刷最適化）— ヘッダー+データを1回で設定
         sheet.getRange(dailyHeaderRow, 1, maxBlockRows + 1, blockCols * 2).setFontSize(9);
-        sheet.setRowHeights(dailyDataStartRow, maxBlockRows, 16);
+        sheet.setRowHeights(dailyDataStartRow, maxBlockRows, 18);
 
+        lastContentRow = dailyDataStartRow + maxBlockRows - 1;
       }
     }
+
+    // フッター行
+    const footerRow = lastContentRow + 2;
+    sheet.getRange(footerRow, 1).setValue(
+      '更新日時: ' + formatDateTimeForDisplay(new Date()) + '　　※ 本シートは再計算時に自動更新されます'
+    );
+    sheet.getRange(footerRow, 1).setFontSize(9).setFontColor('#64748b');
 
     // 列幅調整（A4縦印刷に収まる均等幅で左右対称を確保）
     sheet.setColumnWidths(1, 16, 40);
