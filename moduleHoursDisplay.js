@@ -210,6 +210,19 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
       .setHorizontalAlignment('center')
       .setBorder(true, true, true, true, true, true);
 
+    // 学年別の追加・調整セッション合計（予/不足の補正用）
+    const exceptionSessionsByGrade = {};
+    for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
+      let exTotal = 0;
+      const gradeEx = exMonthly[grade];
+      if (gradeEx) {
+        Object.keys(gradeEx).forEach(function(monthKey) {
+          exTotal += toNumberOrZero(gradeEx[monthKey]);
+        });
+      }
+      exceptionSessionsByGrade[grade] = exTotal;
+    }
+
     // 行7-12: 学年データ
     const dataStartRow = headerRow + 1;
     const dataRows = [];
@@ -226,7 +239,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
       row.push(formatSessionsAsMixedFraction(totalSessions));
       row.push(toNumberOrZero(annualTarget.gradeKoma[grade]));
 
-      const reserve = toNumberOrZero(buildResult.reserveByGrade[grade]);
+      const reserve = toNumberOrZero(buildResult.reserveByGrade[grade]) - toNumberOrZero(exceptionSessionsByGrade[grade]);
       if (reserve > 0) {
         row.push(MODULE_RESERVE_LABEL + formatSessionsAsMixedFraction(reserve));
       } else if (reserve < 0) {
@@ -249,7 +262,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     // 不足セルに赤背景
     const reserveCol = headers.length;
     for (let grade = MODULE_GRADE_MIN; grade <= MODULE_GRADE_MAX; grade++) {
-      const reserveVal = toNumberOrZero(buildResult.reserveByGrade[grade]);
+      const reserveVal = toNumberOrZero(buildResult.reserveByGrade[grade]) - toNumberOrZero(exceptionSessionsByGrade[grade]);
       const rowIndex = dataStartRow + grade - MODULE_GRADE_MIN;
       if (reserveVal < 0) {
         sheet.getRange(rowIndex, reserveCol).setBackground('#fef2f2').setFontColor('#991b1b').setFontWeight('bold');
