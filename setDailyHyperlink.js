@@ -13,7 +13,7 @@ function setDailyHyperlink() {
     }
 
     const today = new Date();
-    const formattedToday = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy-MM-dd");
+    const formattedToday = formatDateKey(today);
     const dateCol = ANNUAL_SCHEDULE.DATE_COLUMN;
     const lastRow = sheet.getLastRow();
     const dataRange = sheet.getRange(dateCol + ANNUAL_SCHEDULE.DATA_START_ROW + ':' + dateCol + lastRow);
@@ -22,7 +22,7 @@ function setDailyHyperlink() {
     let targetRow = null;
     for (let i = 0; i < values.length; i++) {
       const cellDate = values[i][0];
-      if (cellDate instanceof Date && Utilities.formatDate(cellDate, Session.getScriptTimeZone(), "yyyy-MM-dd") === formattedToday) {
+      if (cellDate instanceof Date && formatDateKey(cellDate) === formattedToday) {
         targetRow = i + ANNUAL_SCHEDULE.DATA_START_ROW;
         break;
       }

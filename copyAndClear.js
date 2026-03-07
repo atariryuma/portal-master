@@ -20,7 +20,7 @@ function copyAndClear() {
   try {
     const sourceSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     const settingsSheet = getSettingsSheetOrThrow();
-    const sourceSheet = sourceSpreadsheet.getSheetByName('年間行事予定表');
+    const sourceSheet = sourceSpreadsheet.getSheetByName(ANNUAL_SCHEDULE.SHEET_NAME);
 
     if (!sourceSheet) {
       showAlert('現在のファイルに「年間行事予定表」シートが見つかりません。', 'エラー');
@@ -66,7 +66,7 @@ function copyAndClear() {
         throw new Error('ファイル名の一致を確認できません。');
       }
       const verifiedSs = SpreadsheetApp.openByUrl(copiedFile.getUrl());
-      const verifiedSheet = verifiedSs.getSheetByName('年間行事予定表');
+      const verifiedSheet = verifiedSs.getSheetByName(ANNUAL_SCHEDULE.SHEET_NAME);
       if (!verifiedSheet || verifiedSheet.getLastRow() < 2) {
         throw new Error('コピー先の年間行事予定表シートが不完全です。');
       }
