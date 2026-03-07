@@ -1460,11 +1460,11 @@
         const tr = document.createElement('tr');
         const sessions = Math.round(item.deltaSessions);
         const prefix = sessions > 0 ? '+' : '';
-        tr.innerHTML = '<td>' + item.date + '</td>' +
-          '<td>' + item.grade + '年</td>' +
-          '<td>' + prefix + formatMixedFractionFromSessions(sessions) + 'コマ</td>' +
-          '<td>' + (item.reason || '') + '</td>' +
-          '<td>' + (item.note || '') + '</td>' +
+        tr.innerHTML = '<td>' + escapeHtml(item.date) + '</td>' +
+          '<td>' + escapeHtml(item.grade + '年') + '</td>' +
+          '<td>' + escapeHtml(prefix + formatMixedFractionFromSessions(sessions) + 'コマ') + '</td>' +
+          '<td>' + escapeHtml(item.reason || '') + '</td>' +
+          '<td>' + escapeHtml(item.note || '') + '</td>' +
           '<td><button type="button" class="small-btn" onclick="removeQueuedException(' + i + ')">×</button></td>';
         tbody.appendChild(tr);
       });
