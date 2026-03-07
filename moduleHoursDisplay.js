@@ -116,7 +116,7 @@ function writeModuleToCumulativeSheet(gradeTotals, baseDate) {
  * @param {Object} annualTarget - 年間計画時数 { gradeKoma }
  * @param {Array<number>} enabledWeekdays - 有効曜日配列
  * @param {Date} baseDate - 基準日
- * @param {Object=} exceptionTotals - loadExceptionTotals の返却値（実績調整）
+ * @param {Object=} exceptionTotals - loadExceptionTotals の返却値（追加・調整）
  */
 function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays, baseDate, exceptionTotals) {
   try {
@@ -279,7 +279,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
       dailyByDate[dateKey].grades[Number(row[5])] = toNumberOrZero(row[6]);
     });
 
-    // 実績調整の日別データをマージ（実施期間外の追加分も含む）
+    // 追加・調整の日別データをマージ（実施期間外の追加分も含む）
     const exDaily = exceptionTotals && exceptionTotals.dailyByGrade ? exceptionTotals.dailyByGrade : {};
     Object.keys(exDaily).forEach(function(dateKey) {
       const entry = exDaily[dateKey];

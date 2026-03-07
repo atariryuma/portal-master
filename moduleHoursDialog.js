@@ -148,12 +148,12 @@ function buildDialogAnnualTargetForFiscalYear(fiscalYear, controlSheet, annualTa
 }
 
 /**
- * 対象年度の最近の実績調整を返却
+ * 対象年度の最近の追加・調整を返却
  * @param {GoogleAppsScript.Spreadsheet.Sheet} controlSheet - module_control
  * @param {number} fiscalYear - 対象年度
  * @param {number} limitCount - 取得件数
  * @param {Array<Object>=} exceptionRows - 事前取得済み例外行
- * @return {Array<Object>} 実績調整配列
+ * @return {Array<Object>} 追加・調整配列
  */
 function listRecentExceptionsForFiscalYear(controlSheet, fiscalYear, limitCount, exceptionRows) {
   const limit = Math.max(1, Number(limitCount) || 10);
