@@ -725,21 +725,12 @@ function getFiscalYear(date, startMonth) {
 }
 
 /**
- * 日付を yyyy-MM 形式に変換
- * @param {Date} date - 対象日
- * @return {string} 月キー
- */
-function formatMonthKey(date) {
-  return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM');
-}
-
-/**
- * input[type=date] 用に yyyy-MM-dd 形式へ変換
+ * input[type=date] 用に yyyy-MM-dd 形式へ変換（formatDateKey のエイリアス）
  * @param {Date} date - 対象日
  * @return {string} 日付文字列
  */
 function formatInputDate(date) {
-  return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return formatDateKey(date);
 }
 
 /**
@@ -761,34 +752,15 @@ function formatDateTimeForDisplay(value) {
 }
 
 /**
- * 値を Date(00:00:00) へ正規化
+ * 値を Date(00:00:00) へ正規化（parseDateValue_ に委譲）
  * @param {Date|string|number} value - 入力値
  * @return {Date|null} 正規化後の日付
  */
 function normalizeToDate(value) {
-  if (value === null || value === undefined || value === '') {
+  const date = parseDateValue_(value);
+  if (!date) {
     return null;
   }
-
-  let date = null;
-  if (value instanceof Date) {
-    date = new Date(value.getTime());
-  } else if (typeof value === 'string') {
-    const trimmed = value.trim();
-    const ymd = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (ymd) {
-      date = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
-    } else {
-      date = new Date(trimmed);
-    }
-  } else {
-    date = new Date(value);
-  }
-
-  if (!(date instanceof Date) || isNaN(date.getTime())) {
-    return null;
-  }
-
   date.setHours(0, 0, 0, 0);
   return date;
 }

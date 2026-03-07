@@ -366,6 +366,15 @@ function formatDateKey(value) {
 }
 
 /**
+ * 日付を yyyy-MM 形式の月キーに変換
+ * @param {Date} date - 対象日
+ * @return {string} 月キー
+ */
+function formatMonthKey(date) {
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM');
+}
+
+/**
  * 次の土曜日の日付を取得（今日が土曜日の場合は今日を返す）
  * @return {Date} 土曜日の日付
  */
