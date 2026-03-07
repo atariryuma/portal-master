@@ -460,7 +460,7 @@
   <div class="container">
     <h2>モジュール学習管理</h2>
     <p class="lead">
-      内部シートを直接編集せず、この画面で「年間計画時数」と「実績調整」を管理できます。<br>
+      内部シートを直接編集せず、この画面で「年間計画時数」と「追加・調整」を管理できます。<br>
       保存時に再計算まで自動実行し、累計時数シートへ反映します。
     </p>
 
@@ -478,7 +478,7 @@
         <strong id="dailyPlanCount">0件</strong>
       </div>
       <div class="summary-item">
-        <span>実績調整件数</span>
+        <span>追加・調整件数</span>
         <strong id="exceptionCount">0件</strong>
       </div>
       <div class="summary-item">
@@ -497,7 +497,7 @@
         <span class="tab-meta" id="stepMetaPlan">未入力</span>
       </button>
       <button type="button" class="step-tab" id="stepTabException" data-step="exception" role="tab" aria-selected="false">
-        <span class="tab-main">3. 実績調整</span>
+        <span class="tab-main">3. 追加・調整</span>
         <span class="tab-meta" id="stepMetaException">0件</span>
       </button>
     </div>
@@ -586,14 +586,14 @@
       </div>
       <div class="section-nav">
         <button type="button" class="sub" onclick="switchStep('settings')">戻る: 実施条件</button>
-        <span class="hint grow">保存後に「実績調整」で当日運用を記録できます。</span>
-        <button type="button" class="sub" onclick="switchStep('exception')">次へ: 実績調整</button>
+        <span class="hint grow">保存後に「追加・調整」で当日運用を記録できます。</span>
+        <button type="button" class="sub" onclick="switchStep('exception')">次へ: 追加・調整</button>
       </div>
     </section>
 
     <section class="section step-panel" id="stepPanelException" data-step="exception" role="tabpanel" aria-labelledby="stepTabException">
-      <h3>実績調整入力</h3>
-      <p class="section-note">実績に合わせて調整量を入力します。調整量は15分単位で、+は追加・-は減算です（+3は+1コマ、-1は-15分）。</p>
+      <h3>追加・調整入力</h3>
+      <p class="section-note">計画の追加や実績の調整を入力します。調整量は15分単位で、+は追加・-は減算です（+3は+1コマ、-1は-15分）。</p>
 
       <div class="exception-form">
         <div class="field">
@@ -627,10 +627,28 @@
       </div>
 
       <div class="action-row">
-        <button type="button" class="sub" id="addExceptionButton" onclick="addException()">このステップを保存</button>
+        <button type="button" class="sub" onclick="queueException()">リストに追加</button>
       </div>
 
-      <table class="exception-list" aria-label="最近の実績調整">
+      <table class="exception-list" id="pendingExceptionTable" aria-label="入力リスト" style="display:none;">
+        <thead>
+          <tr>
+            <th>日付</th>
+            <th>学年</th>
+            <th>調整量</th>
+            <th>理由</th>
+            <th>メモ</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="pendingExceptionBody"></tbody>
+      </table>
+
+      <div class="action-row">
+        <button type="button" class="sub" id="addExceptionButton" onclick="addException()" disabled>このステップを保存（<span id="pendingCount">0</span>件）</button>
+      </div>
+
+      <table class="exception-list" aria-label="最近の追加・調整">
         <thead>
           <tr>
             <th>日付</th>
@@ -667,7 +685,7 @@
     const STEP_LABELS = {
       settings: '実施条件',
       plan: '年間計画',
-      exception: '実績調整'
+      exception: '追加・調整'
     };
     const stepDirty = {
       settings: false,
@@ -1203,7 +1221,7 @@
 
       if (!Array.isArray(rows) || rows.length === 0) {
         const emptyRow = document.createElement('tr');
-        emptyRow.innerHTML = '<td colspan="5">実績調整はまだありません。</td>';
+        emptyRow.innerHTML = '<td colspan="5">追加・調整はまだありません。</td>';
         tbody.appendChild(emptyRow);
         return;
       }
@@ -1368,12 +1386,9 @@
         });
     }
 
-    function setDelta(value, markDirty) {
+    function setDelta(value) {
       document.getElementById('deltaSessionsInput').value = String(value);
       updateDeltaHint();
-      if (markDirty !== false) {
-        setStepDirty('exception', true);
-      }
     }
 
     function updateDeltaHint() {
@@ -1384,41 +1399,102 @@
       document.getElementById('deltaHint').textContent = '現在の調整量: ' + prefix + formatMixedFractionFromSessions(sessions) + 'コマ（' + minutePrefix + String(minutes) + '分）';
     }
 
-    function addException() {
-      const payload = {
-        date: document.getElementById('exceptionDate').value,
-        grade: Number(document.getElementById('exceptionGrade').value),
-        deltaSessions: Number(document.getElementById('deltaSessionsInput').value),
-        reason: document.getElementById('exceptionReason').value,
-        note: document.getElementById('exceptionNote').value,
-        baseDate: currentState.baseDate
-      };
+    let pendingExceptions = [];
 
-      if (!payload.date) {
+    function queueException() {
+      const date = document.getElementById('exceptionDate').value;
+      const grade = Number(document.getElementById('exceptionGrade').value);
+      const deltaSessions = Number(document.getElementById('deltaSessionsInput').value);
+      const reason = document.getElementById('exceptionReason').value;
+      const note = document.getElementById('exceptionNote').value;
+
+      if (!date) {
         setStatus('日付を入力してください。', 'error');
         return;
       }
-      if (!payload.deltaSessions) {
+      if (!deltaSessions) {
         setStatus('調整量は0以外で入力してください。', 'error');
         return;
       }
 
+      pendingExceptions.push({
+        date: date,
+        grade: grade,
+        deltaSessions: deltaSessions,
+        reason: reason,
+        note: note
+      });
+
+      document.getElementById('exceptionReason').value = '';
+      document.getElementById('exceptionNote').value = '';
+      renderPendingExceptions();
+      setStepDirty('exception', true);
+      setStatus('リストに追加しました（' + pendingExceptions.length + '件）。「このステップを保存」で一括保存します。', 'info');
+    }
+
+    function removeQueuedException(index) {
+      pendingExceptions.splice(index, 1);
+      renderPendingExceptions();
+      setStepDirty('exception', pendingExceptions.length > 0);
+    }
+
+    function renderPendingExceptions() {
+      const tbody = document.getElementById('pendingExceptionBody');
+      const table = document.getElementById('pendingExceptionTable');
+      const countSpan = document.getElementById('pendingCount');
+      const saveBtn = document.getElementById('addExceptionButton');
+      tbody.innerHTML = '';
+
+      if (pendingExceptions.length === 0) {
+        table.style.display = 'none';
+        saveBtn.disabled = true;
+        countSpan.textContent = '0';
+        return;
+      }
+
+      table.style.display = '';
+      saveBtn.disabled = false;
+      countSpan.textContent = String(pendingExceptions.length);
+
+      pendingExceptions.forEach(function(item, i) {
+        const tr = document.createElement('tr');
+        const sessions = Math.round(item.deltaSessions);
+        const prefix = sessions > 0 ? '+' : '';
+        tr.innerHTML = '<td>' + item.date + '</td>' +
+          '<td>' + item.grade + '年</td>' +
+          '<td>' + prefix + formatMixedFractionFromSessions(sessions) + 'コマ</td>' +
+          '<td>' + (item.reason || '') + '</td>' +
+          '<td>' + (item.note || '') + '</td>' +
+          '<td><button type="button" class="small-btn" onclick="removeQueuedException(' + i + ')">×</button></td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    function addException() {
+      if (pendingExceptions.length === 0) {
+        setStatus('リストに追加してから保存してください。', 'error');
+        return;
+      }
+
       setLoading(true);
-      setStatus('実績調整を保存して再計算しています...', 'info');
+      setStatus('追加・調整を保存して再計算しています...（' + pendingExceptions.length + '件）', 'info');
 
       google.script.run
         .withSuccessHandler(function(message) {
           setLoading(false);
-          setStatus(message || '実績調整を追加しました。', 'success');
-          document.getElementById('exceptionReason').value = '';
-          document.getElementById('exceptionNote').value = '';
+          pendingExceptions = [];
+          renderPendingExceptions();
+          setStatus(message || '追加・調整を保存しました。', 'success');
           loadDialogState(true);
         })
         .withFailureHandler(function(error) {
           setLoading(false);
-          setStatus('実績調整の保存に失敗しました: ' + getErrorMessage(error), 'error');
+          setStatus('追加・調整の保存に失敗しました: ' + getErrorMessage(error), 'error');
         })
-        .addModuleExceptionFromDialog(payload);
+        .addModuleExceptionsFromDialog({
+          items: pendingExceptions,
+          baseDate: currentState.baseDate
+        });
     }
 
     function refreshPlanning() {

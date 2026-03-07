@@ -248,56 +248,84 @@ function saveModuleAnnualTargetFromDialog(payload) {
 }
 
 /**
- * ダイアログから実績調整を追加して再計算
- * @param {Object} payload - 入力データ
- * @return {string} 完了メッセージ
+ * 追加・調整の1件分をバリデーションしてシート行データに変換
+ * @param {Object} item - 入力データ { date, grade, deltaSessions, reason, note }
+ * @param {Array<number>} enabledWeekdays - 実施曜日
+ * @param {number} index - 入力番号（エラーメッセージ用、0始まり）
+ * @return {Array} [exceptionDate, grade, deltaSessions, reason, note]
  */
-function addModuleExceptionFromDialog(payload) {
-  const exceptionDate = normalizeToDate(payload && payload.date);
+function validateExceptionItem_(item, enabledWeekdays, index) {
+  const label = '入力' + (index + 1) + ': ';
+  const exceptionDate = normalizeToDate(item && item.date);
   if (!exceptionDate) {
-    throw new Error('日付が不正です。');
+    throw new Error(label + '日付が不正です。');
   }
 
   const dayOfWeek = exceptionDate.getDay();
   if (dayOfWeek === 0 || dayOfWeek === 6) {
-    throw new Error(formatInputDate(exceptionDate) + ' は土日です。実施日（平日）を指定してください。');
+    throw new Error(label + formatInputDate(exceptionDate) + ' は土日です。実施日（平日）を指定してください。');
   }
 
-  const enabledWeekdays = getEnabledWeekdays();
   if (enabledWeekdays.indexOf(dayOfWeek) === -1) {
     const dayLabel = MODULE_WEEKDAY_LABELS[dayOfWeek] || '';
     const enabledLabels = enabledWeekdays
       .slice().sort(function(a, b) { return a - b; })
       .map(function(d) { return MODULE_WEEKDAY_LABELS[d] || String(d); })
       .join('・');
-    throw new Error(formatInputDate(exceptionDate) + '（' + dayLabel + '）は実施曜日ではありません。実施曜日: ' + enabledLabels);
+    throw new Error(label + formatInputDate(exceptionDate) + '（' + dayLabel + '）は実施曜日ではありません。実施曜日: ' + enabledLabels);
   }
 
-  const grade = Number(payload && payload.grade);
+  const grade = Number(item && item.grade);
   if (!Number.isInteger(grade) || grade < MODULE_GRADE_MIN || grade > MODULE_GRADE_MAX) {
-    throw new Error('学年は1〜6で入力してください。');
+    throw new Error(label + '学年は1〜6で入力してください。');
   }
 
-  const deltaSessions = Math.round(toNumberOrZero(payload && payload.deltaSessions));
+  const deltaSessions = Math.round(toNumberOrZero(item && item.deltaSessions));
   if (!Number.isFinite(deltaSessions) || deltaSessions === 0) {
-    throw new Error('調整量は0以外の数値を入力してください。');
+    throw new Error(label + '調整量は0以外の数値を入力してください。');
   }
 
-  const reason = String(payload && payload.reason ? payload.reason : '').trim();
-  const note = String(payload && payload.note ? payload.note : '').trim();
+  const reason = String(item && item.reason ? item.reason : '').trim();
+  const note = String(item && item.note ? item.note : '').trim();
+
+  return [exceptionDate, grade, deltaSessions, reason, note];
+}
+
+/**
+ * ダイアログから追加・調整を1件追加して再計算
+ * @param {Object} payload - 入力データ
+ * @return {string} 完了メッセージ
+ */
+function addModuleExceptionFromDialog(payload) {
+  return addModuleExceptionsFromDialog({ items: [payload], baseDate: payload && payload.baseDate });
+}
+
+/**
+ * ダイアログから追加・調整を一括追加して再計算
+ * @param {Object} payload - { items: Array<Object>, baseDate: string }
+ * @return {string} 完了メッセージ
+ */
+function addModuleExceptionsFromDialog(payload) {
+  const items = payload && payload.items;
+  if (!items || items.length === 0) {
+    throw new Error('入力データがありません。');
+  }
+
+  const enabledWeekdays = getEnabledWeekdays();
+  const rows = items.map(function(item, i) {
+    return validateExceptionItem_(item, enabledWeekdays, i);
+  });
 
   const controlSheet = initializeModuleHoursSheetsIfNeeded();
-  appendExceptionRows(controlSheet, [[exceptionDate, grade, deltaSessions, reason, note]]);
+  appendExceptionRows(controlSheet, rows);
 
   const baseDate = normalizeToDate(payload && payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
-  const exceptionFiscalYear = getFiscalYear(exceptionDate);
+  const firstDate = rows[0][0];
+  const exceptionFiscalYear = getFiscalYear(firstDate);
   const result = syncModuleHoursWithCumulative(baseDate, { fiscalYear: exceptionFiscalYear });
 
-  const minuteSign = deltaSessions > 0 ? '+' : '';
   return [
-    '実績調整を保存して再計算しました。',
-    '入力: ' + formatInputDate(exceptionDate) + ' / ' + grade + '年 / ' +
-      formatSignedSessionsAsMixedFraction(deltaSessions) + 'コマ（' + minuteSign + (deltaSessions * 15) + '分）',
+    '追加・調整を保存して再計算しました。（' + rows.length + '件）',
     '基準日: ' + formatInputDate(result.baseDate)
   ].join('\n');
 }
