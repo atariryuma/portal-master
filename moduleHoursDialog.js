@@ -320,9 +320,8 @@ function addModuleExceptionsFromDialog(payload) {
   appendExceptionRows(controlSheet, rows);
 
   const baseDate = normalizeToDate(payload && payload.baseDate) || normalizeToDate(getCurrentOrNextSaturday());
-  const firstDate = rows[0][0];
-  const exceptionFiscalYear = getFiscalYear(firstDate);
-  const result = syncModuleHoursWithCumulative(baseDate, { fiscalYear: exceptionFiscalYear });
+  const detectedFiscalYear = detectFiscalYearFromAnnualSchedule(baseDate);
+  const result = syncModuleHoursWithCumulative(baseDate, { fiscalYear: detectedFiscalYear });
 
   return [
     '追加・調整を保存して再計算しました。（' + rows.length + '件）',
