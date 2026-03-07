@@ -237,7 +237,8 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
       });
 
       row.push(formatSessionsAsMixedFraction(totalSessions));
-      row.push(toNumberOrZero(annualTarget.gradeKoma[grade]));
+      const planSessions = Math.round(toNumberOrZero(annualTarget.gradeKoma[grade]) * 3) + toNumberOrZero(exceptionSessionsByGrade[grade]);
+      row.push(formatSessionsAsMixedFraction(planSessions));
 
       const reserve = toNumberOrZero(buildResult.reserveByGrade[grade]) - toNumberOrZero(exceptionSessionsByGrade[grade]);
       if (reserve > 0) {
