@@ -186,18 +186,20 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     const titleRange = sheet.getRange(1, 1, 1, 16);
     titleRange.merge();
     sheet.getRange(1, 1).setValue('モジュール学習 年間実施計画');
-    sheet.getRange(1, 1).setFontSize(14).setFontWeight('bold');
+    sheet.getRange(1, 1).setFontSize(12).setFontWeight('bold');
 
     // 行3: 年度・実施期間
     sheet.getRange(3, 1).setValue(
       '年度: ' + fiscalYear + '年度　　実施期間: ' +
       formatInputDate(buildResult.startDate) + ' ～ ' + formatInputDate(buildResult.endDate)
     );
+    sheet.getRange(3, 1).setFontSize(9);
 
     // 行4: 実施曜日・形式
     sheet.getRange(4, 1).setValue(
       '実施曜日: ' + weekdayNames + '　　1回15分（3回で1単位時間 = 45分）'
     );
+    sheet.getRange(4, 1).setFontSize(9);
 
     // 行6: ヘッダー
     const headerRow = 6;
@@ -250,6 +252,8 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     // データ行の書式
     const dataRange = sheet.getRange(dataStartRow, 1, dataRows.length, headers.length);
     dataRange.setBorder(true, true, true, true, true, true);
+    // ヘッダー+データ行をA4向けに9ptに設定
+    sheet.getRange(headerRow, 1, dataRows.length + 1, headers.length).setFontSize(9);
     sheet.getRange(dataStartRow, 2, dataRows.length, 12).setHorizontalAlignment('center');
     sheet.getRange(dataStartRow, 14, dataRows.length, 3).setHorizontalAlignment('center');
 
@@ -409,7 +413,7 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
 
         // 日別セクションのフォントサイズ・行高さ（印刷最適化）— ヘッダー+データを1回で設定
         sheet.getRange(dailyHeaderRow, 1, maxBlockRows + 1, blockCols * 2).setFontSize(9);
-        sheet.setRowHeights(dailyDataStartRow, maxBlockRows, 18);
+        sheet.setRowHeights(dailyDataStartRow, maxBlockRows, 16);
 
         lastContentRow = dailyDataStartRow + maxBlockRows - 1;
       }
@@ -422,8 +426,8 @@ function writeModulePlanSummarySheet(buildResult, annualTarget, enabledWeekdays,
     );
     sheet.getRange(footerRow, 1).setFontSize(9).setFontColor('#64748b');
 
-    // 列幅調整（全列均等幅で日別2段組みの左右対称を確保）
-    sheet.setColumnWidths(1, 16, 45);
+    // 列幅調整（A4縦印刷に収まる均等幅で左右対称を確保）
+    sheet.setColumnWidths(1, 16, 40);
 
     Logger.log('[INFO] モジュール学習計画シートを更新しました');
   } catch (error) {
