@@ -1157,7 +1157,7 @@ function testIsExceptionDateInRange() {
 }
 
 function testApplyAttendanceForDateRows() {
-  if (typeof buildDateRowIndicesMap_ !== 'function' ||
+  if (typeof buildDateRowIndicesMapExpanded_ !== 'function' ||
       typeof applyAttendanceForDateRows_ !== 'function' ||
       typeof formatDateKey !== 'function') {
     return { success: false, message: '必要関数が見つかりません' };
@@ -1170,7 +1170,7 @@ function testApplyAttendanceForDateRows() {
     [targetDate], [targetDate], [targetDate],
     [otherDate]
   ];
-  const dateMap = buildDateRowIndicesMap_(dateValues);
+  const dateMap = buildDateRowIndicesMapExpanded_(dateValues, 6, dateValues.length);
   const targetKey = formatDateKey(targetDate);
 
   if (!Array.isArray(dateMap[targetKey]) || dateMap[targetKey].length !== 6) {

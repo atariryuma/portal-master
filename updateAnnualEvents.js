@@ -110,26 +110,6 @@ function updateAnnualEvents() {
 }
 
 /**
- * 年間行事予定表の日付列から「日付文字列 => 行インデックス配列(0-based)」を構築
- * @param {Array<Array<*>>} dateValues - 日付列データ
- * @return {Object} マップ
- */
-function buildDateRowIndicesMap_(dateValues) {
-  const map = {};
-  for (let i = 0; i < dateValues.length; i++) {
-    const key = formatDateKey(dateValues[i][0]);
-    if (!key) {
-      continue;
-    }
-    if (!map[key]) {
-      map[key] = [];
-    }
-    map[key].push(i);
-  }
-  return map;
-}
-
-/**
  * 1日分の校時データ（36セル）を対象行へ反映
  * @param {Array<Array<*>>} attendanceValues - 年間行事予定表のU:Zキャッシュ
  * @param {Array<number>} rowIndices - 対象行インデックス（0-based）

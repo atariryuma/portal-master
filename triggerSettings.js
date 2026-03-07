@@ -314,19 +314,6 @@ function getManagedProjectTriggers() {
   });
 }
 
-/**
- * 管理対象の全プロジェクトトリガーを削除
- */
-function deleteAllProjectTriggers() {
-  const triggers = getManagedProjectTriggers();
-
-  triggers.forEach(function(trigger) {
-    ScriptApp.deleteTrigger(trigger);
-  });
-
-  Logger.log('[INFO] 管理対象トリガーを' + triggers.length + '個削除しました。');
-}
-
 function getDefaultTriggerSettings() {
   return Object.freeze({
     weeklyPdf: Object.freeze({ enabled: true, day: 1, hour: 2 }),

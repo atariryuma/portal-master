@@ -292,15 +292,6 @@ function validateExceptionItem_(item, enabledWeekdays, index) {
 }
 
 /**
- * ダイアログから追加・調整を1件追加して再計算
- * @param {Object} payload - 入力データ
- * @return {string} 完了メッセージ
- */
-function addModuleExceptionFromDialog(payload) {
-  return addModuleExceptionsFromDialog({ items: [payload], baseDate: payload && payload.baseDate });
-}
-
-/**
  * ダイアログから追加・調整を一括追加して再計算
  * @param {Object} payload - { items: Array<Object>, baseDate: string }
  * @return {string} 完了メッセージ
