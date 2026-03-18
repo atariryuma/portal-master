@@ -33,10 +33,13 @@ function setDailyHyperlink() {
       const cellRef = dateCol + targetRow;
       const linkFormula = '=HYPERLINK("#gid=' + gid + '&range=' + cellRef + '", "今日へ")';
       sheet.getRange(dateCol + '1').setFormula(linkFormula);
+      recordLastRun_('setDailyHyperlink', true);
     } else {
       sheet.getRange(dateCol + '1').setValue("今日（" + formattedToday + "）は年間行事予定表に見つかりませんでした。");
+      recordLastRun_('setDailyHyperlink', true);
     }
   } catch (error) {
+    recordLastRun_('setDailyHyperlink', false, error.toString());
     Logger.log('[ERROR] 日付リンク設定中にエラー: ' + error.toString());
   }
 }

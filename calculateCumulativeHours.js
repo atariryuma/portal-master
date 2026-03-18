@@ -60,9 +60,11 @@ function calculateCumulativeHours() {
 
     syncModuleHoursWithCumulative(thisSaturday);
 
+    recordLastRun_('calculateCumulativeHours', true);
     showAlert(formattedDate + 'を計算しました。モジュール学習計画も更新済みです。', '通知');
 
   } catch (error) {
+    recordLastRun_('calculateCumulativeHours', false, error.message);
     showAlert(error.message, 'エラー');
   }
 }

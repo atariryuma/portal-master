@@ -17,7 +17,9 @@ function saveToPDF() {
         Logger.log('[WARNING] シート ' + sheetName + ' が見つかりません。');
       }
     });
+    recordLastRun_('saveToPDF', true);
   } catch (error) {
+    recordLastRun_('saveToPDF', false, error.toString());
     showAlert('PDF保存中にエラーが発生しました: ' + error.toString(), 'エラー');
   }
 }

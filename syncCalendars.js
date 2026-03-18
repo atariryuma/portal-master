@@ -85,8 +85,10 @@ function syncCalendars() {
         '対外行事', i + 1, externalEventsMap[dateKey] || [], holidayEventsMap[dateKey] || []);
     }
     Logger.log("[INFO] カレンダーの同期が完了しました。");
+    recordLastRun_('syncCalendars', true);
     showAlert('カレンダーの同期が完了しました。', '通知');
   } catch (error) {
+    recordLastRun_('syncCalendars', false, error.toString());
     showAlert('カレンダー同期でエラーが発生しました: ' + error.toString(), 'エラー');
   } finally {
     lock.releaseLock();

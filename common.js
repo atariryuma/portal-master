@@ -296,6 +296,27 @@ const MODULE_CUMULATIVE_COLUMNS = Object.freeze({
   DISPLAY: 16  // P列（表示列）
 });
 
+/**
+ * 必須シート名一覧
+ * @const {Array<string>}
+ */
+const REQUIRED_SHEET_NAMES = Object.freeze([
+  'マスター', 'app_config', '時数様式', '年間行事予定表',
+  '累計時数', '日直表', 'module_control',
+  '週報（時数あり）', '週報（時数あり）次週'
+]);
+
+/**
+ * トリガー管理対象の関数名と日本語ラベル
+ * @const {Object}
+ */
+const TRIGGER_FUNCTION_LABELS = Object.freeze({
+  setDailyHyperlink: '日付リンク更新',
+  calculateCumulativeHours: '累計時数計算',
+  saveToPDF: '週報PDF保存',
+  syncCalendars: 'カレンダー同期'
+});
+
 // ========================================
 // 日付処理関数
 // ========================================
@@ -626,6 +647,53 @@ function getSettingsSheetOrThrow() {
  */
 function include_(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+// ========================================
+// 実行記録
+// ========================================
+
+/**
+ * 関数の最終実行結果をPropertiesServiceに記録する
+ * @param {string} funcName - 関数名
+ * @param {boolean} success - 成功したか
+ * @param {string=} errorMsg - エラーメッセージ（失敗時）
+ */
+function recordLastRun_(funcName, success, errorMsg) {
+  try {
+    const props = PropertiesService.getDocumentProperties();
+    const record = {
+      timestamp: new Date().toISOString(),
+      success: success
+    };
+    if (!success && errorMsg) {
+      record.error = errorMsg.substring(0, 200);
+    }
+    props.setProperty('LAST_RUN_' + funcName, JSON.stringify(record));
+  } catch (e) {
+    Logger.log('[WARNING] 実行記録の保存に失敗: ' + e.toString());
+  }
+}
+
+/**
+ * 全トリガー関数の最終実行記録を取得する
+ * @return {Object} 関数名→実行記録のマップ
+ */
+function getLastRunRecords_() {
+  const allProps = PropertiesService.getDocumentProperties().getProperties();
+  const prefix = 'LAST_RUN_';
+  const records = {};
+  Object.keys(TRIGGER_FUNCTION_LABELS).forEach(function(fn) {
+    const raw = allProps[prefix + fn];
+    if (raw) {
+      try {
+        records[fn] = JSON.parse(raw);
+      } catch (e) {
+        records[fn] = { timestamp: raw, success: true };
+      }
+    }
+  });
+  return records;
 }
 
 // ========================================
