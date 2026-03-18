@@ -8,19 +8,25 @@
 const CALENDAR_SYNC_MANAGED_MARKER = '[PORTAL_MASTER_MANAGED]';
 
 function syncCalendars() {
-  const ui = SpreadsheetApp.getUi();
-  const confirm = ui.alert(
-    'カレンダー同期',
-    'Googleカレンダーにイベントを同期します。既存の管理対象イベントは差分更新されます。実行しますか？',
-    ui.ButtonSet.OK_CANCEL
-  );
-  if (confirm !== ui.Button.OK) {
-    return;
+  // 時刻トリガーからはUI操作不可のため、手動実行時のみ確認ダイアログを表示
+  if (!isTriggeredExecution_()) {
+    const ui = SpreadsheetApp.getUi();
+    const confirm = ui.alert(
+      'カレンダー同期',
+      'Googleカレンダーにイベントを同期します。既存の管理対象イベントは差分更新されます。実行しますか？',
+      ui.ButtonSet.OK_CANCEL
+    );
+    if (confirm !== ui.Button.OK) {
+      return;
+    }
   }
 
   const lock = LockService.getDocumentLock();
   if (!lock.tryLock(10000)) {
-    showAlert('別のユーザーがカレンダー同期を実行中です。しばらく待ってから再度お試しください。', 'エラー');
+    if (!isTriggeredExecution_()) {
+      showAlert('別のユーザーがカレンダー同期を実行中です。しばらく待ってから再度お試しください。', 'エラー');
+    }
+    Logger.log('[WARNING] カレンダー同期: ロック取得に失敗しました。別のプロセスが実行中です。');
     return;
   }
 

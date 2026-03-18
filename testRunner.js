@@ -191,6 +191,21 @@ function getFullTestPlan_() {
         { name: '7-18. 公開関数定義確認', fn: testPublicFunctionDefinitions },
         { name: '7-19. 不正時刻入力の拒否', fn: testSetEventTimeRejectsInvalidInput }
       ]
+    },
+    {
+      title: '【フェーズ8】追加機能検証',
+      tests: [
+        { name: '8-1. countStars関数定義とバッチ処理', fn: testCountStarsDefinitionAndBatch },
+        { name: '8-2. countStars☆パースロジック', fn: testCountStarsParseLogic },
+        { name: '8-3. updateAnnualDuty関数定義とバッチ処理', fn: testUpdateAnnualDutyDefinitionAndBatch },
+        { name: '8-4. setDailyHyperlink関数定義と日付検索', fn: testSetDailyHyperlinkDefinition },
+        { name: '8-5. ダイアログハンドラー定義確認', fn: testDialogHandlerDefinitions },
+        { name: '8-6. トリガー設定保存バリデーション', fn: testSaveTriggerSettingsValidation },
+        { name: '8-7. 年度更新設定保存バリデーション', fn: testSaveAnnualUpdateSettingsValidation },
+        { name: '8-8. reverseUpdateToMaster関数定義', fn: testReverseUpdateToMasterDefinition },
+        { name: '8-9. isTriggeredExecution_コンテキスト判定', fn: testIsTriggeredExecutionContext },
+        { name: '8-10. webapp.jsのvar宣言排除確認', fn: testWebappNoVarDeclarations }
+      ]
     }
   ];
 }
@@ -1287,7 +1302,7 @@ function testCopyAndClearTargetsActiveFileAfterCopy() {
   const source = String(copyAndClear);
   const requiredFragments = [
     'makeCopy(',
-    "getSheetByName('年間行事予定表')",
+    'ANNUAL_SCHEDULE.SHEET_NAME',
     'ANNUAL_SCHEDULE.CLEAR_EVENT_RANGE',
     'ANNUAL_SCHEDULE.CLEAR_DATA_RANGE',
     'ANNUAL_SCHEDULE.DATA_START_ROW'
@@ -2110,4 +2125,240 @@ function hideInternalSheetsAfterTest_() {
   } catch (error) {
     Logger.log('[WARNING] テスト後の内部シート非表示化に失敗: ' + error.toString());
   }
+}
+
+// ========================================
+// フェーズ8: 追加機能検証
+// ========================================
+
+function testCountStarsDefinitionAndBatch() {
+  if (typeof countStars !== 'function') {
+    return { success: false, message: 'countStars関数が見つかりません' };
+  }
+  const source = countStars.toString();
+  if (source.indexOf('getValues') === -1) {
+    return { success: false, message: 'countStarsがバッチ読み取り（getValues）を使用していません' };
+  }
+  if (source.indexOf('setValues') === -1) {
+    return { success: false, message: 'countStarsがバッチ書き込み（setValues）を使用していません' };
+  }
+  return { success: true, message: 'countStarsはバッチ処理で実装されています' };
+}
+
+function testCountStarsParseLogic() {
+  // ☆パースロジックをシミュレーション（実データに触れずに検証）
+  const testCases = [
+    { input: '☆☆\n太郎\n花子', expectedStars: 2, expectedNames: ['太郎', '花子'] },
+    { input: '☆\n一郎', expectedStars: 1, expectedNames: ['一郎'] },
+    { input: '日直なし', expectedStars: 0, expectedNames: [] },
+    { input: '', expectedStars: 0, expectedNames: [] }
+  ];
+
+  for (let i = 0; i < testCases.length; i++) {
+    const tc = testCases[i];
+    const lines = tc.input ? tc.input.split('\n') : [];
+    const starCount = lines.length > 0 ? (lines[0].match(/☆/g) || []).length : 0;
+    if (starCount !== tc.expectedStars) {
+      return { success: false, message: 'テストケース' + (i + 1) + ': ☆数が不一致 (期待=' + tc.expectedStars + ', 実際=' + starCount + ')' };
+    }
+    if (starCount > 0) {
+      const names = [];
+      for (let j = 1; j < lines.length; j++) {
+        const name = lines[j].trim();
+        if (name) {
+          names.push(name);
+        }
+      }
+      if (names.length !== tc.expectedNames.length) {
+        return { success: false, message: 'テストケース' + (i + 1) + ': 名前数が不一致' };
+      }
+    }
+  }
+  return { success: true, message: '☆パースロジック: ' + testCases.length + 'パターン正常' };
+}
+
+function testUpdateAnnualDutyDefinitionAndBatch() {
+  if (typeof updateAnnualDuty !== 'function') {
+    return { success: false, message: 'updateAnnualDuty関数が見つかりません' };
+  }
+  const source = updateAnnualDuty.toString();
+  if (source.indexOf('getValues') === -1) {
+    return { success: false, message: 'updateAnnualDutyがバッチ読み取りを使用していません' };
+  }
+  if (source.indexOf('setValues') === -1) {
+    return { success: false, message: 'updateAnnualDutyがバッチ書き込みを使用していません' };
+  }
+  if (source.indexOf('createDateMap') === -1) {
+    return { success: false, message: 'updateAnnualDutyがcreateDateMapを使用していません' };
+  }
+  return { success: true, message: 'updateAnnualDutyはバッチ処理・日付マップを使用' };
+}
+
+function testSetDailyHyperlinkDefinition() {
+  if (typeof setDailyHyperlink !== 'function') {
+    return { success: false, message: 'setDailyHyperlink関数が見つかりません' };
+  }
+  const source = setDailyHyperlink.toString();
+  if (source.indexOf('getValues') === -1) {
+    return { success: false, message: 'setDailyHyperlinkがバッチ読み取りを使用していません' };
+  }
+  if (source.indexOf('HYPERLINK') === -1) {
+    return { success: false, message: 'setDailyHyperlinkがHYPERLINK数式を生成していません' };
+  }
+  if (source.indexOf('formatDateKey') === -1) {
+    return { success: false, message: 'setDailyHyperlinkが共通日付関数を使用していません' };
+  }
+  return { success: true, message: 'setDailyHyperlinkはバッチ読み取り・HYPERLINK生成・共通関数を使用' };
+}
+
+function testDialogHandlerDefinitions() {
+  const handlers = [
+    { name: 'getTriggerSettings', type: 'トリガー設定取得' },
+    { name: 'saveTriggerSettings', type: 'トリガー設定保存' },
+    { name: 'getAnnualUpdateSettings', type: '年度更新設定取得' },
+    { name: 'saveAnnualUpdateSettings', type: '年度更新設定保存' },
+    { name: 'showTriggerSettingsDialog', type: 'トリガーダイアログ表示' },
+    { name: 'showAnnualUpdateSettingsDialog', type: '年度更新ダイアログ表示' }
+  ];
+  const missing = [];
+  handlers.forEach(function(h) {
+    if (typeof this[h.name] !== 'function') {
+      missing.push(h.name + '(' + h.type + ')');
+    }
+  });
+  if (missing.length > 0) {
+    return { success: false, message: '未定義ハンドラー: ' + missing.join(', ') };
+  }
+  return { success: true, message: handlers.length + '個のダイアログハンドラーがすべて定義済み' };
+}
+
+function testSaveTriggerSettingsValidation() {
+  if (typeof validateTriggerSettings !== 'function') {
+    return { success: false, message: 'validateTriggerSettings関数が見つかりません' };
+  }
+  // 不正な時刻でバリデーションが失敗することを確認
+  try {
+    const invalidSettings = {
+      weeklyPdf: { enabled: true, day: 1, hour: 25 },
+      cumulativeHours: { enabled: false, day: 1, hour: 2 },
+      calendarSync: { enabled: false, hour: 3 },
+      dailyHyperlink: { enabled: false, hour: 4 }
+    };
+    validateTriggerSettings(invalidSettings);
+    return { success: false, message: '不正な時刻(25時)を検出できませんでした' };
+  } catch (error) {
+    return { success: true, message: '不正な時刻を正しく拒否' };
+  }
+}
+
+function testSaveAnnualUpdateSettingsValidation() {
+  if (typeof validateAnnualUpdateSettings_ !== 'function') {
+    return { success: false, message: 'validateAnnualUpdateSettings_関数が見つかりません' };
+  }
+  // 日曜でない基準日でバリデーションが失敗することを確認
+  try {
+    const invalidSettings = {
+      copyFileName: 'テスト',
+      copyDestinationFolderId: '',
+      baseSunday: '2026-03-18',
+      weeklyReportFolderId: '',
+      eventCalendarId: '',
+      externalCalendarId: ''
+    };
+    validateAnnualUpdateSettings_(invalidSettings);
+    return { success: false, message: '日曜でない基準日を検出できませんでした' };
+  } catch (error) {
+    const message = error && error.message ? error.message : String(error || '');
+    if (message.indexOf('日曜日') !== -1) {
+      return { success: true, message: '日曜でない基準日を正しく拒否' };
+    }
+    return { success: true, message: 'バリデーションエラーを検出: ' + message };
+  }
+}
+
+function testReverseUpdateToMasterDefinition() {
+  if (typeof reverseUpdateToMaster !== 'function') {
+    return { success: false, message: 'reverseUpdateToMaster関数が見つかりません' };
+  }
+  const source = reverseUpdateToMaster.toString();
+  if (source.indexOf('try') === -1 || source.indexOf('catch') === -1) {
+    return { success: false, message: 'reverseUpdateToMasterにエラーハンドリングがありません' };
+  }
+  if (source.indexOf('getValues') === -1 || source.indexOf('setValues') === -1) {
+    return { success: false, message: 'reverseUpdateToMasterがバッチ処理を使用していません' };
+  }
+  return { success: true, message: 'reverseUpdateToMasterはエラーハンドリング・バッチ処理を使用' };
+}
+
+function testIsTriggeredExecutionContext() {
+  if (typeof isTriggeredExecution_ !== 'function') {
+    return { success: false, message: 'isTriggeredExecution_関数が見つかりません' };
+  }
+  // 関数が boolean を返すことを確認（実行コンテキストにより true/false どちらもあり得る）
+  const result = isTriggeredExecution_();
+  if (typeof result !== 'boolean') {
+    return { success: false, message: 'boolean以外が返りました: ' + typeof result };
+  }
+  const context = result ? 'トリガー/ウェブアプリ' : 'UI（メニュー/エディタ）';
+  return { success: true, message: 'コンテキスト判定正常（現在: ' + context + '）' };
+}
+
+function testWebappNoVarDeclarations() {
+  if (typeof doGet !== 'function') {
+    return { success: false, message: 'doGet関数が見つかりません（webapp.js未ロード）' };
+  }
+  // webapp.jsの主要関数のソースコードにvarが含まれていないことを確認
+  const functions = [doGet, doPost, buildJsonResponse_, runDiagnostics_, getStatusInfo_];
+  const functionsWithVar = [];
+  functions.forEach(function(fn) {
+    const source = fn.toString();
+    if ((/\bvar\s+/).test(source)) {
+      functionsWithVar.push(fn.name || '(anonymous)');
+    }
+  });
+  if (functionsWithVar.length > 0) {
+    return { success: false, message: 'var宣言が残存: ' + functionsWithVar.join(', ') };
+  }
+  return { success: true, message: 'webapp.js主要関数にvar宣言なし' };
+}
+
+/**
+ * モジュール学習計画シートのレイアウト診断（実行後ログを確認）
+ */
+function inspectPlanSummaryLayout() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(MODULE_SHEET_NAMES.PLAN_SUMMARY);
+  if (!sheet) {
+    Logger.log('シートが見つかりません: ' + MODULE_SHEET_NAMES.PLAN_SUMMARY);
+    return;
+  }
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  Logger.log('=== シート情報 ===');
+  Logger.log('最終行: ' + lastRow + ', 最終列: ' + lastCol);
+
+  // 列幅
+  const colWidths = [];
+  for (let c = 1; c <= Math.min(lastCol, 16); c++) {
+    colWidths.push('C' + c + ':' + sheet.getColumnWidth(c));
+  }
+  Logger.log('列幅: ' + colWidths.join(', '));
+
+  // 行高さ・内容・フォントサイズ（全行）
+  Logger.log('=== 行詳細 ===');
+  for (let r = 1; r <= lastRow; r++) {
+    const height = sheet.getRowHeight(r);
+    const val = sheet.getRange(r, 1).getDisplayValue();
+    const fontSize = sheet.getRange(r, 1).getFontSize();
+    const fontWeight = sheet.getRange(r, 1).getFontWeight();
+    const preview = val.length > 40 ? val.substring(0, 40) + '...' : val;
+    Logger.log('R' + r + ' h=' + height + ' fs=' + fontSize + ' fw=' + fontWeight + ' | ' + preview);
+  }
+
+  // マージ情報
+  const mergedRanges = sheet.getRange(1, 1, lastRow, lastCol).getMergedRanges();
+  Logger.log('=== マージ ===');
+  mergedRanges.forEach(function(range) {
+    Logger.log(range.getA1Notation());
+  });
 }

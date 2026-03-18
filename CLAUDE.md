@@ -22,8 +22,9 @@ clasp open
 ### Testing (executed in Apps Script editor, not locally)
 
 - **Quick test** (daily development): Run `runQuickTest()` — 9 critical tests across 2 groups
-- **Full test** (before release): Run `runAllTests()` — 63 tests across 7 phases
+- **Full test** (before release): Run `runAllTests()` — 73 tests across 8 phases
 - Tests cannot be run locally. They execute inside the GAS environment against live spreadsheet data.
+- Tests can also be run remotely via the web app endpoint: `?page=tests&suite=full&phase=N` (N=1-8)
 - If any test fails, check `【エラー詳細】` in the Apps Script execution log.
 
 ## Architecture
@@ -57,7 +58,7 @@ When adding new constants, always wrap with `Object.freeze()` to prevent acciden
 
 ### File Organization
 
-**JS files (22):**
+**JS files (24):**
 
 | File | Purpose |
 |------|---------|
@@ -82,9 +83,10 @@ When adding new constants, always wrap with `Object.freeze()` to prevent acciden
 | `moduleHoursPlanning.js` | Session allocation algorithms (annual/monthly modes), school day mapping, exception handling |
 | `moduleHoursDialog.js` | Module planning dialog state assembly, server-side handlers for dialog actions |
 | `moduleHoursDisplay.js` | Cumulative output, formatting, plan summary sheet, date/number utilities |
-| `testRunner.js` | Test suite: 63 tests (full) / 9 tests (quick) |
+| `webapp.js` | Web app entry points (doGet/doPost), diagnostics, test runner endpoint, orphan trigger cleanup |
+| `testRunner.js` | Test suite: 73 tests (full) / 9 tests (quick) |
 
-**HTML files (6):**
+**HTML files (7):**
 
 | File | Purpose |
 |------|---------|
@@ -94,6 +96,7 @@ When adding new constants, always wrap with `Object.freeze()` to prevent acciden
 | `DateSelector.html` | Date range picker for grade aggregation |
 | `dialogStyles.html` | Shared CSS styles (included via `include_()`) |
 | `userGuide.html` | Comprehensive user guide |
+| `webappHome.html` | Web app dashboard UI (endpoint list, status/diagnostics/test buttons) |
 
 ### Module Learning Subsystem (5 files)
 
@@ -125,6 +128,18 @@ HTML dialogs (`*.html`) call server-side functions via `google.script.run`. Each
 4. `DateSelector.html` ↔ `aggregateSchoolEvents.js`
 
 For shared styles, render dialogs with `createTemplateFromFile(...).evaluate()` and include `<?!= include_('dialogStyles') ?>` (helper: `include_()` in `common.js`). This applies to trigger settings, annual update settings, and DateSelector dialogs. `modulePlanningDialog.html` does **not** use shared styles (it uses inline CSS).
+
+### Web App
+
+`webapp.js` provides `doGet(e)` and `doPost(e)` entry points for the web app deployment. Available endpoints:
+- `?page=home` — dashboard UI (`webappHome.html`)
+- `?page=status` — detailed system status (JSON: spreadsheet info, sheets, triggers, module settings, app_config)
+- `?page=diagnostics` — health checks (required sheets, key functions, trigger list)
+- `?page=tests&suite=full&phase=N` — run test suite remotely (phase 1-8, or omit phase for all)
+- POST `{"action": "ping"}` — connectivity check
+- POST `{"action": "deleteOrphanTriggers"}` — remove triggers with no matching function
+
+`isTriggeredExecution_()` in `common.js` detects whether code is running from a time trigger or web app (no UI context) vs. menu/dialog (UI available). Used by `syncCalendars()` to skip confirmation dialogs during trigger execution.
 
 ### Per-Execution Caching
 
